@@ -11,9 +11,9 @@ const {
   sanitizeMode,
   sanitizeNickname,
   sanitizeMeters
-} = require('./lib/leaderboardStore');
+} = require('../lib/leaderboardStore');
 
-const ROOT_DIR = __dirname;
+const ROOT_DIR = path.resolve(__dirname, '..');
 const ENV_PATH = path.join(ROOT_DIR, '.env');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const LOCAL_STORE_PATH = path.join(DATA_DIR, 'leaderboard.json');
@@ -163,7 +163,7 @@ function serveStaticFile(reqPath, res) {
     rel.startsWith('lib/') ||
     rel.startsWith('api/') ||
     rel.startsWith('scripts/') ||
-    rel === 'server.js' ||
+    rel.startsWith('dist/') ||
     rel === 'vercel.json' ||
     rel === 'package.json' ||
     rel === 'package-lock.json' ||

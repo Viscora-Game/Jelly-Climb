@@ -2,10 +2,9 @@
   "name": "jelly-climb",
   "version": "1.2.0",
   "description": "Jelly Climb — Vertical 9:16 slingshot arcade game with dual-mode MongoDB leaderboard",
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "start": "node scripts/local-server.js",
+    "dev": "node scripts/local-server.js",
     "build": "node scripts/build-vercel.js"
   },
   "dependencies": {
