@@ -20,7 +20,8 @@
     GAME_MODE: 'jelly_climb_mode',
     BEST_TEMPO: 'jelly_climb_best_tempo',
     TOTAL_CLOSE_CALLS: 'jelly_climb_close_calls',
-    REWARDS_CLAIMED: 'jelly_climb_rewards_claimed'
+    REWARDS_CLAIMED: 'jelly_climb_rewards_claimed',
+    BOSSES_DEFEATED: 'jelly_climb_bosses_defeated'
   });
 
   function clamp(val, min, max) {
@@ -138,6 +139,14 @@
       this.wardrobeDragMoved = false;
       this.rewardToast = null;
       this.runUnlockedGear = [];
+
+      // Boss encounter progression (250m -> 500m -> 1000m -> 2000m -> 4000m -> 8000m...)
+      this.bossesDefeated = this._loadInt(STORAGE_KEYS.BOSSES_DEFEATED, 0);
+      this.activeBoss = null;
+      this.nextBossIndex = 0;
+      this.runBossesDefeated = 0;
+      this.bossWarnedIndex = -1;
+      this.bossWarningTimer = 0;
 
       // Altitude theme banner state
       this.announcedThemeIdx = 0;
@@ -422,6 +431,7 @@
         global.localStorage.removeItem(STORAGE_KEYS.UNLOCKED_COLORS);
         global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED_COLOR);
         global.localStorage.removeItem(STORAGE_KEYS.REWARDS_CLAIMED);
+        global.localStorage.removeItem(STORAGE_KEYS.BOSSES_DEFEATED);
         global.localStorage.removeItem(STORAGE_KEYS.TUTORIAL_DONE);
         global.localStorage.removeItem(STORAGE_KEYS.GAME_MODE);
       } catch (_) {}
@@ -430,6 +440,12 @@
       this.bestRisingMeters = 0;
       this.bestTempo = 1;
       this.totalCloseCalls = 0;
+      this.bossesDefeated = 0;
+      this.activeBoss = null;
+      this.nextBossIndex = 0;
+      this.runBossesDefeated = 0;
+      this.bossWarnedIndex = -1;
+      this.bossWarningTimer = 0;
       this.runStartBestMeters = 0;
       this.tutorialDone = false;
       this.gameMode = 'tutorial';
@@ -931,6 +947,40 @@
           this.showHitboxes = !this.showHitboxes;
           return;
         }
+        const isLocalQa =
+          global.location &&
+          (global.location.hostname === '127.0.0.1' || global.location.hostname === 'localhost');
+        if (isLocalQa && (e.code === 'KeyB' || e.code === 'KeyV')) {
+          e.preventDefault();
+          if (this.state !== 'playing') {
+            this.gameMode = 'classic';
+            this.resetRun();
+          }
+          const bossIdx = e.code === 'KeyV' ? 4 : 0;
+          const targetM = JellyGame.Bosses ? JellyGame.Bosses.getMilestoneMeters(bossIdx) : 250;
+          this.isQaWarpRun = true;
+          this.hasLaunchedOnce = true;
+          this.highestY = C.START_PLAYER_Y - targetM * C.PIXELS_PER_METER;
+          this.currentMeters = targetM;
+          const boss = this._spawnBossForIndex(bossIdx);
+          if (boss) {
+            boss.introTimer = 0;
+            if (e.code === 'KeyV') {
+              boss.hp = Math.min(8, boss.maxHp);
+              boss.phase = 2;
+              boss._refreshOrbitOrbs();
+            }
+            this.cameraY = boss.cameraTargetY;
+            this.player.wallAttached = -1;
+            this.player.floorAttached = false;
+            this.player.cancelAim();
+            this.player.velocityX = 0;
+            this.player.velocityY = 0;
+            this.player.positionX = C.WALL_WIDTH + this.player.radius;
+            this.player.positionY = boss.homeY + 110;
+          }
+          return;
+        }
         if (e.code === 'Escape' && this.activeModal) {
           this.activeModal = null;
           return;
@@ -1302,6 +1352,7 @@
 
     _submitCurrentRunScore() {
       if (
+        !this.isQaWarpRun &&
         this.leaderboard &&
         (this.gameMode === 'classic' || this.gameMode === 'rising') &&
         this.currentMeters > 0
@@ -1328,6 +1379,12 @@
       this.particles.clear();
       this.generator.reset();
       this.projectiles.length = 0;
+      this.activeBoss = null;
+      this.nextBossIndex = 0;
+      this.runBossesDefeated = 0;
+      this.bossWarnedIndex = -1;
+      this.bossWarningTimer = 0;
+      this.isQaWarpRun = false;
 
       this.cameraY = C.START_CAMERA_Y;
       this.highestY = C.START_PLAYER_Y;
@@ -1354,6 +1411,12 @@
 
       this.particles.clear();
       this.projectiles.length = 0;
+      this.activeBoss = null;
+      this.nextBossIndex = 0;
+      this.runBossesDefeated = 0;
+      this.bossWarnedIndex = -1;
+      this.bossWarningTimer = 0;
+      this.isQaWarpRun = false;
 
       this.cameraY = C.START_CAMERA_Y;
       this.highestY = C.START_PLAYER_Y;
@@ -1432,6 +1495,9 @@
       if (this.themeBannerTimer > 0) {
         this.themeBannerTimer = Math.max(0, this.themeBannerTimer - dt);
       }
+      if (this.bossWarningTimer > 0) {
+        this.bossWarningTimer = Math.max(0, this.bossWarningTimer - dt);
+      }
 
       if (this.rewardToast) {
         this.rewardToast.timer = Math.max(0, this.rewardToast.timer - dt);
@@ -1503,6 +1569,10 @@
 
         this._updateAndCheckCollectibles(step);
 
+        if (this.activeBoss && !this.activeBoss.defeated) {
+          this._handleBossCombatStep();
+        }
+
         if (this._checkHazards()) {
           if (!this._handlePlayerHazardHit()) {
             this._triggerDeath();
@@ -1527,14 +1597,14 @@
             this.meterMilestonePulse = 1;
           }
 
-          if (this.gameMode === 'rising') {
+          if (!this.isQaWarpRun && this.gameMode === 'rising') {
             if (this.currentMeters > this.bestRisingMeters) {
               this.bestRisingMeters = this.currentMeters;
               this.isNewRecord = true;
               this._saveInt(STORAGE_KEYS.BEST_RISING, this.bestRisingMeters);
               this._syncMilestoneUnlocks();
             }
-          } else if (this.gameMode === 'classic' && this.currentMeters > this.bestMeters) {
+          } else if (!this.isQaWarpRun && this.gameMode === 'classic' && this.currentMeters > this.bestMeters) {
             this.bestMeters = this.currentMeters;
             this.isNewRecord = true;
             this._saveInt(STORAGE_KEYS.BEST, this.bestMeters);
@@ -1561,6 +1631,7 @@
           }
 
           this._checkThemeMilestone();
+          this._checkBossMilestoneSpawn();
         }
 
         if (this.gameMode === 'tutorial') {
@@ -1571,11 +1642,25 @@
 
         if (this.state === 'playing') {
           this._updateCamera(dt);
-          this.generator.generateUpTo(this.cameraY - C.GEN_LOOKAHEAD_PX);
-          this.generator.cullFarBelow(
-            Math.max(this.player.positionY, this.cameraY + C.HEIGHT) + C.CULL_BEHIND_PX * 2.5
-          );
+          if (!this.activeBoss) {
+            this.generator.generateUpTo(this.cameraY - C.GEN_LOOKAHEAD_PX);
+          }
+          const cullBase = Math.max(this.player.positionY, this.cameraY + C.HEIGHT);
+          const safeCullY =
+            this.activeBoss && !this.activeBoss.defeated
+              ? Math.max(cullBase, this.activeBoss.arenaFloorY + 120)
+              : cullBase;
+          this.generator.cullFarBelow(safeCullY + C.CULL_BEHIND_PX * 2.5);
         }
+      }
+
+      if (this.state === 'playing' && this.activeBoss && !this.activeBoss.defeated) {
+        this.activeBoss.update(simDt, {
+          player: this.player,
+          projectiles: this.projectiles,
+          particles: this.particles,
+          audio: this.audio
+        });
       }
 
       this._updateObstaclesAndProjectiles(simDt);
@@ -1646,6 +1731,14 @@
 
     _updateRisingFloor(dt) {
       if (!this.hasLaunchedOnce || !this.player.alive) return;
+
+      if (this.activeBoss && !this.activeBoss.defeated) {
+        const safeFloorLimit = this.activeBoss.arenaFloorY + 38;
+        if (this.risingFloorY < safeFloorLimit) {
+          this.risingFloorY = safeFloorLimit;
+        }
+        return;
+      }
 
       const rf = C.RISING_FLOOR || {
         BASE_SPEED: 68,
@@ -1964,6 +2057,19 @@
 
     _checkLandingState(simX, simY, wallSide) {
       const r = C.HITBOX.PLAYER_HURT_RADIUS;
+      if (wallSide === 0 && this.activeBoss && !this.activeBoss.defeated) {
+        if (this.activeBoss.checkTrajectoryHitsBoss(simX, simY)) {
+          return 'bossHit';
+        }
+      }
+      if (wallSide !== 0 && this.activeBoss && !this.activeBoss.defeated && this.activeBoss.wallZap) {
+        const z = this.activeBoss.wallZap;
+        if ((z.warningTimer > 0 || z.activeTimer > 0) && z.side === wallSide) {
+          if (simY >= z.centerY - z.halfH && simY <= z.centerY + z.halfH) {
+            return 'danger';
+          }
+        }
+      }
       const obstacles = this.generator.obstacles;
       for (let i = 0; i < obstacles.length; i++) {
         const o = obstacles[i];
@@ -2029,6 +2135,199 @@
       }
     }
 
+    _getBossDisplayName(def, tr) {
+      const arch = def.archetype;
+      const base = (tr && tr[arch.nameKey]) || arch.defaultName;
+      return def.cycle > 1 ? `${base} MK-${def.cycle}` : base;
+    }
+
+    _checkBossMilestoneSpawn() {
+      const Bosses = JellyGame.Bosses;
+      if (!Bosses || this.gameMode === 'tutorial' || this.activeBoss) return;
+
+      const targetMeters = Bosses.getMilestoneMeters(this.nextBossIndex);
+      if (this.currentMeters >= targetMeters - 12 && this.bossWarnedIndex < this.nextBossIndex) {
+        this.bossWarnedIndex = this.nextBossIndex;
+        this.bossWarningTimer = 2.4;
+        this.audio.playBossWarning();
+      }
+
+      if (this.currentMeters >= targetMeters) {
+        this._spawnBossForIndex(this.nextBossIndex);
+      }
+    }
+
+    _spawnBossForIndex(bossIdx) {
+      const Bosses = JellyGame.Bosses;
+      if (!Bosses) return null;
+
+      const def = Bosses.getBossDefForIndex(bossIdx);
+      const anchorY = Math.round(this.player.positionY);
+      const boss = new Bosses.BossEntity(def, anchorY);
+      this.activeBoss = boss;
+      this.nextBossIndex = bossIdx;
+      this.bossWarnedIndex = Math.max(this.bossWarnedIndex, bossIdx);
+      this.bossWarningTimer = 0;
+
+      const clearTop = boss.arenaTopY - 40;
+      const clearBottom = boss.arenaFloorY + 40;
+      if (this.generator.obstacles) {
+        this.generator.obstacles = this.generator.obstacles.filter((o) => {
+          const top = o.topY != null ? o.topY : o.y - (o.height || 40) * 0.5;
+          const bottom = o.bottomY != null ? o.bottomY : o.y + (o.height || 40) * 0.5;
+          return bottom < clearTop || top > clearBottom;
+        });
+      }
+      if (this.generator.surfaces) {
+        this.generator.surfaces = this.generator.surfaces.filter((s) => {
+          const top = s.topY != null ? s.topY : s.y - (s.height || 40) * 0.5;
+          const bottom = s.bottomY != null ? s.bottomY : s.y + (s.height || 40) * 0.5;
+          return bottom < clearTop || top > clearBottom;
+        });
+      }
+      this.generator.nextChunkBottomY = Math.min(this.generator.nextChunkBottomY, boss.arenaTopY - 80);
+
+      if (this.gameMode === 'rising') {
+        this.risingFloorY = Math.max(this.risingFloorY, boss.arenaFloorY + 38);
+      }
+
+      this.projectiles.length = 0;
+      this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.85);
+      this.shakeMag = Math.max(this.shakeMag, 6.5);
+      this.audio.playBossWarning();
+      return boss;
+    }
+
+    _handleBossCombatStep() {
+      const boss = this.activeBoss;
+      if (!boss || boss.defeated || !this.player.alive) return;
+
+      const p = this.player;
+      // 1. Arena Ceiling & Energy Floor Seals keep the duel framed cleanly
+      if (p.positionY - p.radius < boss.arenaTopY) {
+        p.positionY = boss.arenaTopY + p.radius;
+        if (p.velocityY < 0) {
+          p.velocityY = Math.abs(p.velocityY) * 0.65;
+          p.stretchAmount = 0.22;
+        }
+      }
+      if (p.positionY + p.radius > boss.arenaFloorY) {
+        p.positionY = boss.arenaFloorY - p.radius;
+        if (!p.isAttached() && p.velocityY > 0) {
+          p.velocityY = -Math.max(480, Math.abs(p.velocityY) * 0.84);
+          if (Math.abs(p.velocityX) < 130) {
+            p.velocityX = (p.positionX < C.WIDTH * 0.5 ? -1 : 1) * 185;
+          }
+          p.stretchAmount = 0.3;
+          this.audio.playStick(340);
+          this.particles.spawnSparkBurst(
+            p.positionX,
+            boss.arenaFloorY,
+            0,
+            boss.archetype.primaryColor,
+            6
+          );
+        }
+      }
+
+      // 2. Check Slingshot Slam Hit vs Boss Core / Orbiting Shield Orbs
+      const slamEvt = boss.checkPlayerSlam(p, this.tempoTier, this.particles, this.audio);
+      if (!slamEvt) return;
+
+      if (slamEvt.event === 'clang') {
+        this.shakeMag = Math.max(this.shakeMag, 3.2);
+        return;
+      }
+
+      const tr = this.t();
+      if (slamEvt.isCrit) {
+        this.particles.spawnFloatingLabel(
+          boss.x,
+          boss.y - boss.hitRadius - 14,
+          tr.bossCrit || 'CRIT x2!',
+          '#ffd166',
+          17
+        );
+      } else {
+        const hitWord = (tr.bossHitLabel || 'HIT!').replace(/^-?\d+\s*/, '');
+        this.particles.spawnFloatingLabel(
+          boss.x,
+          boss.y - boss.hitRadius - 10,
+          `-${slamEvt.dmg} ${hitWord}`,
+          '#ffffff',
+          14
+        );
+      }
+
+      // Keep Tempo combo alive on clean boss hits!
+      this.tempoTimer = C.TEMPO.WINDOW_SEC;
+
+      if (slamEvt.event === 'defeat') {
+        this._onBossDefeated(boss, slamEvt);
+      } else if (slamEvt.event === 'phase') {
+        this.hitStopTimer = 0.045;
+        this.shakeMag = Math.max(this.shakeMag, 7.0);
+        this.particles.spawnFloatingLabel(
+          boss.x,
+          boss.y - boss.hitRadius - 32,
+          `${tr.bossPhase || 'PHASE'} ${slamEvt.newPhase}!`,
+          '#ff9f43',
+          16
+        );
+      } else {
+        this.hitStopTimer = slamEvt.isCrit ? 0.036 : 0.022;
+        this.shakeMag = Math.max(this.shakeMag, slamEvt.isCrit ? 6.0 : 4.2);
+      }
+    }
+
+    _onBossDefeated(boss, slamEvt) {
+      const tr = this.t();
+      const gemsReward = (slamEvt && slamEvt.rewardGems) || boss.rewardGems || 30;
+      const Bosses = JellyGame.Bosses;
+
+      this.hitStopTimer = 0.075;
+      this.shakeMag = 10.0;
+      this.gems += gemsReward;
+      this.runGemsEarned += gemsReward;
+      this.hudGemPulse = 1;
+      this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+
+      this.bossesDefeated += 1;
+      this.runBossesDefeated += 1;
+      this._saveInt(STORAGE_KEYS.BOSSES_DEFEATED, this.bossesDefeated);
+
+      this.player.hasShield = true;
+      this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.9);
+
+      if (Bosses && Bosses.BossBoltProjectile) {
+        this.projectiles = this.projectiles.filter(
+          (proj) => !(proj instanceof Bosses.BossBoltProjectile)
+        );
+      } else {
+        this.projectiles.length = 0;
+      }
+
+      const bossTitle = this._getBossDisplayName(boss.def, tr);
+      this.themeBannerText = `👑 ${bossTitle} ${tr.bossDefeated || 'DEFEATED!'} +${gemsReward}✦`;
+      this.themeBannerTimer = 2.4;
+      this.particles.spawnFloatingLabel(
+        boss.x,
+        boss.y - 18,
+        `+${gemsReward} ✦  🛡️`,
+        '#ffd166',
+        18
+      );
+
+      this.nextBossIndex += 1;
+      this.bossWarnedIndex = Math.max(this.bossWarnedIndex, this.nextBossIndex - 1);
+      this.bossWarningTimer = 0;
+
+      // Unlock climb above the defeated arena seamlessly
+      this.generator.nextChunkBottomY = Math.min(this.generator.nextChunkBottomY, boss.arenaTopY - 80);
+      this.generator.generateUpTo(boss.arenaTopY - C.GEN_LOOKAHEAD_PX);
+      this.activeBoss = null;
+    }
+
     _getCurrentTheme() {
       const themes = C.THEMES;
       const camMeters = Math.max(
@@ -2079,6 +2378,12 @@
     }
 
     _updateCamera(dt) {
+      if (this.activeBoss && !this.activeBoss.defeated) {
+        const targetCam = this.activeBoss.cameraTargetY;
+        this.cameraY += (targetCam - this.cameraY) * (1 - Math.exp(-5.2 * dt));
+        return;
+      }
+
       const screenY = this.player.positionY - this.cameraY;
       const upThreshold = C.HEIGHT * C.CAMERA_UP_TRIGGER_RATIO;
       const downThreshold = C.HEIGHT * C.CAMERA_DOWN_TRIGGER_RATIO;
@@ -2115,6 +2420,9 @@
     }
 
     _checkHazards() {
+      if (this.activeBoss && this.activeBoss.checkWallZapHazard(this.player)) {
+        return true;
+      }
       const obstacles = this.generator.obstacles;
       for (let i = 0; i < obstacles.length; i++) {
         if (obstacles[i].checkPlayerCollision(this.player)) {
@@ -2199,6 +2507,10 @@
           collectibles[i].draw(ctx, this.cameraY);
         }
 
+        if (this.activeBoss && !this.activeBoss.defeated) {
+          this.activeBoss.draw(ctx, this.cameraY);
+        }
+
         for (let i = 0; i < this.projectiles.length; i++) {
           this.projectiles[i].draw(ctx, this.cameraY);
         }
@@ -2242,6 +2554,11 @@
         this._drawMainMenu(ctx);
       } else {
         this._drawHUD(ctx);
+        if (this.activeBoss && !this.activeBoss.defeated && this.state === 'playing') {
+          this._drawBossHUD(ctx);
+        } else if (this.bossWarningTimer > 0 && !this.activeBoss && this.state === 'playing') {
+          this._drawBossWarningBanner(ctx);
+        }
         if (this.gameMode === 'tutorial' && !this.tutorialCompletedThisRun && this.state === 'playing') {
           this._drawTutorialCoachCard(ctx);
         }
@@ -4209,7 +4526,7 @@
         ctx.fillText(`${tr.best || 'BEST'}: ${activeBest} m`, C.WIDTH * 0.5, 50);
       }
 
-      // Tempo ribbon badge when active (x2+)
+      // Tempo ribbon badge when active (x2+), or next Boss altitude tracker when idle
       if (this.tempoTier >= 2 && this.state === 'playing') {
         const isHigh = this.tempoTier >= C.TEMPO.DOUBLE_DROP_TIER;
         const pillW = 110;
@@ -4240,6 +4557,23 @@
             ? `⚡ x${this.tempoTier} ${tr.max || 'MAX'}`
             : `⚡ x${this.tempoTier} ${tr.tempo || 'TEMPO'}`;
         ctx.fillText(tempoText, C.WIDTH * 0.5, pillY + pillH * 0.5 + 0.5);
+      } else if (
+        this.state === 'playing' &&
+        this.gameMode !== 'tutorial' &&
+        !this.activeBoss &&
+        JellyGame.Bosses
+      ) {
+        const nextMilestone = JellyGame.Bosses.getMilestoneMeters(this.nextBossIndex);
+        const nearBoss = nextMilestone - this.currentMeters <= 25;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = nearBoss ? '#ffd166' : 'rgba(255, 209, 102, 0.72)';
+        ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(
+          `👑 ${tr.bossNextAt || 'BOSS AT'} ${nextMilestone} m`,
+          C.WIDTH * 0.5,
+          activeBest > 0 ? 67 : 52
+        );
       }
 
       // Top-right tactile collectible & avatar capsule (bounces on pickup!)
@@ -4301,10 +4635,12 @@
       ctx.save();
       ctx.globalAlpha = clamp(alpha, 0, 1);
 
-      const pillW = 212;
+      const labelText = `✦  ${this.themeBannerText}  ✦`;
+      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
+      const pillW = clamp(ctx.measureText(labelText).width + 38, 212, C.WIDTH - 36);
       const pillH = 34;
       const pillX = (C.WIDTH - pillW) * 0.5;
-      const pillY = 104;
+      const pillY = this.activeBoss && !this.activeBoss.defeated ? 148 : 104;
 
       ctx.fillStyle = 'rgba(12, 19, 34, 0.85)';
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
@@ -4314,10 +4650,122 @@
       ctx.stroke();
 
       ctx.fillStyle = '#ffffff';
-      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`✦  ${this.themeBannerText}  ✦`, C.WIDTH * 0.5, pillY + pillH * 0.5 + 0.5);
+      ctx.fillText(labelText, C.WIDTH * 0.5, pillY + pillH * 0.5 + 0.5);
+
+      ctx.restore();
+    }
+
+    _drawBossWarningBanner(ctx) {
+      const Bosses = JellyGame.Bosses;
+      if (!Bosses) return;
+      const tr = this.t();
+      const def = Bosses.getBossDefForIndex(this.nextBossIndex);
+      const bossName = this._getBossDisplayName(def, tr);
+      const pulse = 0.5 + 0.5 * Math.sin(this.hintTime * 11);
+      const alpha = clamp(Math.min(1, this.bossWarningTimer * 2), 0, 1);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      const w = 282;
+      const h = 44;
+      const x = (C.WIDTH - w) * 0.5;
+      const y = 98;
+
+      ctx.fillStyle = 'rgba(34, 12, 18, 0.9)';
+      ctx.strokeStyle = pulse > 0.5 ? '#ff5e57' : '#ffd166';
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, x, y, w, h, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ff7b72';
+      ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(`⚠ ${tr.bossIncoming || 'BOSS APPROACHING!'}`, C.WIDTH * 0.5, y + 14);
+
+      ctx.fillStyle = '#fff5d6';
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(`${bossName}  •  ${def.milestoneMeters} m`, C.WIDTH * 0.5, y + 31);
+
+      ctx.restore();
+    }
+
+    _drawBossHUD(ctx) {
+      const boss = this.activeBoss;
+      if (!boss || boss.defeated) return;
+      const tr = this.t();
+      const arch = boss.archetype;
+      const enraged = boss.phase >= 2;
+      const accent = enraged ? arch.enrageColor : arch.primaryColor;
+      const bossTitle = this._getBossDisplayName(boss.def, tr);
+
+      ctx.save();
+      const cardW = 296;
+      const cardH = 44;
+      const cardX = (C.WIDTH - cardW) * 0.5;
+      const cardY = 98;
+
+      ctx.fillStyle = 'rgba(10, 17, 32, 0.88)';
+      ctx.strokeStyle = boss.phaseBannerTimer > 0 ? '#ffd166' : accent;
+      ctx.lineWidth = boss.phaseBannerTimer > 0 ? 2.4 : 1.7;
+      roundRectPath(ctx, cardX, cardY, cardW, cardH, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      // Boss Name & Phase indicator row
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(`👑 ${bossTitle}`, cardX + 12, cardY + 14);
+
+      ctx.textAlign = 'right';
+      const phaseWord = tr.bossPhase || 'PHASE';
+      const statusText = enraged
+        ? `⚡ ${phaseWord} ${boss.phase}/${boss.maxPhases} • ${boss.hp}/${boss.maxHp}`
+        : `${phaseWord} ${boss.phase}/${boss.maxPhases} • ${boss.hp}/${boss.maxHp}`;
+      ctx.fillStyle = enraged ? '#ffd166' : accent;
+      ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(statusText, cardX + cardW - 12, cardY + 14);
+
+      // Segmented HP Track
+      const barX = cardX + 12;
+      const barY = cardY + 26;
+      const barW = cardW - 24;
+      const barH = 10;
+
+      ctx.fillStyle = '#070d18';
+      roundRectPath(ctx, barX, barY, barW, barH, 5);
+      ctx.fill();
+
+      const maxHp = Math.max(1, boss.maxHp);
+      if (maxHp <= 22) {
+        const gap = maxHp > 14 ? 1.5 : 2.2;
+        const segW = (barW - 4 - gap * (maxHp - 1)) / maxHp;
+        for (let i = 0; i < maxHp; i++) {
+          const sx = barX + 2 + i * (segW + gap);
+          const sy = barY + 2;
+          const sh = barH - 4;
+          if (i < boss.hp) {
+            ctx.fillStyle = boss.hurtFlashTimer > 0 ? '#ffffff' : accent;
+          } else {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.09)';
+          }
+          roundRectPath(ctx, sx, sy, segW, sh, 2);
+          ctx.fill();
+        }
+      } else {
+        const ratio = clamp(boss.hp / maxHp, 0, 1);
+        ctx.fillStyle = boss.hurtFlashTimer > 0 ? '#ffffff' : accent;
+        if (ratio > 0) {
+          roundRectPath(ctx, barX + 2, barY + 2, (barW - 4) * ratio, barH - 4, 3);
+          ctx.fill();
+        }
+      }
 
       ctx.restore();
     }
@@ -4338,7 +4786,8 @@
       const w = 278;
       const h = 52;
       const x = (C.WIDTH - w) * 0.5;
-      const y = 96 + slideY;
+      const baseY = this.activeBoss && !this.activeBoss.defeated ? 148 : 96;
+      const y = baseY + slideY;
 
       const grad = ctx.createLinearGradient(x, y, x + w, y + h);
       grad.addColorStop(0, 'rgba(42, 31, 14, 0.94)');
@@ -4429,7 +4878,10 @@
       // Run stats badge inside score well
       ctx.fillStyle = '#ffd166';
       ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-      const statsText = `+${this.runGemsEarned} ✦   •   ⚡ ${tr.tempo || 'TEMPO'} x${this.runMaxTempo}`;
+      const statsText =
+        this.runBossesDefeated > 0
+          ? `+${this.runGemsEarned} ✦  •  ⚡ x${this.runMaxTempo}  •  👑 ${this.runBossesDefeated}`
+          : `+${this.runGemsEarned} ✦   •   ⚡ ${tr.tempo || 'TEMPO'} x${this.runMaxTempo}`;
       ctx.fillText(statsText, C.WIDTH * 0.5, cardY + 109);
 
       // Primary Tactile PLAY AGAIN Cushion Button

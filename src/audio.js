@@ -526,6 +526,31 @@
       this._playTone(420, 90, 0.2, 'triangle', 0.08, 0.03);
     }
 
+    playBossWarning() {
+      this._playTone(220, 180, 0.16, 'sawtooth', 0.075, 0);
+      this._playTone(293.66, 220, 0.18, 'triangle', 0.09, 0.18);
+      this._playTone(220, 165, 0.22, 'sawtooth', 0.08, 0.36);
+    }
+
+    playBossHit(isCrit = false) {
+      const f = isCrit ? 480 : 320;
+      this._playTone(f, 110, 0.12, 'sawtooth', isCrit ? 0.11 : 0.085);
+      this._playTone(f * 1.5, f * 2.1, 0.1, 'triangle', isCrit ? 0.09 : 0.06, 0.02);
+    }
+
+    playBossPhaseShift() {
+      this._playTone(140, 420, 0.22, 'sawtooth', 0.095, 0);
+      this._playTone(280, 620, 0.26, 'triangle', 0.09, 0.1);
+    }
+
+    playBossDefeat() {
+      this._playTone(261.63, 130, 0.18, 'sawtooth', 0.1, 0);
+      this._playTone(523.25, 659.25, 0.1, 'triangle', 0.09, 0.08);
+      this._playTone(659.25, 783.99, 0.11, 'triangle', 0.1, 0.16);
+      this._playTone(783.99, 1046.5, 0.16, 'sine', 0.11, 0.24);
+      this._playTone(1046.5, 1318.5, 0.28, 'sine', 0.11, 0.34);
+    }
+
     playPop() {
       this._playTone(320, 75, 0.18, 'sawtooth', 0.09);
       this._playTone(190, 55, 0.22, 'sine', 0.11, 0.02);

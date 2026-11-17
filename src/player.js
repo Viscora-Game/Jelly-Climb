@@ -383,6 +383,25 @@
         simX += simVx * stepDt;
         simY += simVy * stepDt;
 
+        // Check mid-air direct sniper lock onto active Boss core!
+        const midStatus = checkLandingState ? checkLandingState(simX, simY, 0) : 'safe';
+        if (midStatus === 'bossHit') {
+          const sy = simY - cameraY;
+          const pulse = 1 + Math.sin(this.idleTime * 11) * 0.16;
+          ctx.globalAlpha = 0.96;
+          ctx.strokeStyle = '#ffd166';
+          ctx.lineWidth = 2.6;
+          ctx.beginPath();
+          ctx.arc(simX, sy, 11 * pulse, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffd166';
+          ctx.beginPath();
+          ctx.arc(simX, sy, 4, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+
         // Stop preview right at opposite wall contact and render surgical Landing Reticle!
         if (simX <= leftWall || simX >= rightWall || simY >= C.FLOOR_Y - this.radius) {
           const hitWallSide = simX <= leftWall ? -1 : simX >= rightWall ? 1 : 0;
