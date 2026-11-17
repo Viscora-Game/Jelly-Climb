@@ -189,9 +189,20 @@
         )}&limit=50`;
         const json = await this._fetchJson(`${base}/api/leaderboard?${qs}`);
         if (json && json.ok) {
-          this.storageSource = json.storage || 'local';
+          this.storageSource = json.storage === 'ephemeral' ? 'local' : (json.storage || 'local');
+          const serverEntries = Array.isArray(json.entries) ? json.entries : [];
+          const cached = this.data[targetMode];
+          if (
+            json.storage === 'ephemeral' &&
+            serverEntries.length === 0 &&
+            cached &&
+            Array.isArray(cached.entries) &&
+            cached.entries.length > 0
+          ) {
+            return cached;
+          }
           this.data[targetMode] = {
-            entries: Array.isArray(json.entries) ? json.entries : [],
+            entries: serverEntries,
             playerEntry: json.playerEntry || null,
             playerRank: json.playerRank || null,
             totalPlayers: json.totalPlayers || 0
@@ -232,7 +243,7 @@
           })
         });
         if (json && json.ok) {
-          this.storageSource = json.storage || 'local';
+          this.storageSource = json.storage === 'ephemeral' ? 'local' : (json.storage || 'local');
           return json;
         }
       } catch (_) {
