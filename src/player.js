@@ -88,7 +88,9 @@
       this.trail = [];
       this.trailTimer = 0;
 
-      // Shield & post-shield invulnerability
+      // Health, Shield & post-hit invulnerability
+      this.maxHp = 2;
+      this.hp = 2;
       this.hasShield = false;
       this.invulnTimer = 0;
 
@@ -662,7 +664,7 @@
       ctx.stroke();
       ctx.restore();
 
-      // Protective Bubble Shield aura if active
+      // Protective Bubble Shield aura or temporary recovery i-frames ring
       if (this.hasShield) {
         ctx.save();
         const shR = r + 5.5;
@@ -678,6 +680,14 @@
         ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.arc(0, 0, shR - 2.5, -2.2, -1.1);
+        ctx.stroke();
+        ctx.restore();
+      } else if (this.invulnTimer > 0 && Math.floor(this.invulnTimer * 16) % 2 === 0) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 107, 129, 0.82)';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 4.5, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }

@@ -1767,11 +1767,49 @@
       if (this.player.positionY + C.HITBOX.PLAYER_HURT_RADIUS >= this.risingFloorY) {
         if (this._tryConsumeShield(true)) {
           this.risingFloorY += 95;
-        } else {
+        } else if (!this._consumeHeartOrSurvive(true)) {
           this.audio.playLavaSizzle();
           this._triggerDeath();
         }
       }
+    }
+
+    _consumeHeartOrSurvive(isLavaBounce = false) {
+      if (this.player.invulnTimer > 0) return true;
+      if (this.player.hp <= 1) return false;
+
+      this.player.hp -= 1;
+      this.player.invulnTimer = 1.05;
+      const toCenter = this.player.positionX < C.WIDTH * 0.5 ? 1 : -1;
+      this.player.wallAttached = 0;
+      this.player.floorAttached = false;
+      this.player.cancelAim();
+      this.player.velocityX = isLavaBounce ? toCenter * 220 : toCenter * 310;
+      this.player.velocityY = isLavaBounce ? -800 : -490;
+      this.player.stretchAmount = 0.28;
+      this.hitStopTimer = Math.max(this.hitStopTimer, 0.04);
+      this.shakeMag = Math.max(this.shakeMag, 6.5);
+      if (isLavaBounce) {
+        this.risingFloorY += 105;
+        this.audio.playLavaSizzle();
+      } else {
+        this.audio.playSafetyRebound();
+      }
+      this.particles.spawnSparkBurst(
+        this.player.positionX,
+        this.player.positionY,
+        toCenter,
+        '#ff6b81',
+        12
+      );
+      this.particles.spawnFloatingLabel(
+        this.player.positionX,
+        this.player.positionY - 24,
+        `-1 ❤️ (${this.player.hp}/${this.player.maxHp})`,
+        '#ff6b81',
+        15
+      );
+      return true;
     }
 
     _handlePlayerHazardHit() {
@@ -1807,7 +1845,7 @@
         return true;
       }
 
-      return false;
+      return this._consumeHeartOrSurvive(false);
     }
 
     _recordRunMaxTempo() {
@@ -2192,6 +2230,16 @@
       }
 
       this.projectiles.length = 0;
+      if (this.player.hp < this.player.maxHp) {
+        this.player.hp = this.player.maxHp;
+        this.particles.spawnFloatingLabel(
+          this.player.positionX,
+          this.player.positionY - 26,
+          `+${this.player.maxHp} ❤️`,
+          '#ff6b81',
+          14
+        );
+      }
       this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.85);
       this.shakeMag = Math.max(this.shakeMag, 6.5);
       this.audio.playBossWarning();
@@ -2296,6 +2344,7 @@
       this.runBossesDefeated += 1;
       this._saveInt(STORAGE_KEYS.BOSSES_DEFEATED, this.bossesDefeated);
 
+      this.player.hp = this.player.maxHp;
       this.player.hasShield = true;
       this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.9);
 
@@ -2313,7 +2362,7 @@
       this.particles.spawnFloatingLabel(
         boss.x,
         boss.y - 18,
-        `+${gemsReward} ✦  🛡️`,
+        `+${gemsReward} ✦  ❤️🛡️`,
         '#ffd166',
         18
       );
@@ -2449,6 +2498,7 @@
       this.tempoTier = 1;
       this.tempoTimer = 0;
       this.player.tempoTier = 1;
+      this.player.hp = 0;
       this.player.alive = false;
       this.player.cancelAim();
       this.pointer.isDown = false;
@@ -4474,6 +4524,35 @@
       ctx.restore();
     }
 
+    _drawHeartIcon(ctx, cx, cy, size, filled) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.beginPath();
+      const s = size;
+      ctx.moveTo(0, s * 0.42);
+      ctx.bezierCurveTo(-s * 0.95, -s * 0.25, -s * 0.65, -s * 0.98, 0, -s * 0.35);
+      ctx.bezierCurveTo(s * 0.65, -s * 0.98, s * 0.95, -s * 0.25, 0, s * 0.42);
+      ctx.closePath();
+
+      if (filled) {
+        const g = ctx.createLinearGradient(0, -s * 0.85, 0, s * 0.45);
+        g.addColorStop(0, '#ff8598');
+        g.addColorStop(1, '#ff3355');
+        ctx.fillStyle = g;
+        ctx.strokeStyle = '#ffd1da';
+        ctx.lineWidth = 1.1;
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = 'rgba(255, 107, 129, 0.35)';
+        ctx.lineWidth = 1.2;
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     _drawHUD(ctx) {
       const tr = this.t();
       ctx.save();
@@ -4497,6 +4576,25 @@
       ctx.fill();
       roundRectPath(ctx, mBtn.x + 11, mBtn.y + 22.5, 13, 3.2, 1.6);
       ctx.fill();
+
+      // Player Hearts capsule beside top-left Menu button (2 Hearts)
+      const hMax = this.player.maxHp || 2;
+      const hCur = clamp(this.player.hp || 0, 0, hMax);
+      const hpX = mBtn.x + mBtn.w + 8;
+      const hpY = mBtn.y + 4;
+      const hpW = hMax * 23 + 12;
+      const hpH = 32;
+
+      ctx.fillStyle = 'rgba(13, 21, 38, 0.84)';
+      ctx.strokeStyle = hCur === 1 ? 'rgba(255, 107, 129, 0.75)' : 'rgba(175, 210, 255, 0.24)';
+      ctx.lineWidth = 1.4;
+      roundRectPath(ctx, hpX, hpY, hpW, hpH, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      for (let i = 0; i < hMax; i++) {
+        this._drawHeartIcon(ctx, hpX + 17.5 + i * 23, hpY + hpH * 0.5 + 1, 8.2, i < hCur);
+      }
 
       // Top-center plump extruded altitude counter with milestone bounce
       const mPulse = 1 + Math.sin(this.meterMilestonePulse * Math.PI) * 0.22;

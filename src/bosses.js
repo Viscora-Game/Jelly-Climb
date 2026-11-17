@@ -10,7 +10,7 @@
       nameKey: 'bossCraggo',
       defaultName: 'CRAGGO THE GOLEM',
       baseHp: 5,
-      maxPhases: 2,
+      maxPhases: 1,
       hitRadius: 34,
       rewardGems: 30,
       boltType: 'rock',
@@ -36,7 +36,7 @@
       nameKey: 'bossAether',
       defaultName: 'AETHER THE STORM',
       baseHp: 9,
-      maxPhases: 3,
+      maxPhases: 2,
       hitRadius: 33,
       rewardGems: 65,
       boltType: 'volt',
@@ -62,7 +62,7 @@
       nameKey: 'bossVoidon',
       defaultName: 'VOIDON EMPEROR',
       baseHp: 14,
-      maxPhases: 3,
+      maxPhases: 4,
       hitRadius: 37,
       rewardGems: 125,
       boltType: 'voidComet',
@@ -90,7 +90,7 @@
       cycle,
       archetype: arch,
       maxHp: arch.baseHp + extraHp,
-      maxPhases: arch.maxPhases,
+      maxPhases: Math.min(4, arch.maxPhases + (cycle - 1)),
       hitRadius: arch.hitRadius,
       rewardGems: arch.rewardGems + (cycle - 1) * 50,
       milestoneMeters: getMilestoneMeters(idx)
@@ -389,16 +389,10 @@
     }
 
     _computeExpectedPhase() {
-      const ratio = this.hp / this.maxHp;
-      if (this.maxPhases >= 3) {
-        if (ratio <= 0.34) return 3;
-        if (ratio <= 0.67) return 2;
-        return 1;
-      }
-      if (this.maxPhases === 2) {
-        return ratio <= 0.5 ? 2 : 1;
-      }
-      return 1;
+      if (this.maxPhases <= 1) return 1;
+      const lostFraction = 1 - this.hp / this.maxHp;
+      const computed = Math.min(this.maxPhases, Math.floor(lostFraction * this.maxPhases) + 1);
+      return Math.max(this.phase, computed);
     }
 
     update(dt, context) {
@@ -551,12 +545,12 @@
             this._spawnAimedBolt(context, 285 * speedBoost, i * 0.32, 9.5);
           }
         } else {
-          const ringCount = this.phase === 3 ? 6 : 4;
+          const ringCount = this.phase >= 4 ? 7 : this.phase === 3 ? 6 : 4;
           const rot = this.time * 1.3;
           const bounds = { topY: this.arenaTopY, floorY: this.arenaFloorY };
           for (let i = 0; i < ringCount; i++) {
             const ang = rot + (i / ringCount) * Math.PI * 2;
-            const sp = (this.phase === 3 ? 255 : 230) * speedBoost;
+            const sp = (this.phase >= 4 ? 270 : this.phase === 3 ? 255 : 230) * speedBoost;
             context.projectiles.push(
               new BossBoltProjectile(
                 this.x,
