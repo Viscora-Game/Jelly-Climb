@@ -1,0 +1,243 @@
+(function (global) {
+  'use strict';
+
+  const JellyGame = (global.JellyGame = global.JellyGame || {});
+
+  const STRINGS = Object.freeze({
+    en: {
+      play: 'PLAY',
+      accessories: 'ACCESSORIES',
+      leaderboard: 'RANKS',
+      leaderboardTitle: 'LEADERBOARD',
+      editNick: 'EDIT',
+      nickPrompt: 'Choose Nickname (2-12 chars)',
+      save: 'SAVE',
+      cancel: 'CANCEL',
+      youTag: 'YOU',
+      yourRank: 'YOUR RANK',
+      unranked: 'Climb to rank!',
+      emptyLeaderboard: 'No climbs recorded yet — be #1!',
+      dbMongo: 'MongoDB Live',
+      dbLocal: 'Local Server',
+      dbOffline: 'Offline Cache',
+      settings: 'SETTINGS',
+      sound: 'Sound FX',
+      music: 'Music',
+      language: 'Language',
+      on: 'ON',
+      off: 'OFF',
+      best: 'BEST',
+      newBest: 'NEW BEST!',
+      playAgain: 'PLAY AGAIN',
+      menu: 'MENU',
+      tempo: 'TEMPO',
+      max: 'MAX',
+      dropsUnit: 'Drops',
+      equipped: 'EQUIPPED',
+      equip: 'EQUIP',
+      buy: 'GET',
+      closeHint: 'Tap outside or ✕ to close',
+      closeCall: 'CLOSE CALL! +2✦',
+      shieldGain: 'SHIELD!',
+      shieldSaved: 'SHIELD SAVED!',
+      bounce: 'BOUNCE!',
+      modeTutorial: 'TUTORIAL',
+      modeClassic: 'CLASSIC',
+      modeRising: 'RISING FLOOR',
+      selectModeTitle: 'SELECT MODE',
+      modeSubClassic: 'Endless climb at your own rhythm',
+      modeSubRising: 'Outrun the rising magma tide!',
+      lavaWarning: '▲ MAGMA',
+      tutSkip: 'SKIP ⏭',
+      tutTargetLabel: 'STICK HERE!',
+      tutRetry: 'Oops! Watch the red ring — aim for the open wall!',
+      tutComplete: '★ YAY! YOU GOT IT! +15✦ ★',
+      tutCompleteDone: '★ TUTORIAL COMPLETE! ★',
+      tutFinishGate: '★ FINISH TRAINING (+15✦) ★',
+      tutorialSteps: [
+        {
+          title: '1/5 • SLINGSHOT JUMP',
+          bubble: 'Pull me down & let go! ↗',
+          desc: '"Hi! Pull me down anywhere & release so I sling onto that glowing wall!"'
+        },
+        {
+          title: '2/5 • WALL TO WALL & TEMPO',
+          bubble: 'Jump fast for ⚡ TEMPO!',
+          desc: '"Awesome! Now sling me quickly between walls to build ⚡ TEMPO & grab ✦ Drops!"'
+        },
+        {
+          title: '3/5 • SPIKES, FLAMES & AIM RING',
+          bubble: 'Avoid red (!) ring!',
+          desc: '"Careful! If my landing ring turns RED (!), that spot is dangerous. Aim for open wall!"'
+        },
+        {
+          title: '4/5 • SHIELD, ARROWS & CRACKED ROCK',
+          bubble: 'Grab the cyan Shield! 🛡',
+          desc: '"Grab that Bubble Shield for me! Arrow traps glow before firing, and cracked stone breaks!"'
+        },
+        {
+          title: '5/5 • ICE WALL & BOUNCE PAD',
+          bubble: 'Hit the pink Bounce Pad!',
+          desc: '"Brrr, ice makes me slide! Sling me onto the pink Bounce Pad to fly through the Finish!"'
+        }
+      ],
+      privacyBtn: 'Privacy & Terms',
+      resetDataBtn: 'Reset Data',
+      confirmReset: 'Tap Again to Confirm',
+      dataResetDone: 'Data Reset!',
+      privacyTitle: 'PRIVACY & TERMS',
+      openFullPolicy: 'Open Full Policy Page ↗',
+      backToSettings: '← Back to Settings',
+      policyLines: [
+        '• Privacy-First: No personal data (email, name, location) is collected or sold.',
+        '• Local & Leaderboard: Progress stays on-device; optional global ranks sync an anonymous ID, chosen nickname & score to MongoDB.',
+        '• Full Deletion: Tap "Reset Data" in Settings anytime to wipe local progress AND remote leaderboard records.',
+        '• Family Friendly: Zero ads or third-party trackers; complies with Google Play Families & COPPA.',
+        '• Virtual Items: All Drops, colors & accessories are earned in-game with no cash value.'
+      ],
+      colorNames: {
+        mint: 'Emerald',
+        coral: 'Coral',
+        azure: 'Glacier',
+        amber: 'Solar',
+        violet: 'Nebula'
+      },
+      accNames: {
+        none: 'Classic Jelly',
+        leaf: 'Tiny Sprout',
+        glasses: 'Cool Shades',
+        headband: 'Ninja Band',
+        beanie: 'Propeller Cap',
+        crown: 'Golden Crown'
+      },
+      themes: {
+        cavern: 'DEEP CAVERN',
+        valley: 'VIOLET VALLEY',
+        clouds: 'AMBER CLOUDS',
+        frost: 'FROST PEAKS',
+        cosmos: 'COSMIC SPACE'
+      }
+    },
+    tr: {
+      play: 'OYNA',
+      accessories: 'AKSESUARLAR',
+      leaderboard: 'SIRALAMA',
+      leaderboardTitle: 'LİDERLİK TABLOSU',
+      editNick: 'DÜZENLE',
+      nickPrompt: 'Takma Ad Seç (2-12 karakter)',
+      save: 'KAYDET',
+      cancel: 'İPTAL',
+      youTag: 'SEN',
+      yourRank: 'SIRALAMAN',
+      unranked: 'Sıralamaya girmek için tırman!',
+      emptyLeaderboard: 'Henüz skor yok — ilk #1 sen ol!',
+      dbMongo: 'MongoDB Canlı',
+      dbLocal: 'Yerel Sunucu',
+      dbOffline: 'Çevrimdışı Önbellek',
+      settings: 'AYARLAR',
+      sound: 'Ses Efektleri',
+      music: 'Müzik',
+      language: 'Dil',
+      on: 'AÇIK',
+      off: 'KAPALI',
+      best: 'EN İYİ',
+      newBest: 'YENİ REKOR!',
+      playAgain: 'TEKRAR DENE',
+      menu: 'MENÜ',
+      tempo: 'TEMPO',
+      max: 'MAKS',
+      dropsUnit: 'Jel Özü',
+      equipped: 'TAKILI',
+      equip: 'TAK',
+      buy: 'AL',
+      closeHint: 'Kapatmak için dışarı veya ✕ dokun',
+      closeCall: 'KIL PAYI! +2✦',
+      shieldGain: 'KALKAN!',
+      shieldSaved: 'KALKAN KORUDU!',
+      bounce: 'ZIP!',
+      modeTutorial: 'EĞİTİM',
+      modeClassic: 'KLASİK',
+      modeRising: 'YÜKSELEN ZEMİN',
+      selectModeTitle: 'MOD SEÇİMİ',
+      modeSubClassic: 'Kendi ritminde sonsuz tırmanış',
+      modeSubRising: 'Yükselen lav dalgasından kaç!',
+      lavaWarning: '▲ LAV',
+      tutSkip: 'ATLA ⏭',
+      tutTargetLabel: 'BURAYA YAPIŞ!',
+      tutRetry: 'Hop! Kırmızı halkaya dikkat — açık duvara nişan al!',
+      tutComplete: '★ HARİKA! ARTIK HAZIRIZ! +15✦ ★',
+      tutCompleteDone: '★ EĞİTİM TAMAMLANDI! ★',
+      tutFinishGate: '★ EĞİTİM BİTİŞİ (+15✦) ★',
+      tutorialSteps: [
+        {
+          title: '1/5 • GER VE FIRLAT',
+          bubble: 'Beni aşağı çekip bırak! ↗',
+          desc: '"Selam! Parmağını aşağı çekip bırak ki karşıdaki parlayan duvara fırlayayım!"'
+        },
+        {
+          title: '2/5 • DUVARDAN DUVARA & TEMPO',
+          bubble: 'Hızlı zıpla, ⚡ TEMPO kazan!',
+          desc: '"Süper! Şimdi beni duvardan duvara hızlıca fırlat, ⚡ TEMPO ve ✦ Jel Özü toplayalım!"'
+        },
+        {
+          title: '3/5 • DİKEN, ALEV VE NİŞAN HALKASI',
+          bubble: 'Kırmızı (!) halkadan kaçın!',
+          desc: '"Dikkat! İniş halkam KIRMIZI (!) olursa orada diken/alev vardır — güvenli duvara nişan al!"'
+        },
+        {
+          title: '4/5 • KALKAN, OK VE ÇATLAK KAYA',
+          bubble: 'Mavi Kalkanı bana al! 🛡',
+          desc: '"Şu mavi Kalkanı alalım! Ok tuzağı atış öncesi parlar; çatlak kaya ise tutununca kırılır!"'
+        },
+        {
+          title: '5/5 • BUZ DUVARI VE TRAMBOLİN',
+          bubble: 'Pembe Tramboline fırlat!',
+          desc: '"Brrr, buz beni kaydırıyor! Pembe Tramboline çarptır ki Bitiş Kapısından uçayım!"'
+        }
+      ],
+      privacyBtn: 'Gizlilik ve Koşullar',
+      resetDataBtn: 'Verileri Sıfırla',
+      confirmReset: 'Onay İçin Tekrar Dokun',
+      dataResetDone: 'Veriler Sıfırlandı!',
+      privacyTitle: 'GİZLİLİK VE KOŞULLAR',
+      openFullPolicy: 'Tam Politika Sayfası ↗',
+      backToSettings: '← Ayarlara Dön',
+      policyLines: [
+        '• Gizlilik Öncelikli: E-posta, ad, konum gibi kişisel veriler toplanmaz ve satılmaz.',
+        '• Yerel & Liderlik Tablosu: İlerleme cihazda tutulur; skor tablosu yalnızca anonim ID, takma ad ve yüksek skoru MongoDB ile eşler.',
+        '• Tam Veri Silme: Ayarlar → "Verileri Sıfırla" ile yerel kayıtları VE liderlik tablosu skorlarınızı silebilirsiniz.',
+        '• Aile Dostu: Reklam ve takipçi içermez; Google Play Aile & COPPA kurallarına uygundur.',
+        '• Sanal Eşyalar: Tüm aksesuar ve renkler oyun içi kazanılır, nakit değeri yoktur.'
+      ],
+      colorNames: {
+        mint: 'Zümrüt',
+        coral: 'Mercan',
+        azure: 'Buzul',
+        amber: 'Kehribar',
+        violet: 'Bulutsu'
+      },
+      accNames: {
+        none: 'Sade Jel',
+        leaf: 'Minik Filiz',
+        glasses: 'Havalı Gözlük',
+        headband: 'Ninja Bandı',
+        beanie: 'Pervane Şapka',
+        crown: 'Altın Taç'
+      },
+      themes: {
+        cavern: 'DERİN MAĞARA',
+        valley: 'MOR VADİ',
+        clouds: 'KEHRİBAR BULUTLAR',
+        frost: 'BUZUL ZİRVESİ',
+        cosmos: 'KOZMİK UZAY'
+      }
+    }
+  });
+
+  JellyGame.I18N = {
+    STRINGS,
+    get(lang) {
+      return STRINGS[lang] || STRINGS.en;
+    }
+  };
+})(window);

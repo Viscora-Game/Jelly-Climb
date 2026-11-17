@@ -1,0 +1,10 @@
+{
+  "name": "Jelly Climb",
+  "short_name": "Jelly Climb",
+  "description": "Vertical slingshot jelly climbing arcade game.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#0b1020"
+}
