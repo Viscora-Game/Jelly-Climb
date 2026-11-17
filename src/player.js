@@ -600,6 +600,26 @@
 
     _drawJellyBody(ctx, r, lookX, lookY, bodyRotation, strain) {
       const pal = this.getColorPalette();
+      const speedRatio = this.isAttached()
+        ? 0
+        : clamp(Math.hypot(this.velocityX, this.velocityY) / 1200, 0, 1);
+
+      // Draw back-slot accessories (cape, wings, jetpack) cleanly behind jelly sphere
+      if (JellyGame.Accessories && this.equippedAccessory && this.equippedAccessory !== 'none') {
+        ctx.save();
+        ctx.rotate(-bodyRotation);
+        JellyGame.Accessories.drawAccessory(
+          ctx,
+          this.equippedAccessory,
+          r,
+          lookX,
+          lookY,
+          this.idleTime,
+          speedRatio,
+          'back'
+        );
+        ctx.restore();
+      }
 
       // Soft outer glow
       ctx.save();
@@ -716,11 +736,8 @@
       }
       ctx.stroke();
 
-      // Render equipped character accessory cleanly in upright head space
-      if (JellyGame.Accessories && this.equippedAccessory !== 'none') {
-        const speedRatio = this.isAttached()
-          ? 0
-          : clamp(Math.hypot(this.velocityX, this.velocityY) / 1200, 0, 1);
+      // Render equipped front accessories (face eyewear + headwear) cleanly in upright space
+      if (JellyGame.Accessories && this.equippedAccessory && this.equippedAccessory !== 'none') {
         JellyGame.Accessories.drawAccessory(
           ctx,
           this.equippedAccessory,
@@ -728,7 +745,8 @@
           lookX,
           lookY,
           this.idleTime,
-          speedRatio
+          speedRatio,
+          'front'
         );
       }
 

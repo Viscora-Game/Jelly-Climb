@@ -10,6 +10,7 @@
     GEMS: 'jelly_climb_gems',
     UNLOCKED: 'jelly_climb_unlocked_acc',
     EQUIPPED: 'jelly_climb_equipped_acc',
+    EQUIPPED_SLOTS: 'jelly_climb_equipped_slots',
     UNLOCKED_COLORS: 'jelly_climb_unlocked_colors',
     EQUIPPED_COLOR: 'jelly_climb_equipped_color',
     LANG: 'jelly_climb_lang',
@@ -18,6 +19,7 @@
     TUTORIAL_DONE: 'jelly_climb_onboarding_v2_done',
     GAME_MODE: 'jelly_climb_mode',
     BEST_TEMPO: 'jelly_climb_best_tempo',
+    TOTAL_CLOSE_CALLS: 'jelly_climb_close_calls',
     REWARDS_CLAIMED: 'jelly_climb_rewards_claimed'
   });
 
@@ -101,10 +103,13 @@
       this.tutorialCompletedThisRun = false;
       this.risingFloorY = C.FLOOR_Y + (C.RISING_FLOOR ? C.RISING_FLOOR.START_OFFSET_Y : 95);
 
-      // Persistent collectibles, accessories & bioluminescent jelly colors
+      // Persistent collectibles, multi-slot accessories & bioluminescent jelly colors
       this.gems = this._loadInt(STORAGE_KEYS.GEMS, 0);
       this.unlockedAccessories = this._loadUnlocked();
-      this.equippedAccessory = this._loadEquipped();
+      this.equippedSlots = this._loadEquippedSlots();
+      this.equippedAccessory = JellyGame.Accessories
+        ? JellyGame.Accessories.serializeSlots(this.equippedSlots)
+        : 'none';
       this.unlockedColors = this._loadUnlockedColors();
       this.equippedColor = this._loadEquippedColor();
       this.player.equippedAccessory = this.equippedAccessory;
@@ -120,12 +125,17 @@
       this.tempoTimer = 0;
       this.runMaxTempo = 1;
       this.bestTempo = this._loadInt(STORAGE_KEYS.BEST_TEMPO, 1);
+      this.totalCloseCalls = this._loadInt(STORAGE_KEYS.TOTAL_CLOSE_CALLS, 0);
       this.slowMoTimer = 0;
 
       // Progression milestone rewards & celebratory toast
       this.claimedRewards = this._loadStringSet(STORAGE_KEYS.REWARDS_CLAIMED, []);
       this.unseenRewards = new Set();
-      this.wardrobeTab = 'shop'; // 'shop' | 'rewards'
+      this.wardrobeTab = 'head'; // 'head' | 'face' | 'back' | 'rewards'
+      this.wardrobeScrollY = 0;
+      this.wardrobeDragging = false;
+      this.wardrobeLastDragY = 0;
+      this.wardrobeDragMoved = false;
       this.rewardToast = null;
       this.runUnlockedGear = [];
 
@@ -184,8 +194,11 @@
         lbRefreshBtn: null,
         lbListWell: null,
         lbPromoBtn: null,
-        wardrobeTabShopBtn: null,
+        wardrobeTabHeadBtn: null,
+        wardrobeTabFaceBtn: null,
+        wardrobeTabBackBtn: null,
         wardrobeTabRewardsBtn: null,
+        wardrobeWell: null,
         shopCards: [],
         colorSwatches: [],
         soundOnBtn: null,
@@ -323,18 +336,55 @@
       this._saveStringSet(STORAGE_KEYS.UNLOCKED, this.unlockedAccessories);
     }
 
-    _loadEquipped() {
+    _loadEquippedSlots() {
+      const accMod = JellyGame.Accessories;
+      const base = { head: 'none', face: 'none', back: 'none' };
       try {
-        const id = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED);
-        if (id && this.unlockedAccessories.has(id)) return id;
+        const rawSlots = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED_SLOTS);
+        if (rawSlots && accMod) {
+          const normalized = accMod.normalizeSlots(JSON.parse(rawSlots));
+          for (const slot of ['head', 'face', 'back']) {
+            if (normalized[slot] !== 'none' && this.unlockedAccessories.has(normalized[slot])) {
+              base[slot] = normalized[slot];
+            }
+          }
+          return base;
+        }
+        const legacy = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED);
+        if (legacy && accMod) {
+          const normalized = accMod.normalizeSlots(legacy);
+          for (const slot of ['head', 'face', 'back']) {
+            if (normalized[slot] !== 'none' && this.unlockedAccessories.has(normalized[slot])) {
+              base[slot] = normalized[slot];
+            }
+          }
+          return base;
+        }
       } catch (_) {}
-      return 'none';
+      return base;
     }
 
-    _saveEquipped(id) {
+    _saveEquippedSlots() {
+      const accMod = JellyGame.Accessories;
+      this.equippedAccessory = accMod ? accMod.serializeSlots(this.equippedSlots) : 'none';
+      this.player.equippedAccessory = this.equippedAccessory;
       try {
-        global.localStorage.setItem(STORAGE_KEYS.EQUIPPED, id);
+        global.localStorage.setItem(
+          STORAGE_KEYS.EQUIPPED_SLOTS,
+          JSON.stringify(this.equippedSlots)
+        );
+        global.localStorage.setItem(STORAGE_KEYS.EQUIPPED, this.equippedAccessory);
       } catch (_) {}
+    }
+
+    _getOwnedGearCount() {
+      if (!JellyGame.Accessories || !JellyGame.Accessories.LIST) return 0;
+      let count = 0;
+      const list = JellyGame.Accessories.LIST;
+      for (let i = 0; i < list.length; i++) {
+        if (this.unlockedAccessories.has(list[i].id)) count++;
+      }
+      return count;
     }
 
     _loadUnlockedColors() {
@@ -364,9 +414,11 @@
         global.localStorage.removeItem(STORAGE_KEYS.BEST);
         global.localStorage.removeItem(STORAGE_KEYS.BEST_RISING);
         global.localStorage.removeItem(STORAGE_KEYS.BEST_TEMPO);
+        global.localStorage.removeItem(STORAGE_KEYS.TOTAL_CLOSE_CALLS);
         global.localStorage.removeItem(STORAGE_KEYS.GEMS);
         global.localStorage.removeItem(STORAGE_KEYS.UNLOCKED);
         global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED);
+        global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED_SLOTS);
         global.localStorage.removeItem(STORAGE_KEYS.UNLOCKED_COLORS);
         global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED_COLOR);
         global.localStorage.removeItem(STORAGE_KEYS.REWARDS_CLAIMED);
@@ -377,11 +429,13 @@
       this.bestMeters = 0;
       this.bestRisingMeters = 0;
       this.bestTempo = 1;
+      this.totalCloseCalls = 0;
       this.runStartBestMeters = 0;
       this.tutorialDone = false;
       this.gameMode = 'tutorial';
       this.gems = 0;
       this.unlockedAccessories = new Set(['none']);
+      this.equippedSlots = { head: 'none', face: 'none', back: 'none' };
       this.equippedAccessory = 'none';
       this.unlockedColors = new Set(['mint']);
       this.equippedColor = 'mint';
@@ -402,7 +456,8 @@
       return {
         bestMeters: this.bestMeters,
         bestRisingMeters: this.bestRisingMeters,
-        bestTempo: this.bestTempo
+        bestTempo: this.bestTempo,
+        totalCloseCalls: this.totalCloseCalls
       };
     }
 
@@ -651,6 +706,16 @@
           return;
         }
         if (this.activeModal === 'accessories') {
+          if (pointInRect(pt.x, pt.y, this.uiRects.wardrobeWell)) {
+            this.wardrobeDragging = true;
+            this.wardrobeDragMoved = false;
+            this.wardrobeLastDragY = pt.y;
+            this.activePointerId = e.pointerId;
+            try {
+              this.canvas.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            return;
+          }
           this._handleAccessoriesTap(pt.x, pt.y);
           return;
         }
@@ -746,6 +811,15 @@
           this.lbScrollY = Math.max(0, this.lbScrollY - dy);
           return;
         }
+        if (this.activeModal === 'accessories' && this.wardrobeDragging && e.pointerId === this.activePointerId) {
+          e.preventDefault();
+          const pt = this._toLogicalPoint(e.clientX, e.clientY);
+          const dy = pt.y - this.wardrobeLastDragY;
+          if (Math.abs(dy) > 3) this.wardrobeDragMoved = true;
+          this.wardrobeLastDragY = pt.y;
+          this.wardrobeScrollY = Math.max(0, this.wardrobeScrollY - dy);
+          return;
+        }
         if (this.activeModal || this.state === 'menu') return;
         if (e.pointerId !== this.activePointerId || !this.pointer.isDown) return;
         e.preventDefault();
@@ -775,6 +849,16 @@
           if (!canceled && !this.lbDragMoved) {
             const pt = this._toLogicalPoint(e.clientX, e.clientY);
             this._handleLeaderboardTap(pt.x, pt.y);
+          }
+          return;
+        }
+
+        if (this.activeModal === 'accessories' && this.wardrobeDragging && e.pointerId === this.activePointerId) {
+          this.wardrobeDragging = false;
+          this.activePointerId = null;
+          if (!canceled && !this.wardrobeDragMoved) {
+            const pt = this._toLogicalPoint(e.clientX, e.clientY);
+            this._handleAccessoriesTap(pt.x, pt.y);
           }
           return;
         }
@@ -826,6 +910,9 @@
           if (this.activeModal === 'leaderboard') {
             e.preventDefault();
             this.lbScrollY = Math.max(0, this.lbScrollY + e.deltaY * 0.5);
+          } else if (this.activeModal === 'accessories') {
+            e.preventDefault();
+            this.wardrobeScrollY = Math.max(0, this.wardrobeScrollY + e.deltaY * 0.5);
           }
         },
         { passive: false }
@@ -1074,14 +1161,27 @@
     }
 
     _openAccessoriesDrawer(preferredTab = null) {
-      if (preferredTab === 'shop' || preferredTab === 'rewards') {
+      if (
+        preferredTab === 'head' ||
+        preferredTab === 'face' ||
+        preferredTab === 'back' ||
+        preferredTab === 'rewards'
+      ) {
         this.wardrobeTab = preferredTab;
       } else if (this.unseenRewards.size > 0 || this.runUnlockedGear.length > 0) {
         this.wardrobeTab = 'rewards';
+      } else if (
+        this.wardrobeTab !== 'head' &&
+        this.wardrobeTab !== 'face' &&
+        this.wardrobeTab !== 'back' &&
+        this.wardrobeTab !== 'rewards'
+      ) {
+        this.wardrobeTab = 'head';
       }
       if (this.wardrobeTab === 'rewards') {
         this.unseenRewards.clear();
       }
+      this.wardrobeScrollY = 0;
       this.modalAnim = 0;
       this.wardrobePreviewBounce = 0.7;
       this.activeModal = 'accessories';
@@ -1096,6 +1196,19 @@
       }
     }
 
+    _toggleEquipGearItem(acc) {
+      const slot = acc.slot;
+      if (slot !== 'head' && slot !== 'face' && slot !== 'back') return;
+      if (this.equippedSlots[slot] === acc.id) {
+        this.equippedSlots[slot] = 'none';
+      } else {
+        this.equippedSlots[slot] = acc.id;
+      }
+      this._saveEquippedSlots();
+      this._syncEquippedToLeaderboard();
+      this.wardrobePreviewBounce = 1;
+    }
+
     _handleAccessoriesTap(px, py) {
       if (pointInRect(px, py, this.uiRects.modalCloseBtn)) {
         this.audio.playUiTap();
@@ -1108,24 +1221,26 @@
         return;
       }
 
-      if (pointInRect(px, py, this.uiRects.wardrobeTabShopBtn)) {
-        if (this.wardrobeTab !== 'shop') {
-          this.wardrobeTab = 'shop';
-          this.audio.playUiTap();
+      const tabMap = [
+        ['wardrobeTabHeadBtn', 'head'],
+        ['wardrobeTabFaceBtn', 'face'],
+        ['wardrobeTabBackBtn', 'back'],
+        ['wardrobeTabRewardsBtn', 'rewards']
+      ];
+      for (let i = 0; i < tabMap.length; i++) {
+        const [rectKey, tabKey] = tabMap[i];
+        if (pointInRect(px, py, this.uiRects[rectKey])) {
+          if (tabKey === 'rewards') this.unseenRewards.clear();
+          if (this.wardrobeTab !== tabKey) {
+            this.wardrobeTab = tabKey;
+            this.wardrobeScrollY = 0;
+            this.audio.playUiTap();
+          }
+          return;
         }
-        return;
       }
 
-      if (pointInRect(px, py, this.uiRects.wardrobeTabRewardsBtn)) {
-        this.unseenRewards.clear();
-        if (this.wardrobeTab !== 'rewards') {
-          this.wardrobeTab = 'rewards';
-          this.audio.playUiTap();
-        }
-        return;
-      }
-
-      // Check Bioluminescent Jelly Color Swatch taps first
+      // Check Bioluminescent Jelly Color Swatch taps
       if (this.uiRects.colorSwatches) {
         for (let i = 0; i < this.uiRects.colorSwatches.length; i++) {
           const sw = this.uiRects.colorSwatches[i];
@@ -1156,26 +1271,25 @@
         }
       }
 
+      if (this.uiRects.wardrobeWell && !pointInRect(px, py, this.uiRects.wardrobeWell)) {
+        return;
+      }
+
       for (let i = 0; i < this.uiRects.shopCards.length; i++) {
         const card = this.uiRects.shopCards[i];
         if (!pointInRect(px, py, card.rect)) continue;
 
         const acc = card.accessory;
         if (this.unlockedAccessories.has(acc.id)) {
-          this.equippedAccessory = acc.id;
-          this.player.equippedAccessory = acc.id;
-          this._saveEquipped(acc.id);
-          this._syncEquippedToLeaderboard();
-          this.wardrobePreviewBounce = 1;
+          this._toggleEquipGearItem(acc);
           this.audio.playCollect(false);
         } else if (acc.unlockType !== 'milestone' && this.gems >= acc.cost) {
           this.gems -= acc.cost;
           this._saveInt(STORAGE_KEYS.GEMS, this.gems);
           this.unlockedAccessories.add(acc.id);
           this._saveUnlocked();
-          this.equippedAccessory = acc.id;
-          this.player.equippedAccessory = acc.id;
-          this._saveEquipped(acc.id);
+          this.equippedSlots[acc.slot] = acc.id;
+          this._saveEquippedSlots();
           this._syncEquippedToLeaderboard();
           this.wardrobePreviewBounce = 1;
           this.audio.playUnlock();
@@ -1207,7 +1321,7 @@
         this._submitCurrentRunScore();
       }
       this.player.reset();
-      this.player.positionY = -265;
+      this.player.positionY = -312;
       this.player.equippedAccessory = this.equippedAccessory;
       this.player.equippedColor = this.equippedColor;
       this.player.tempoTier = 1;
@@ -1800,8 +1914,11 @@
       if (triggered) {
         this.gems += 2;
         this.runGemsEarned += 2;
+        this.totalCloseCalls += 1;
         this.hudGemPulse = 1;
         this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+        this._saveInt(STORAGE_KEYS.TOTAL_CLOSE_CALLS, this.totalCloseCalls);
+        this._syncMilestoneUnlocks();
         this.slowMoTimer = 0.12;
         this.audio.playCloseCall();
         this.particles.spawnFloatingLabel(
@@ -3060,7 +3177,7 @@
       for (let i = 1; i <= arcSteps; i++) {
         const u = i / arcSteps;
         const ax = (1 - u) * (1 - u) * (jellyX + 18) + 2 * (1 - u) * u * 195 + u * u * 356;
-        const ay = (1 - u) * (1 - u) * (jellyY - 12) + 2 * (1 - u) * u * 290 + u * u * 266;
+        const ay = (1 - u) * (1 - u) * (jellyY - 12) + 2 * (1 - u) * u * 270 + u * u * 252;
         const pulse = 0.25 + 0.25 * Math.sin(this.hintTime * 3.2 - i * 0.45);
         ctx.globalAlpha = (1 - u * 0.55) * pulse;
         ctx.fillStyle = i === arcSteps ? '#ffd166' : C.COLORS.jellyPrimary;
@@ -3117,11 +3234,11 @@
         '#05593f'
       );
 
-      // Centerpiece Tactile Play Cushion (474..538)
+      // Centerpiece Tactile Play Cushion (430..494)
       const playW = 224;
       const playH = 64;
       const playX = (C.WIDTH - playW) * 0.5;
-      const playY = 474;
+      const playY = 430;
       const playPressed = this.pressedBtn === 'play';
       this.uiRects.menuPlayBtn = { x: playX, y: playY, w: playW, h: playH };
 
@@ -3194,11 +3311,11 @@
       const leftCenterX = 99;
       const midCenterX = 225;
       const rightCenterX = 351;
-      const medCenterY = 586;
+      const medCenterY = 542;
 
-      this.uiRects.menuAccBtn = { x: leftCenterX - 52, y: 550, w: 104, h: 96 };
-      this.uiRects.menuLbBtn = { x: midCenterX - 52, y: 550, w: 104, h: 96 };
-      this.uiRects.menuSetBtn = { x: rightCenterX - 52, y: 550, w: 104, h: 96 };
+      this.uiRects.menuAccBtn = { x: leftCenterX - 52, y: 506, w: 104, h: 96 };
+      this.uiRects.menuLbBtn = { x: midCenterX - 52, y: 506, w: 104, h: 96 };
+      this.uiRects.menuSetBtn = { x: rightCenterX - 52, y: 506, w: 104, h: 96 };
 
       this._drawMenuMedallion(
         ctx,
@@ -4417,10 +4534,13 @@
       const tr = this.t();
       const accMod = JellyGame.Accessories;
       const allList = accMod ? accMod.LIST : [];
-      const shopList = accMod && accMod.SHOP_LIST ? accMod.SHOP_LIST : allList;
-      const milestoneList = accMod && accMod.MILESTONE_LIST ? accMod.MILESTONE_LIST : [];
-      const isRewardsTab = this.wardrobeTab === 'rewards';
+      const activeTab = this.wardrobeTab || 'head';
+      const isRewardsTab = activeTab === 'rewards';
       const stats = this._getProgressionStats();
+
+      const tabItems = isRewardsTab
+        ? (accMod && accMod.MILESTONE_LIST) || []
+        : (accMod && accMod.BY_SLOT && accMod.BY_SLOT[activeTab]) || allList;
 
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
@@ -4430,7 +4550,7 @@
       ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
 
       const panelW = 396;
-      const panelH = 626;
+      const panelH = 642;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -4441,7 +4561,7 @@
 
       this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
 
-      // Header title + owned gear progress pill
+      // Header title + owned gear progress pill (0/18 Gear)
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `700 20px ${C.FONTS.DISPLAY}`;
@@ -4451,8 +4571,8 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 32);
 
-      const gearCountText = `${this.unlockedAccessories.size}/${allList.length} ${tr.gearUnit || 'Gear'}`;
-      const gearPillW = 86;
+      const gearCountText = `${this._getOwnedGearCount()}/${allList.length} ${tr.gearUnit || 'Gear'}`;
+      const gearPillW = 92;
       const closeSize = 34;
       const closeX = panelX + panelW - closeSize - 18;
       const closeY = panelY + 16;
@@ -4472,11 +4592,11 @@
       this.uiRects.modalCloseBtn = { x: closeX, y: closeY, w: closeSize, h: closeSize };
       this._drawCloseMedallion(ctx, closeX, closeY, closeSize);
 
-      // Interactive Hero Stage Alcove (big live bouncing Jelly on pedestal + Color Swatches)
-      const stageX = panelX + 22;
+      // Interactive Hero Stage Alcove (live combined Head + Face + Back Jelly + Color Swatches)
+      const stageX = panelX + 20;
       const stageY = panelY + 54;
-      const stageW = panelW - 44;
-      const stageH = 90;
+      const stageW = panelW - 40;
+      const stageH = 92;
 
       ctx.fillStyle = 'rgba(9, 15, 28, 0.68)';
       ctx.strokeStyle = 'rgba(165, 205, 255, 0.14)';
@@ -4485,15 +4605,15 @@
       ctx.fill();
       ctx.stroke();
 
-      const pedX = stageX + 54;
-      const pedY = stageY + 67;
+      const pedX = stageX + 52;
+      const pedY = stageY + 69;
       const activePal = this.player.getColorPalette();
-      const spotGrad = ctx.createRadialGradient(pedX, pedY - 18, 4, pedX, pedY - 18, 42);
+      const spotGrad = ctx.createRadialGradient(pedX, pedY - 18, 4, pedX, pedY - 18, 44);
       spotGrad.addColorStop(0, activePal.glow);
       spotGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = spotGrad;
       ctx.beginPath();
-      ctx.arc(pedX, pedY - 18, 42, 0, Math.PI * 2);
+      ctx.arc(pedX, pedY - 18, 44, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#283c5e';
@@ -4514,33 +4634,59 @@
       this._drawMiniJellyPreview(ctx, 0, 0, 21, this.equippedAccessory);
       ctx.restore();
 
-      const eqName =
-        (tr.accNames && tr.accNames[this.equippedAccessory]) || this.equippedAccessory;
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(eqName, stageX + 106, stageY + 21);
+      // Active slot pills showing equipped combo (HAT | FACE | BACK)
+      const slotPillMeta = [
+        ['head', (tr.slotNames && tr.slotNames.head) || 'HAT'],
+        ['face', (tr.slotNames && tr.slotNames.face) || 'FACE'],
+        ['back', (tr.slotNames && tr.slotNames.back) || 'BACK']
+      ];
+      for (let i = 0; i < slotPillMeta.length; i++) {
+        const [sKey, sLbl] = slotPillMeta[i];
+        const isActiveSlot = this.equippedSlots && this.equippedSlots[sKey] !== 'none';
+        const px = stageX + 102 + i * 44;
+        const py = stageY + 11;
+        ctx.fillStyle = isActiveSlot ? 'rgba(54, 245, 176, 0.2)' : 'rgba(255, 255, 255, 0.06)';
+        ctx.strokeStyle = isActiveSlot ? C.COLORS.jellyPrimary : 'rgba(165, 205, 255, 0.18)';
+        ctx.lineWidth = 1;
+        roundRectPath(ctx, px, py, 40, 20, 10);
+        ctx.fill();
+        ctx.stroke();
 
-      const pouchX = stageX + stageW - 118;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isActiveSlot ? '#8affdb' : 'rgba(180, 200, 232, 0.55)';
+        ctx.font = `700 9px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(sLbl, px + 20, py + 10.5);
+      }
+
+      // Golden Drops counter pouch on top-right of Hero Stage
+      const pouchW = 104;
+      const pouchX = stageX + stageW - pouchW - 10;
       const pouchY = stageY + 9;
       ctx.fillStyle = 'rgba(255, 209, 102, 0.16)';
       ctx.strokeStyle = 'rgba(255, 209, 102, 0.4)';
       ctx.lineWidth = 1.2;
-      roundRectPath(ctx, pouchX, pouchY, 108, 24, 12);
+      roundRectPath(ctx, pouchX, pouchY, pouchW, 24, 12);
       ctx.fill();
       ctx.stroke();
 
       this._drawGemEmblem(ctx, pouchX + 15, pouchY + 12, 5.5);
+      ctx.textAlign = 'left';
       ctx.fillStyle = '#ffeaa7';
-      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(`${this.gems} ${tr.dropsUnit || 'Drops'}`, pouchX + 26, pouchY + 12.5);
+      ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(
+        `${this.gems} ${tr.dropsUnit || 'Drops'}`,
+        pouchX + 26,
+        pouchY + 12.5,
+        pouchW - 34
+      );
 
       // 5 Bioluminescent Jelly Color Swatches
       this.uiRects.colorSwatches = [];
       const colors = C.JELLY_COLORS || [];
       const swStartX = stageX + 114;
-      const swY = stageY + 59;
-      const swSpacing = 46;
+      const swY = stageY + 61;
+      const swSpacing = 48;
 
       for (let i = 0; i < colors.length; i++) {
         const col = colors[i];
@@ -4584,260 +4730,267 @@
         ctx.restore();
       }
 
-      // Segmented 2-Tab Bar: DROP SHOP | MILESTONES
-      const tabW = panelW - 44;
-      const tabH = 38;
-      const tabX = panelX + 22;
-      const tabY = panelY + 153;
-      const halfTabW = tabW * 0.5;
-      this.uiRects.wardrobeTabShopBtn = { x: tabX, y: tabY, w: halfTabW, h: tabH };
-      this.uiRects.wardrobeTabRewardsBtn = { x: tabX + halfTabW, y: tabY, w: halfTabW, h: tabH };
+      // 4-Category Filter Tabs: HATS (head) | GLASSES (face) | BACK (back) | GOALS (rewards)
+      const tabBarX = panelX + 20;
+      const tabBarY = panelY + 154;
+      const tabBarW = panelW - 40;
+      const tabH = 36;
+      const tabGap = 6;
+      const oneTabW = (tabBarW - tabGap * 3) / 4;
 
-      ctx.fillStyle = '#091220';
-      ctx.strokeStyle = 'rgba(170, 205, 255, 0.16)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, tabX, tabY, tabW, tabH, 19);
+      const tabs = [
+        { key: 'head', rectKey: 'wardrobeTabHeadBtn', label: tr.tabHead || 'HATS', count: 8 },
+        { key: 'face', rectKey: 'wardrobeTabFaceBtn', label: tr.tabFace || 'GLASSES', count: 7 },
+        { key: 'back', rectKey: 'wardrobeTabBackBtn', label: tr.tabBack || 'BACK', count: 3 },
+        { key: 'rewards', rectKey: 'wardrobeTabRewardsBtn', label: `🏆 ${tr.rewardsTab || 'GOALS'}`, gold: true }
+      ];
+
+      for (let i = 0; i < tabs.length; i++) {
+        const tb = tabs[i];
+        const tx = tabBarX + i * (oneTabW + tabGap);
+        const isOn = activeTab === tb.key;
+        this.uiRects[tb.rectKey] = { x: tx, y: tabBarY, w: oneTabW, h: tabH };
+
+        ctx.fillStyle = isOn ? (tb.gold ? '#925406' : '#057a58') : '#091220';
+        roundRectPath(ctx, tx, tabBarY + 2.5, oneTabW, tabH - 2, 14);
+        ctx.fill();
+
+        ctx.fillStyle = isOn
+          ? tb.gold
+            ? '#ffd166'
+            : C.COLORS.jellyPrimary
+          : 'rgba(20, 32, 54, 0.9)';
+        ctx.strokeStyle = isOn ? 'transparent' : 'rgba(165, 205, 255, 0.16)';
+        ctx.lineWidth = 1.2;
+        roundRectPath(ctx, tx, tabBarY, oneTabW, tabH - 2, 14);
+        ctx.fill();
+        if (!isOn) ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+        ctx.fillStyle = isOn ? (tb.gold ? '#261402' : '#06241b') : 'rgba(205, 222, 248, 0.78)';
+        ctx.fillText(tb.label, tx + oneTabW * 0.5, tabBarY + (tabH - 2) * 0.5 + 0.5);
+
+        // Notification dot on GOALS if unseen reward unlocked, or emerald dot if slot equipped
+        if (tb.key === 'rewards' && this.unseenRewards.size > 0 && !isOn) {
+          ctx.fillStyle = '#ff4757';
+          ctx.beginPath();
+          ctx.arc(tx + oneTabW - 8, tabBarY + 7, 4, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (
+          tb.key !== 'rewards' &&
+          this.equippedSlots &&
+          this.equippedSlots[tb.key] !== 'none' &&
+          !isOn
+        ) {
+          ctx.fillStyle = '#36f5b0';
+          ctx.beginPath();
+          ctx.arc(tx + oneTabW - 8, tabBarY + 7, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Clipped Scrollable Showcase Well for Category Cards
+      const wellX = panelX + 20;
+      const wellY = panelY + 199;
+      const wellW = panelW - 40;
+      const wellH = 406;
+      this.uiRects.wardrobeWell = { x: wellX, y: wellY, w: wellW, h: wellH };
+      this.uiRects.shopCards = [];
+
+      ctx.fillStyle = 'rgba(7, 12, 22, 0.55)';
+      ctx.strokeStyle = 'rgba(165, 205, 255, 0.12)';
+      ctx.lineWidth = 1.1;
+      roundRectPath(ctx, wellX, wellY, wellW, wellH, 18);
       ctx.fill();
       ctx.stroke();
 
-      const activeX = isRewardsTab ? tabX + halfTabW + 2 : tabX + 3;
-      ctx.fillStyle = isRewardsTab ? '#925406' : '#057a58';
-      roundRectPath(ctx, activeX, tabY + 5, halfTabW - 5, tabH - 8, 16);
-      ctx.fill();
-      ctx.fillStyle = isRewardsTab ? '#ffd166' : C.COLORS.jellyPrimary;
-      roundRectPath(ctx, activeX, tabY + 3, halfTabW - 5, tabH - 8, 16);
-      ctx.fill();
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
-      ctx.fillStyle = !isRewardsTab ? '#06241b' : 'rgba(205, 222, 248, 0.72)';
-      ctx.fillText(`✦ ${tr.shopTab || 'DROP SHOP'}`, tabX + halfTabW * 0.5, tabY + tabH * 0.5);
-
-      ctx.fillStyle = isRewardsTab ? '#261402' : 'rgba(205, 222, 248, 0.72)';
-      ctx.fillText(`🏆 ${tr.rewardsTab || 'MILESTONES'}`, tabX + halfTabW * 1.5, tabY + tabH * 0.5);
-
-      if (this.unseenRewards.size > 0 && !isRewardsTab) {
-        ctx.fillStyle = '#ff4757';
-        ctx.beginPath();
-        ctx.arc(tabX + tabW - 14, tabY + 10, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      this.uiRects.shopCards = [];
       const cols = 2;
-      const gapX = 14;
-      const gridX = panelX + 22;
-      const gridY = panelY + 201;
-      const cardW = (panelW - 44 - gapX) / cols;
+      const gapX = 12;
+      const gapY = 10;
+      const padX = 10;
+      const padY = 10;
+      const cardW = (wellW - padX * 2 - gapX) / cols;
+      const cardH = 124;
+      const rows = Math.ceil(tabItems.length / cols);
+      const totalH = rows * cardH + Math.max(0, rows - 1) * gapY + padY * 2;
+      const maxScroll = Math.max(0, totalH - wellH);
+      if (this.wardrobeScrollY > maxScroll) this.wardrobeScrollY = maxScroll;
+      if (this.wardrobeScrollY < 0) this.wardrobeScrollY = 0;
 
-      if (!isRewardsTab) {
-        // 2x3 Drop Shop Grid
-        const gapY = 10;
-        const cardH = 120;
-        for (let i = 0; i < shopList.length; i++) {
-          const acc = shopList[i];
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          const cx = gridX + col * (cardW + gapX);
-          const cy = gridY + row * (cardH + gapY);
+      ctx.save();
+      roundRectPath(ctx, wellX + 2, wellY + 2, wellW - 4, wellH - 4, 16);
+      if (typeof ctx.clip === 'function') ctx.clip();
 
-          const unlocked = this.unlockedAccessories.has(acc.id);
-          const equipped = this.equippedAccessory === acc.id;
-          const affordable = !unlocked && this.gems >= acc.cost;
+      for (let i = 0; i < tabItems.length; i++) {
+        const acc = tabItems[i];
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const cx = wellX + padX + col * (cardW + gapX);
+        const cy = wellY + padY + row * (cardH + gapY) - this.wardrobeScrollY;
 
-          this.uiRects.shopCards.push({
-            accessory: acc,
-            rect: { x: cx, y: cy, w: cardW, h: cardH }
-          });
+        if (cy + cardH < wellY || cy > wellY + wellH) continue;
 
-          ctx.fillStyle = equipped
-            ? 'rgba(54, 245, 176, 0.15)'
-            : 'rgba(10, 17, 30, 0.58)';
-          ctx.strokeStyle = equipped
-            ? C.COLORS.jellyPrimary
-            : affordable
-            ? C.COLORS.collectOuter
-            : 'rgba(165, 205, 255, 0.14)';
-          ctx.lineWidth = equipped ? 2.2 : 1.3;
-          roundRectPath(ctx, cx, cy, cardW, cardH, 18);
-          ctx.fill();
-          ctx.stroke();
+        this.uiRects.shopCards.push({
+          accessory: acc,
+          rect: { x: cx, y: cy, w: cardW, h: cardH }
+        });
 
-          ctx.fillStyle = equipped ? 'rgba(54, 245, 176, 0.25)' : 'rgba(255, 255, 255, 0.06)';
-          ctx.beginPath();
-          ctx.ellipse(cx + cardW * 0.5, cy + 54, 22, 5, 0, 0, Math.PI * 2);
-          ctx.fill();
+        this._drawGearShowcaseCard(ctx, acc, cx, cy, cardW, cardH, stats, tr, isRewardsTab);
+      }
+      ctx.restore();
 
-          this._drawMiniJellyPreview(ctx, cx + cardW * 0.5, cy + 38, 16, acc.id);
-
-          const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
-          ctx.fillStyle = '#f1f5ff';
-          ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(accName, cx + cardW * 0.5, cy + 74);
-
-          const badgeW = 104;
-          const badgeH = 25;
-          const badgeX = cx + (cardW - badgeW) * 0.5;
-          const badgeY = cy + 87;
-          this._drawGearCardButton(
-            ctx,
-            badgeX,
-            badgeY,
-            badgeW,
-            badgeH,
-            equipped,
-            unlocked,
-            affordable,
-            equipped
-              ? tr.equipped || 'EQUIPPED'
-              : unlocked
-              ? tr.equip || 'EQUIP'
-              : affordable
-              ? `${tr.buy || 'GET'} • ✦${acc.cost}`
-              : `✦ ${acc.cost}`
-          );
-        }
-      } else {
-        // 2x2 Progression Milestone Showcase Cards
-        const gapY = 14;
-        const cardH = 183;
-        for (let i = 0; i < milestoneList.length; i++) {
-          const acc = milestoneList[i];
-          const col = i % cols;
-          const row = Math.floor(i / cols);
-          const cx = gridX + col * (cardW + gapX);
-          const cy = gridY + row * (cardH + gapY);
-
-          const unlocked = this.unlockedAccessories.has(acc.id);
-          const equipped = this.equippedAccessory === acc.id;
-          const prog = accMod.getMilestoneProgress(acc, stats);
-          const bonusDrops = (acc.milestone && acc.milestone.bonusDrops) || 0;
-
-          this.uiRects.shopCards.push({
-            accessory: acc,
-            rect: { x: cx, y: cy, w: cardW, h: cardH }
-          });
-
-          const cardGrad = ctx.createLinearGradient(cx, cy, cx, cy + cardH);
-          if (equipped) {
-            cardGrad.addColorStop(0, 'rgba(22, 68, 56, 0.78)');
-            cardGrad.addColorStop(1, 'rgba(10, 26, 30, 0.84)');
-          } else if (unlocked) {
-            cardGrad.addColorStop(0, 'rgba(42, 34, 18, 0.72)');
-            cardGrad.addColorStop(1, 'rgba(15, 22, 38, 0.8)');
-          } else {
-            cardGrad.addColorStop(0, 'rgba(16, 25, 44, 0.8)');
-            cardGrad.addColorStop(1, 'rgba(10, 16, 30, 0.85)');
-          }
-
-          ctx.fillStyle = cardGrad;
-          ctx.strokeStyle = equipped
-            ? C.COLORS.jellyPrimary
-            : unlocked
-            ? '#ffd166'
-            : 'rgba(165, 205, 255, 0.16)';
-          ctx.lineWidth = equipped ? 2.2 : unlocked ? 1.6 : 1.2;
-          roundRectPath(ctx, cx, cy, cardW, cardH, 18);
-          ctx.fill();
-          ctx.stroke();
-
-          // Bonus Drops pill in top-right corner of milestone card
-          if (bonusDrops > 0) {
-            ctx.fillStyle = unlocked
-              ? 'rgba(54, 245, 176, 0.18)'
-              : 'rgba(255, 209, 102, 0.16)';
-            roundRectPath(ctx, cx + cardW - 56, cy + 8, 48, 20, 10);
-            ctx.fill();
-            ctx.fillStyle = unlocked ? '#8affdb' : '#ffeaa7';
-            ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
-            ctx.textAlign = 'center';
-            ctx.fillText(unlocked ? `✓ +${bonusDrops}✦` : `+${bonusDrops}✦`, cx + cardW - 32, cy + 18.5);
-          }
-
-          // Spotlight glow & pedestal under rare milestone gear
-          const heroX = cx + cardW * 0.5;
-          const heroY = cy + 52;
-          ctx.fillStyle = unlocked ? 'rgba(255, 209, 102, 0.16)' : 'rgba(255, 255, 255, 0.05)';
-          ctx.beginPath();
-          ctx.ellipse(heroX, heroY + 20, 26, 6, 0, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.save();
-          if (!unlocked) ctx.globalAlpha = 0.78;
-          this._drawMiniJellyPreview(ctx, heroX, heroY, 19, acc.id);
-          ctx.restore();
-
-          // Gear title
-          const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
-          ctx.fillStyle = '#ffffff';
-          ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
-          ctx.textAlign = 'center';
-          ctx.fillText(accName, heroX, cy + 94);
-
-          // Goal subtitle
-          const goalLabel =
-            (tr.accMilestones && tr.accMilestones[acc.id]) ||
-            `${prog.target}`;
-          ctx.fillStyle = unlocked ? '#ffeaa7' : '#94b8e8';
-          ctx.font = `600 10.5px ${C.FONTS.UI}`;
-          ctx.fillText(goalLabel, heroX, cy + 114);
-
-          if (unlocked) {
-            this._drawGearCardButton(
-              ctx,
-              cx + (cardW - 116) * 0.5,
-              cy + 140,
-              116,
-              28,
-              equipped,
-              true,
-              false,
-              equipped ? tr.equipped || 'EQUIPPED' : tr.equip || 'EQUIP'
-            );
-          } else {
-            // Smooth visual progress bar toward milestone goal
-            const barW = cardW - 28;
-            const barH = 18;
-            const barX = cx + 14;
-            const barY = cy + 144;
-            ctx.fillStyle = '#070e1c';
-            ctx.strokeStyle = 'rgba(165, 205, 255, 0.18)';
-            ctx.lineWidth = 1;
-            roundRectPath(ctx, barX, barY, barW, barH, 9);
-            ctx.fill();
-            ctx.stroke();
-
-            if (prog.ratio > 0) {
-              const fillW = Math.max(12, (barW - 4) * prog.ratio);
-              const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY);
-              barGrad.addColorStop(0, '#ffd166');
-              barGrad.addColorStop(1, '#36f5b0');
-              ctx.fillStyle = barGrad;
-              roundRectPath(ctx, barX + 2, barY + 2, fillW, barH - 4, 7);
-              ctx.fill();
-            }
-
-            const unitSuffix = acc.milestone && acc.milestone.stat === 'bestTempo' ? '' : ' m';
-            const prefix = acc.milestone && acc.milestone.stat === 'bestTempo' ? 'x' : '';
-            const progText = `${prefix}${prog.current} / ${prefix}${prog.target}${unitSuffix}`;
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
-            ctx.textAlign = 'center';
-            ctx.fillText(progText, heroX, barY + barH * 0.5 + 0.5);
-          }
-        }
+      // Scrollbar thumb when category overflows 3 rows
+      if (maxScroll > 0) {
+        const trackH = wellH - 24;
+        const thumbH = Math.max(32, (wellH / totalH) * trackH);
+        const thumbY = wellY + 12 + (this.wardrobeScrollY / maxScroll) * (trackH - thumbH);
+        ctx.fillStyle = 'rgba(165, 205, 255, 0.28)';
+        roundRectPath(ctx, wellX + wellW - 6, thumbY, 3, thumbH, 1.5);
+        ctx.fill();
       }
 
       // Bottom close hint
       ctx.fillStyle = 'rgba(185, 205, 235, 0.52)';
       ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
-      ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 17);
+      ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 18);
 
       ctx.restore();
+    }
+
+    _drawGearShowcaseCard(ctx, acc, cx, cy, cardW, cardH, stats, tr, showGoalTag) {
+      const accMod = JellyGame.Accessories;
+      const unlocked = this.unlockedAccessories.has(acc.id);
+      const equipped = this.equippedSlots && this.equippedSlots[acc.slot] === acc.id;
+      const isMilestone = acc.unlockType === 'milestone';
+      const affordable = !unlocked && !isMilestone && this.gems >= acc.cost;
+      const prog = isMilestone && accMod ? accMod.getMilestoneProgress(acc, stats) : null;
+      const bonusDrops = (acc.milestone && acc.milestone.bonusDrops) || 0;
+
+      ctx.fillStyle = equipped
+        ? 'rgba(54, 245, 176, 0.16)'
+        : isMilestone && unlocked
+        ? 'rgba(42, 34, 18, 0.68)'
+        : 'rgba(14, 23, 40, 0.78)';
+      ctx.strokeStyle = equipped
+        ? C.COLORS.jellyPrimary
+        : affordable || (isMilestone && unlocked)
+        ? C.COLORS.collectOuter
+        : 'rgba(165, 205, 255, 0.14)';
+      ctx.lineWidth = equipped ? 2.2 : 1.3;
+      roundRectPath(ctx, cx, cy, cardW, cardH, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      // Top-left slot pill (when in GOALS tab) or milestone bonus badge (top-right)
+      if (showGoalTag) {
+        const sLabel = (tr.slotNames && tr.slotNames[acc.slot]) || acc.slot.toUpperCase();
+        ctx.fillStyle = 'rgba(165, 205, 255, 0.12)';
+        roundRectPath(ctx, cx + 8, cy + 7, 42, 16, 8);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(205, 224, 250, 0.78)';
+        ctx.font = `700 8.5px ${C.FONTS.DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(sLabel, cx + 29, cy + 15.5);
+      }
+
+      if (isMilestone && bonusDrops > 0) {
+        ctx.fillStyle = unlocked ? 'rgba(54, 245, 176, 0.18)' : 'rgba(255, 209, 102, 0.16)';
+        roundRectPath(ctx, cx + cardW - 52, cy + 7, 44, 17, 8.5);
+        ctx.fill();
+        ctx.fillStyle = unlocked ? '#8affdb' : '#ffeaa7';
+        ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(unlocked ? `✓+${bonusDrops}✦` : `+${bonusDrops}✦`, cx + cardW - 30, cy + 16);
+      }
+
+      // Soft mini pedestal disc + Jelly wearing ONLY this preview item
+      ctx.fillStyle = equipped ? 'rgba(54, 245, 176, 0.25)' : 'rgba(255, 255, 255, 0.06)';
+      ctx.beginPath();
+      ctx.ellipse(cx + cardW * 0.5, cy + 54, 21, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      if (!unlocked && isMilestone) ctx.globalAlpha = 0.8;
+      this._drawMiniJellyPreview(ctx, cx + cardW * 0.5, cy + 39, 15.5, acc.id);
+      ctx.restore();
+
+      // Localized accessory name
+      const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
+      ctx.fillStyle = '#f1f5ff';
+      ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(accName, cx + cardW * 0.5, cy + 72, cardW - 14);
+
+      if (isMilestone && !unlocked && prog) {
+        const goalLabel = (tr.accMilestones && tr.accMilestones[acc.id]) || `${prog.target}`;
+        ctx.fillStyle = '#94b8e8';
+        ctx.font = `600 9.5px ${C.FONTS.UI}`;
+        ctx.fillText(goalLabel, cx + cardW * 0.5, cy + 87);
+
+        const barW = cardW - 24;
+        const barH = 17;
+        const barX = cx + 12;
+        const barY = cy + 98;
+        ctx.fillStyle = '#070e1c';
+        ctx.strokeStyle = 'rgba(165, 205, 255, 0.18)';
+        ctx.lineWidth = 1;
+        roundRectPath(ctx, barX, barY, barW, barH, 8.5);
+        ctx.fill();
+        ctx.stroke();
+
+        if (prog.ratio > 0) {
+          const fillW = Math.max(10, (barW - 4) * prog.ratio);
+          const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY);
+          barGrad.addColorStop(0, '#ffd166');
+          barGrad.addColorStop(1, '#36f5b0');
+          ctx.fillStyle = barGrad;
+          roundRectPath(ctx, barX + 2, barY + 2, fillW, barH - 4, 6.5);
+          ctx.fill();
+        }
+
+        const stat = acc.milestone && acc.milestone.stat;
+        const unitSuffix = stat === 'bestClassic' || stat === 'bestRising' ? ' m' : '';
+        const prefix = stat === 'bestTempo' ? 'x' : '';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(
+          `${prefix}${prog.current} / ${prefix}${prog.target}${unitSuffix}`,
+          cx + cardW * 0.5,
+          barY + barH * 0.5 + 0.5
+        );
+      } else {
+        if (isMilestone) {
+          const goalLabel = (tr.accMilestones && tr.accMilestones[acc.id]) || '';
+          ctx.fillStyle = '#ffeaa7';
+          ctx.font = `600 9.5px ${C.FONTS.UI}`;
+          ctx.fillText(goalLabel, cx + cardW * 0.5, cy + 85);
+        }
+        const badgeW = 104;
+        const badgeH = 24;
+        const badgeX = cx + (cardW - badgeW) * 0.5;
+        const badgeY = cy + 93;
+        this._drawGearCardButton(
+          ctx,
+          badgeX,
+          badgeY,
+          badgeW,
+          badgeH,
+          equipped,
+          unlocked,
+          affordable,
+          equipped
+            ? `✓ ${tr.equipped || 'EQUIPPED'}`
+            : unlocked
+            ? tr.equip || 'EQUIP'
+            : affordable
+            ? `${tr.buy || 'GET'} • ✦${acc.cost}`
+            : `✦ ${acc.cost}`
+        );
+      }
     }
 
     _drawGearCardButton(ctx, x, y, w, h, equipped, unlocked, affordable, label) {
@@ -5251,8 +5404,8 @@
       const statusText = isConnected
         ? tr.dbMongo || 'Global Online'
         : tr.dbOffline || 'Offline Mode';
-      const allGearCount = JellyGame.Accessories ? JellyGame.Accessories.LIST.length : 10;
-      const subtitleText = `${statusText}  •  ${this.unlockedAccessories.size}/${allGearCount} ${tr.gearUnit || 'Gear'}`;
+      const allGearCount = JellyGame.Accessories ? JellyGame.Accessories.LIST.length : 18;
+      const subtitleText = `${statusText}  •  ${this._getOwnedGearCount()}/${allGearCount} ${tr.gearUnit || 'Gear'}`;
 
       ctx.fillStyle = statusDotCol;
       ctx.beginPath();
@@ -5607,15 +5760,15 @@
       ctx.stroke();
 
       // Preview miniature milestone gear icons inside promo banner
-      const previews = ['halo', 'visor', 'horns', 'wings'];
+      const previews = ['halo', 'visor', 'horns', 'jetpack', 'wings'];
       for (let i = 0; i < previews.length; i++) {
         this._drawMiniJellyPreview(
           ctx,
-          x + 26 + i * 28,
+          x + 24 + i * 25,
           y + 27,
-          9.5,
+          9.0,
           previews[i],
-          ['amber', 'azure', 'coral', 'violet'][i]
+          ['amber', 'azure', 'coral', 'mint', 'violet'][i]
         );
       }
 
@@ -5662,6 +5815,25 @@
       ctx.save();
       ctx.translate(x, y);
 
+      const eyeScale = r / C.PLAYER_RADIUS;
+
+      // Back-slot accessories (cape, wings, jetpack) drawn cleanly behind body sphere
+      if (JellyGame.Accessories && accessoryId && accessoryId !== 'none') {
+        ctx.save();
+        ctx.scale(eyeScale, eyeScale);
+        JellyGame.Accessories.drawAccessory(
+          ctx,
+          accessoryId,
+          C.PLAYER_RADIUS,
+          0,
+          0,
+          this.hintTime,
+          0.2,
+          'back'
+        );
+        ctx.restore();
+      }
+
       const grad = ctx.createRadialGradient(-r * 0.28, -r * 0.3, r * 0.15, 0, 0, r * 1.05);
       grad.addColorStop(0, pal.light);
       grad.addColorStop(0.45, pal.primary);
@@ -5682,7 +5854,6 @@
       ctx.fill();
 
       // Cute eyes & smile scaled cleanly to preview size
-      const eyeScale = r / C.PLAYER_RADIUS;
       ctx.save();
       ctx.scale(eyeScale, eyeScale);
       for (const side of [-1, 1]) {
@@ -5710,7 +5881,8 @@
           0,
           0,
           this.hintTime,
-          0.2
+          0.2,
+          'front'
         );
       }
       ctx.restore();

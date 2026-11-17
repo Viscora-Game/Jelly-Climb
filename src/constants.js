@@ -79,7 +79,7 @@
       },
       {
         id: 'coral',
-        cost: 15,
+        cost: 20,
         light: '#ffc2cc',
         primary: '#ff6b81',
         secondary: '#e63956',
@@ -88,7 +88,7 @@
       },
       {
         id: 'azure',
-        cost: 30,
+        cost: 45,
         light: '#b8f2ff',
         primary: '#48dbfb',
         secondary: '#0abde3',
@@ -97,7 +97,7 @@
       },
       {
         id: 'amber',
-        cost: 50,
+        cost: 80,
         light: '#fff3b0',
         primary: '#ffd32a',
         secondary: '#f59e0b',
@@ -106,7 +106,7 @@
       },
       {
         id: 'violet',
-        cost: 75,
+        cost: 130,
         light: '#e6c8ff',
         primary: '#c56cf0',
         secondary: '#8c4ae6',
