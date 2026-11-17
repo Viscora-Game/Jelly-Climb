@@ -16,7 +16,9 @@
     SOUND: 'jelly_climb_sound',
     MUSIC: 'jelly_climb_music',
     TUTORIAL_DONE: 'jelly_climb_onboarding_v2_done',
-    GAME_MODE: 'jelly_climb_mode'
+    GAME_MODE: 'jelly_climb_mode',
+    BEST_TEMPO: 'jelly_climb_best_tempo',
+    REWARDS_CLAIMED: 'jelly_climb_rewards_claimed'
   });
 
   function clamp(val, min, max) {
@@ -117,7 +119,15 @@
       this.tempoTier = 1;
       this.tempoTimer = 0;
       this.runMaxTempo = 1;
+      this.bestTempo = this._loadInt(STORAGE_KEYS.BEST_TEMPO, 1);
       this.slowMoTimer = 0;
+
+      // Progression milestone rewards & celebratory toast
+      this.claimedRewards = this._loadStringSet(STORAGE_KEYS.REWARDS_CLAIMED, []);
+      this.unseenRewards = new Set();
+      this.wardrobeTab = 'shop'; // 'shop' | 'rewards'
+      this.rewardToast = null;
+      this.runUnlockedGear = [];
 
       // Altitude theme banner state
       this.announcedThemeIdx = 0;
@@ -173,6 +183,9 @@
         lbEditNickBtn: null,
         lbRefreshBtn: null,
         lbListWell: null,
+        lbPromoBtn: null,
+        wardrobeTabShopBtn: null,
+        wardrobeTabRewardsBtn: null,
         shopCards: [],
         colorSwatches: [],
         soundOnBtn: null,
@@ -207,6 +220,7 @@
       this._setupResize();
       this._setupInput();
       this._setupNicknameDomOverlay();
+      this._syncMilestoneUnlocks({ silent: true });
       if (!this.tutorialDone) {
         this.gameMode = 'tutorial';
         this.resetRun();
@@ -284,26 +298,29 @@
       } catch (_) {}
     }
 
-    _loadUnlocked() {
+    _loadStringSet(key, defaults = []) {
       try {
-        const raw = global.localStorage.getItem(STORAGE_KEYS.UNLOCKED);
+        const raw = global.localStorage.getItem(key);
         const parsed = raw ? JSON.parse(raw) : null;
         if (Array.isArray(parsed)) {
-          const set = new Set(parsed);
-          set.add('none');
-          return set;
+          return new Set([...defaults, ...parsed]);
         }
       } catch (_) {}
-      return new Set(['none']);
+      return new Set(defaults);
+    }
+
+    _saveStringSet(key, set) {
+      try {
+        global.localStorage.setItem(key, JSON.stringify([...set]));
+      } catch (_) {}
+    }
+
+    _loadUnlocked() {
+      return this._loadStringSet(STORAGE_KEYS.UNLOCKED, ['none']);
     }
 
     _saveUnlocked() {
-      try {
-        global.localStorage.setItem(
-          STORAGE_KEYS.UNLOCKED,
-          JSON.stringify([...this.unlockedAccessories])
-        );
-      } catch (_) {}
+      this._saveStringSet(STORAGE_KEYS.UNLOCKED, this.unlockedAccessories);
     }
 
     _loadEquipped() {
@@ -321,25 +338,11 @@
     }
 
     _loadUnlockedColors() {
-      try {
-        const raw = global.localStorage.getItem(STORAGE_KEYS.UNLOCKED_COLORS);
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (Array.isArray(parsed)) {
-          const set = new Set(parsed);
-          set.add('mint');
-          return set;
-        }
-      } catch (_) {}
-      return new Set(['mint']);
+      return this._loadStringSet(STORAGE_KEYS.UNLOCKED_COLORS, ['mint']);
     }
 
     _saveUnlockedColors() {
-      try {
-        global.localStorage.setItem(
-          STORAGE_KEYS.UNLOCKED_COLORS,
-          JSON.stringify([...this.unlockedColors])
-        );
-      } catch (_) {}
+      this._saveStringSet(STORAGE_KEYS.UNLOCKED_COLORS, this.unlockedColors);
     }
 
     _loadEquippedColor() {
@@ -360,17 +363,20 @@
       try {
         global.localStorage.removeItem(STORAGE_KEYS.BEST);
         global.localStorage.removeItem(STORAGE_KEYS.BEST_RISING);
+        global.localStorage.removeItem(STORAGE_KEYS.BEST_TEMPO);
         global.localStorage.removeItem(STORAGE_KEYS.GEMS);
         global.localStorage.removeItem(STORAGE_KEYS.UNLOCKED);
         global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED);
         global.localStorage.removeItem(STORAGE_KEYS.UNLOCKED_COLORS);
         global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED_COLOR);
+        global.localStorage.removeItem(STORAGE_KEYS.REWARDS_CLAIMED);
         global.localStorage.removeItem(STORAGE_KEYS.TUTORIAL_DONE);
         global.localStorage.removeItem(STORAGE_KEYS.GAME_MODE);
       } catch (_) {}
 
       this.bestMeters = 0;
       this.bestRisingMeters = 0;
+      this.bestTempo = 1;
       this.runStartBestMeters = 0;
       this.tutorialDone = false;
       this.gameMode = 'tutorial';
@@ -379,6 +385,9 @@
       this.equippedAccessory = 'none';
       this.unlockedColors = new Set(['mint']);
       this.equippedColor = 'mint';
+      this.claimedRewards = new Set();
+      this.unseenRewards = new Set();
+      this.runUnlockedGear = [];
       this.player.equippedAccessory = 'none';
       this.player.equippedColor = 'mint';
       this.confirmResetPending = false;
@@ -389,9 +398,69 @@
       this.audio.playUnlock();
     }
 
+    _getProgressionStats() {
+      return {
+        bestMeters: this.bestMeters,
+        bestRisingMeters: this.bestRisingMeters,
+        bestTempo: this.bestTempo
+      };
+    }
+
+    /**
+     * Checks all milestone accessories against player stats and grants gear + bonus Drops.
+     */
+    _syncMilestoneUnlocks({ silent = false } = {}) {
+      if (!JellyGame.Accessories || !JellyGame.Accessories.MILESTONE_LIST) return;
+      const list = JellyGame.Accessories.MILESTONE_LIST;
+      const stats = this._getProgressionStats();
+
+      for (let i = 0; i < list.length; i++) {
+        const acc = list[i];
+        const prog = JellyGame.Accessories.getMilestoneProgress(acc, stats);
+        if (!prog.met || this.unlockedAccessories.has(acc.id)) continue;
+
+        this.unlockedAccessories.add(acc.id);
+        this._saveUnlocked();
+
+        const bonusDrops = (acc.milestone && acc.milestone.bonusDrops) || 0;
+        if (bonusDrops > 0 && !this.claimedRewards.has(acc.id)) {
+          this.claimedRewards.add(acc.id);
+          this._saveStringSet(STORAGE_KEYS.REWARDS_CLAIMED, this.claimedRewards);
+          this.gems += bonusDrops;
+          this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+          if (!silent) {
+            this.runGemsEarned += bonusDrops;
+            this.hudGemPulse = 1;
+          }
+        }
+
+        this.unseenRewards.add(acc.id);
+
+        if (!silent) {
+          this.runUnlockedGear.push(acc);
+          this.rewardToast = {
+            accessory: acc,
+            bonusDrops,
+            timer: 3.1,
+            maxTimer: 3.1
+          };
+          this.audio.playUnlock();
+          this.particles.spawnCollectBurst(
+            this.player.positionX,
+            this.player.positionY - 12,
+            3
+          );
+        }
+      }
+    }
+
+    _hasWardrobeBadge() {
+      return this.unseenRewards.size > 0 || this._hasAffordableUnlock();
+    }
+
     _hasAffordableUnlock() {
       if (JellyGame.Accessories) {
-        const list = JellyGame.Accessories.LIST;
+        const list = JellyGame.Accessories.SHOP_LIST || JellyGame.Accessories.LIST;
         for (let i = 0; i < list.length; i++) {
           const acc = list[i];
           if (!this.unlockedAccessories.has(acc.id) && this.gems >= acc.cost) {
@@ -610,9 +679,7 @@
         if (pointInRect(pt.x, pt.y, this.uiRects.topShopBtn)) {
           this.audio.playUiTap();
           this.player.cancelAim();
-          this.modalAnim = 0;
-          this.wardrobePreviewBounce = 0.6;
-          this.activeModal = 'accessories';
+          this._openAccessoriesDrawer();
           return;
         }
 
@@ -636,9 +703,7 @@
           if (this.deathTimer >= 0.38) {
             if (pointInRect(pt.x, pt.y, this.uiRects.deathShopBtn)) {
               this.audio.playUiTap();
-              this.modalAnim = 0;
-              this.wardrobePreviewBounce = 0.6;
-              this.activeModal = 'accessories';
+              this._openAccessoriesDrawer();
             } else if (pointInRect(pt.x, pt.y, this.uiRects.deathLbBtn)) {
               this.audio.playUiTap();
               this.openLeaderboard(this.gameMode === 'rising' ? 'rising' : 'classic');
@@ -831,9 +896,7 @@
         this.activeModal = 'modes';
       } else if (btnId === 'accessories' && pointInRect(px, py, this.uiRects.menuAccBtn)) {
         this.audio.playUiTap();
-        this.modalAnim = 0;
-        this.wardrobePreviewBounce = 0.7;
-        this.activeModal = 'accessories';
+        this._openAccessoriesDrawer();
       } else if (btnId === 'leaderboard' && pointInRect(px, py, this.uiRects.menuLbBtn)) {
         this.audio.playUiTap();
         this.openLeaderboard(this.gameMode === 'rising' ? 'rising' : 'classic');
@@ -885,6 +948,12 @@
       if (pointInRect(px, py, this.uiRects.lbRefreshBtn)) {
         this.audio.playUiTap();
         if (this.leaderboard) this.leaderboard.fetchLeaderboard(this.lbTab);
+        return;
+      }
+
+      if (pointInRect(px, py, this.uiRects.lbPromoBtn)) {
+        this.audio.playUiTap();
+        this._openAccessoriesDrawer('rewards');
       }
     }
 
@@ -1004,6 +1073,29 @@
       }
     }
 
+    _openAccessoriesDrawer(preferredTab = null) {
+      if (preferredTab === 'shop' || preferredTab === 'rewards') {
+        this.wardrobeTab = preferredTab;
+      } else if (this.unseenRewards.size > 0 || this.runUnlockedGear.length > 0) {
+        this.wardrobeTab = 'rewards';
+      }
+      if (this.wardrobeTab === 'rewards') {
+        this.unseenRewards.clear();
+      }
+      this.modalAnim = 0;
+      this.wardrobePreviewBounce = 0.7;
+      this.activeModal = 'accessories';
+    }
+
+    _syncEquippedToLeaderboard() {
+      if (this.leaderboard) {
+        this.leaderboard.syncProfile({
+          color: this.equippedColor,
+          accessory: this.equippedAccessory
+        });
+      }
+    }
+
     _handleAccessoriesTap(px, py) {
       if (pointInRect(px, py, this.uiRects.modalCloseBtn)) {
         this.audio.playUiTap();
@@ -1013,6 +1105,23 @@
 
       if (this.uiRects.modalPanel && !pointInRect(px, py, this.uiRects.modalPanel)) {
         this.activeModal = null;
+        return;
+      }
+
+      if (pointInRect(px, py, this.uiRects.wardrobeTabShopBtn)) {
+        if (this.wardrobeTab !== 'shop') {
+          this.wardrobeTab = 'shop';
+          this.audio.playUiTap();
+        }
+        return;
+      }
+
+      if (pointInRect(px, py, this.uiRects.wardrobeTabRewardsBtn)) {
+        this.unseenRewards.clear();
+        if (this.wardrobeTab !== 'rewards') {
+          this.wardrobeTab = 'rewards';
+          this.audio.playUiTap();
+        }
         return;
       }
 
@@ -1026,12 +1135,7 @@
             this.equippedColor = col.id;
             this.player.equippedColor = col.id;
             this._saveEquippedColor(col.id);
-            if (this.leaderboard) {
-              this.leaderboard.syncProfile({
-                color: this.equippedColor,
-                accessory: this.equippedAccessory
-              });
-            }
+            this._syncEquippedToLeaderboard();
             this.wardrobePreviewBounce = 1;
             this.audio.playCollect(false);
           } else if (this.gems >= col.cost) {
@@ -1042,12 +1146,7 @@
             this.equippedColor = col.id;
             this.player.equippedColor = col.id;
             this._saveEquippedColor(col.id);
-            if (this.leaderboard) {
-              this.leaderboard.syncProfile({
-                color: this.equippedColor,
-                accessory: this.equippedAccessory
-              });
-            }
+            this._syncEquippedToLeaderboard();
             this.wardrobePreviewBounce = 1;
             this.audio.playUnlock();
           } else {
@@ -1066,15 +1165,10 @@
           this.equippedAccessory = acc.id;
           this.player.equippedAccessory = acc.id;
           this._saveEquipped(acc.id);
-          if (this.leaderboard) {
-            this.leaderboard.syncProfile({
-              color: this.equippedColor,
-              accessory: this.equippedAccessory
-            });
-          }
+          this._syncEquippedToLeaderboard();
           this.wardrobePreviewBounce = 1;
           this.audio.playCollect(false);
-        } else if (this.gems >= acc.cost) {
+        } else if (acc.unlockType !== 'milestone' && this.gems >= acc.cost) {
           this.gems -= acc.cost;
           this._saveInt(STORAGE_KEYS.GEMS, this.gems);
           this.unlockedAccessories.add(acc.id);
@@ -1082,12 +1176,7 @@
           this.equippedAccessory = acc.id;
           this.player.equippedAccessory = acc.id;
           this._saveEquipped(acc.id);
-          if (this.leaderboard) {
-            this.leaderboard.syncProfile({
-              color: this.equippedColor,
-              accessory: this.equippedAccessory
-            });
-          }
+          this._syncEquippedToLeaderboard();
           this.wardrobePreviewBounce = 1;
           this.audio.playUnlock();
         } else {
@@ -1157,6 +1246,8 @@
       this.currentMeters = 0;
       this.isNewRecord = false;
       this.runGemsEarned = 0;
+      this.runUnlockedGear = [];
+      this.rewardToast = null;
       this.runStartBestMeters = this.getActiveBestMeters();
       this.bestBannerBroken = false;
 
@@ -1226,6 +1317,13 @@
 
       if (this.themeBannerTimer > 0) {
         this.themeBannerTimer = Math.max(0, this.themeBannerTimer - dt);
+      }
+
+      if (this.rewardToast) {
+        this.rewardToast.timer = Math.max(0, this.rewardToast.timer - dt);
+        if (this.rewardToast.timer <= 0) {
+          this.rewardToast = null;
+        }
       }
 
       // Advance modal spring-open animation and pause world action while modal is open
@@ -1320,11 +1418,13 @@
               this.bestRisingMeters = this.currentMeters;
               this.isNewRecord = true;
               this._saveInt(STORAGE_KEYS.BEST_RISING, this.bestRisingMeters);
+              this._syncMilestoneUnlocks();
             }
-          } else if (this.currentMeters > this.bestMeters) {
+          } else if (this.gameMode === 'classic' && this.currentMeters > this.bestMeters) {
             this.bestMeters = this.currentMeters;
             this.isNewRecord = true;
             this._saveInt(STORAGE_KEYS.BEST, this.bestMeters);
+            this._syncMilestoneUnlocks();
           }
 
           // Break the physical World Best Banner with golden confetti!
@@ -1503,6 +1603,16 @@
       return false;
     }
 
+    _recordRunMaxTempo() {
+      this.runMaxTempo = Math.max(this.runMaxTempo, this.tempoTier);
+      this.player.tempoTier = this.tempoTier;
+      if (this.runMaxTempo > this.bestTempo) {
+        this.bestTempo = this.runMaxTempo;
+        this._saveInt(STORAGE_KEYS.BEST_TEMPO, this.bestTempo);
+        this._syncMilestoneUnlocks();
+      }
+    }
+
     _onPlayerLaunch(shot) {
       if (this.hasLaunchedOnce && this.tempoTimer > 0) {
         this.tempoTier = Math.min(C.TEMPO.MAX_TIER, this.tempoTier + 1);
@@ -1513,8 +1623,7 @@
       }
 
       this.hasLaunchedOnce = true;
-      this.runMaxTempo = Math.max(this.runMaxTempo, this.tempoTier);
-      this.player.tempoTier = this.tempoTier;
+      this._recordRunMaxTempo();
       this.audio.setMusicContext(this.state, this.gameMode, this.tempoTier);
 
       this.audio.playLaunch(shot.strength, this.tempoTier);
@@ -1561,8 +1670,7 @@
 
             this.hasLaunchedOnce = true;
             this.tempoTier = Math.min(C.TEMPO.MAX_TIER, this.tempoTier + 1);
-            this.runMaxTempo = Math.max(this.runMaxTempo, this.tempoTier);
-            this.player.tempoTier = this.tempoTier;
+            this._recordRunMaxTempo();
 
             this.audio.playBouncePad();
             this.particles.spawnStickBurst(this.player.positionX, this.player.positionY, outDir, 950);
@@ -2025,6 +2133,9 @@
         }
         if (this.themeBannerTimer > 0) {
           this._drawThemeBanner(ctx);
+        }
+        if (this.rewardToast) {
+          this._drawRewardToast(ctx);
         }
         if (this.state === 'dead' && this.deathTimer >= 0.35 && !this.activeModal) {
           this._drawDeathOverlay(ctx);
@@ -3096,7 +3207,7 @@
         tr.accessories || 'ACCESSORIES',
         'crown',
         this.pressedBtn === 'accessories',
-        this._hasAffordableUnlock()
+        this._hasWardrobeBadge()
       );
 
       this._drawMenuMedallion(
@@ -4029,7 +4140,7 @@
       ctx.fill();
 
       ctx.fillStyle = 'rgba(26, 40, 64, 0.92)';
-      ctx.strokeStyle = this._hasAffordableUnlock()
+      ctx.strokeStyle = this._hasWardrobeBadge()
         ? C.COLORS.collectOuter
         : 'rgba(175, 210, 255, 0.26)';
       ctx.lineWidth = 1.6;
@@ -4053,7 +4164,7 @@
         this.equippedAccessory
       );
 
-      if (this._hasAffordableUnlock()) {
+      if (this._hasWardrobeBadge()) {
         ctx.fillStyle = '#ff4757';
         ctx.strokeStyle = '#09111f';
         ctx.lineWidth = 1.5;
@@ -4090,6 +4201,61 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`✦  ${this.themeBannerText}  ✦`, C.WIDTH * 0.5, pillY + pillH * 0.5 + 0.5);
+
+      ctx.restore();
+    }
+
+    _drawRewardToast(ctx) {
+      const toast = this.rewardToast;
+      if (!toast || !toast.accessory) return;
+      const tr = this.t();
+      const t = toast.timer;
+      const maxT = toast.maxTimer || 3.1;
+      const inOut = t < 0.35 ? t / 0.35 : t > maxT - 0.3 ? (maxT - t) / 0.3 : 1;
+      const alpha = clamp(inOut, 0, 1);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const slideY = (1 - this._easeOutBack(clamp(inOut, 0, 1))) * -22;
+
+      const w = 278;
+      const h = 52;
+      const x = (C.WIDTH - w) * 0.5;
+      const y = 96 + slideY;
+
+      const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+      grad.addColorStop(0, 'rgba(42, 31, 14, 0.94)');
+      grad.addColorStop(1, 'rgba(18, 28, 48, 0.95)');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, x, y, w, h, 26);
+      ctx.fill();
+      ctx.stroke();
+
+      this._drawMiniJellyPreview(ctx, x + 30, y + h * 0.5 + 1, 14, toast.accessory.id);
+
+      const accName =
+        (tr.accNames && tr.accNames[toast.accessory.id]) || toast.accessory.name;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffd166';
+      ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(`🏆 ${tr.rewardUnlockedToast || 'UNLOCKED'}!`, x + 54, y + 17);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(accName, x + 54, y + 35);
+
+      if (toast.bonusDrops > 0) {
+        ctx.fillStyle = 'rgba(255, 209, 102, 0.2)';
+        roundRectPath(ctx, x + w - 66, y + 14, 54, 24, 12);
+        ctx.fill();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffeaa7';
+        ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(`+${toast.bonusDrops}✦`, x + w - 39, y + 26.5);
+      }
 
       ctx.restore();
     }
@@ -4192,7 +4358,8 @@
       ctx.fill();
 
       ctx.fillStyle = '#283c5e';
-      ctx.strokeStyle = this._hasAffordableUnlock()
+      const gearAlert = this._hasWardrobeBadge() || this.runUnlockedGear.length > 0;
+      ctx.strokeStyle = gearAlert
         ? C.COLORS.collectOuter
         : 'rgba(180, 210, 255, 0.25)';
       ctx.lineWidth = 1.5;
@@ -4200,10 +4367,14 @@
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = this._hasAffordableUnlock() ? '#ffeaa7' : '#e6f0ff';
+      ctx.fillStyle = gearAlert ? '#ffeaa7' : '#e6f0ff';
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+      const shopLabel =
+        this.runUnlockedGear.length > 0
+          ? `🏆 ${tr.rewardsTab || 'MILESTONES'}!`
+          : `✦ ${this.gems}  ${tr.accessories || 'SHOP'}`;
       ctx.fillText(
-        `✦ ${this.gems}  ${tr.accessories || 'SHOP'}`,
+        shopLabel,
         shopX + halfW * 0.5,
         shopY + shopH * 0.5 + 0.5
       );
@@ -4244,7 +4415,13 @@
 
     _drawAccessoryDrawer(ctx) {
       const tr = this.t();
-      const list = JellyGame.Accessories ? JellyGame.Accessories.LIST : [];
+      const accMod = JellyGame.Accessories;
+      const allList = accMod ? accMod.LIST : [];
+      const shopList = accMod && accMod.SHOP_LIST ? accMod.SHOP_LIST : allList;
+      const milestoneList = accMod && accMod.MILESTONE_LIST ? accMod.MILESTONE_LIST : [];
+      const isRewardsTab = this.wardrobeTab === 'rewards';
+      const stats = this._getProgressionStats();
+
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
 
@@ -4253,7 +4430,7 @@
       ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
 
       const panelW = 396;
-      const panelH = 596;
+      const panelH = 626;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -4264,28 +4441,42 @@
 
       this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
 
-      // Header title
+      // Header title + owned gear progress pill
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `700 20px ${C.FONTS.DISPLAY}`;
       ctx.lineWidth = 4;
       ctx.strokeStyle = '#091324';
-      ctx.strokeText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 34);
+      ctx.strokeText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 32);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 34);
+      ctx.fillText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 32);
 
-      // Close medallion
+      const gearCountText = `${this.unlockedAccessories.size}/${allList.length} ${tr.gearUnit || 'Gear'}`;
+      const gearPillW = 86;
       const closeSize = 34;
       const closeX = panelX + panelW - closeSize - 18;
-      const closeY = panelY + 18;
+      const closeY = panelY + 16;
+      const gearPillX = closeX - gearPillW - 10;
+      const gearPillY = panelY + 20;
+      ctx.fillStyle = 'rgba(54, 245, 176, 0.14)';
+      ctx.strokeStyle = 'rgba(54, 245, 176, 0.36)';
+      ctx.lineWidth = 1.2;
+      roundRectPath(ctx, gearPillX, gearPillY, gearPillW, 24, 12);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#8affdb';
+      ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(gearCountText, gearPillX + gearPillW * 0.5, gearPillY + 12.5);
+
       this.uiRects.modalCloseBtn = { x: closeX, y: closeY, w: closeSize, h: closeSize };
       this._drawCloseMedallion(ctx, closeX, closeY, closeSize);
 
-      // Interactive Hero Stage Alcove (shows big live bouncing Jelly on pedestal + Color Swatches!)
+      // Interactive Hero Stage Alcove (big live bouncing Jelly on pedestal + Color Swatches)
       const stageX = panelX + 22;
-      const stageY = panelY + 56;
+      const stageY = panelY + 54;
       const stageW = panelW - 44;
-      const stageH = 92;
+      const stageH = 90;
 
       ctx.fillStyle = 'rgba(9, 15, 28, 0.68)';
       ctx.strokeStyle = 'rgba(165, 205, 255, 0.14)';
@@ -4294,9 +4485,8 @@
       ctx.fill();
       ctx.stroke();
 
-      // Stage spotlight & carved stone pedestal
       const pedX = stageX + 54;
-      const pedY = stageY + 68;
+      const pedY = stageY + 67;
       const activePal = this.player.getColorPalette();
       const spotGrad = ctx.createRadialGradient(pedX, pedY - 18, 4, pedX, pedY - 18, 42);
       spotGrad.addColorStop(0, activePal.glow);
@@ -4313,7 +4503,6 @@
       ctx.fill();
       ctx.stroke();
 
-      // Bounce squash & stretch on the hero showcase jelly when equipping!
       const bWave = Math.sin(this.wardrobePreviewBounce * Math.PI);
       const jumpY = -bWave * 11;
       const sqX = 1 - bWave * 0.14 + Math.sin(this.hintTime * 3.6) * 0.03;
@@ -4325,17 +4514,15 @@
       this._drawMiniJellyPreview(ctx, 0, 0, 21, this.equippedAccessory);
       ctx.restore();
 
-      // Equipped item name + golden gem pouch on top-right of Hero Stage
       const eqName =
         (tr.accNames && tr.accNames[this.equippedAccessory]) || this.equippedAccessory;
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
-      ctx.font = `700 15px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(eqName, stageX + 108, stageY + 22);
+      ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(eqName, stageX + 106, stageY + 21);
 
-      // Golden gem pouch badge on top-right of Hero Stage
       const pouchX = stageX + stageW - 118;
-      const pouchY = stageY + 10;
+      const pouchY = stageY + 9;
       ctx.fillStyle = 'rgba(255, 209, 102, 0.16)';
       ctx.strokeStyle = 'rgba(255, 209, 102, 0.4)';
       ctx.lineWidth = 1.2;
@@ -4348,11 +4535,11 @@
       ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
       ctx.fillText(`${this.gems} ${tr.dropsUnit || 'Drops'}`, pouchX + 26, pouchY + 12.5);
 
-      // Bioluminescent Jelly Color Swatch Bar inside Hero Stage (5 glowing droplets)
+      // 5 Bioluminescent Jelly Color Swatches
       this.uiRects.colorSwatches = [];
       const colors = C.JELLY_COLORS || [];
       const swStartX = stageX + 114;
-      const swY = stageY + 60;
+      const swY = stageY + 59;
       const swSpacing = 46;
 
       for (let i = 0; i < colors.length; i++) {
@@ -4397,104 +4584,250 @@
         ctx.restore();
       }
 
-      // 2x3 Tactile Pedestal Showcase Slots
-      const cols = 2;
-      const gapX = 14;
-      const gapY = 12;
-      const gridX = panelX + 22;
-      const gridY = panelY + 158;
-      const cardW = (panelW - 44 - gapX) / cols;
-      const cardH = 126;
+      // Segmented 2-Tab Bar: DROP SHOP | MILESTONES
+      const tabW = panelW - 44;
+      const tabH = 38;
+      const tabX = panelX + 22;
+      const tabY = panelY + 153;
+      const halfTabW = tabW * 0.5;
+      this.uiRects.wardrobeTabShopBtn = { x: tabX, y: tabY, w: halfTabW, h: tabH };
+      this.uiRects.wardrobeTabRewardsBtn = { x: tabX + halfTabW, y: tabY, w: halfTabW, h: tabH };
+
+      ctx.fillStyle = '#091220';
+      ctx.strokeStyle = 'rgba(170, 205, 255, 0.16)';
+      ctx.lineWidth = 1.2;
+      roundRectPath(ctx, tabX, tabY, tabW, tabH, 19);
+      ctx.fill();
+      ctx.stroke();
+
+      const activeX = isRewardsTab ? tabX + halfTabW + 2 : tabX + 3;
+      ctx.fillStyle = isRewardsTab ? '#925406' : '#057a58';
+      roundRectPath(ctx, activeX, tabY + 5, halfTabW - 5, tabH - 8, 16);
+      ctx.fill();
+      ctx.fillStyle = isRewardsTab ? '#ffd166' : C.COLORS.jellyPrimary;
+      roundRectPath(ctx, activeX, tabY + 3, halfTabW - 5, tabH - 8, 16);
+      ctx.fill();
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      ctx.fillStyle = !isRewardsTab ? '#06241b' : 'rgba(205, 222, 248, 0.72)';
+      ctx.fillText(`✦ ${tr.shopTab || 'DROP SHOP'}`, tabX + halfTabW * 0.5, tabY + tabH * 0.5);
+
+      ctx.fillStyle = isRewardsTab ? '#261402' : 'rgba(205, 222, 248, 0.72)';
+      ctx.fillText(`🏆 ${tr.rewardsTab || 'MILESTONES'}`, tabX + halfTabW * 1.5, tabY + tabH * 0.5);
+
+      if (this.unseenRewards.size > 0 && !isRewardsTab) {
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath();
+        ctx.arc(tabX + tabW - 14, tabY + 10, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       this.uiRects.shopCards = [];
+      const cols = 2;
+      const gapX = 14;
+      const gridX = panelX + 22;
+      const gridY = panelY + 201;
+      const cardW = (panelW - 44 - gapX) / cols;
 
-      for (let i = 0; i < list.length; i++) {
-        const acc = list[i];
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const cx = gridX + col * (cardW + gapX);
-        const cy = gridY + row * (cardH + gapY);
+      if (!isRewardsTab) {
+        // 2x3 Drop Shop Grid
+        const gapY = 10;
+        const cardH = 120;
+        for (let i = 0; i < shopList.length; i++) {
+          const acc = shopList[i];
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const cx = gridX + col * (cardW + gapX);
+          const cy = gridY + row * (cardH + gapY);
 
-        const unlocked = this.unlockedAccessories.has(acc.id);
-        const equipped = this.equippedAccessory === acc.id;
-        const affordable = !unlocked && this.gems >= acc.cost;
+          const unlocked = this.unlockedAccessories.has(acc.id);
+          const equipped = this.equippedAccessory === acc.id;
+          const affordable = !unlocked && this.gems >= acc.cost;
 
-        this.uiRects.shopCards.push({
-          accessory: acc,
-          rect: { x: cx, y: cy, w: cardW, h: cardH }
-        });
+          this.uiRects.shopCards.push({
+            accessory: acc,
+            rect: { x: cx, y: cy, w: cardW, h: cardH }
+          });
 
-        // Slot alcove background
-        ctx.fillStyle = equipped
-          ? 'rgba(54, 245, 176, 0.15)'
-          : 'rgba(10, 17, 30, 0.58)';
-        ctx.strokeStyle = equipped
-          ? C.COLORS.jellyPrimary
-          : affordable
-          ? C.COLORS.collectOuter
-          : 'rgba(165, 205, 255, 0.14)';
-        ctx.lineWidth = equipped ? 2.2 : 1.3;
-        roundRectPath(ctx, cx, cy, cardW, cardH, 18);
-        ctx.fill();
-        ctx.stroke();
-
-        // Soft mini pedestal disc under preview
-        ctx.fillStyle = equipped ? 'rgba(54, 245, 176, 0.25)' : 'rgba(255, 255, 255, 0.06)';
-        ctx.beginPath();
-        ctx.ellipse(cx + cardW * 0.5, cy + 56, 22, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Live preview of jelly wearing the accessory
-        this._drawMiniJellyPreview(ctx, cx + cardW * 0.5, cy + 40, 16.5, acc.id);
-
-        // Localized accessory name
-        const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
-        ctx.fillStyle = '#f1f5ff';
-        ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(accName, cx + cardW * 0.5, cy + 77);
-
-        // Tactile 3D-lipped action ribbon at bottom of card
-        const badgeW = 104;
-        const badgeH = 26;
-        const badgeX = cx + (cardW - badgeW) * 0.5;
-        const badgeY = cy + 91;
-
-        if (equipped) {
-          ctx.fillStyle = '#057856';
-          roundRectPath(ctx, badgeX, badgeY + 2.5, badgeW, badgeH, 13);
+          ctx.fillStyle = equipped
+            ? 'rgba(54, 245, 176, 0.15)'
+            : 'rgba(10, 17, 30, 0.58)';
+          ctx.strokeStyle = equipped
+            ? C.COLORS.jellyPrimary
+            : affordable
+            ? C.COLORS.collectOuter
+            : 'rgba(165, 205, 255, 0.14)';
+          ctx.lineWidth = equipped ? 2.2 : 1.3;
+          roundRectPath(ctx, cx, cy, cardW, cardH, 18);
           ctx.fill();
-          ctx.fillStyle = C.COLORS.jellyPrimary;
-          roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 13);
+          ctx.stroke();
+
+          ctx.fillStyle = equipped ? 'rgba(54, 245, 176, 0.25)' : 'rgba(255, 255, 255, 0.06)';
+          ctx.beginPath();
+          ctx.ellipse(cx + cardW * 0.5, cy + 54, 22, 5, 0, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = '#06241b';
-          ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
-          ctx.fillText(tr.equipped || 'EQUIPPED', cx + cardW * 0.5, badgeY + badgeH * 0.5 + 0.5);
-        } else if (unlocked) {
-          ctx.fillStyle = '#0b1322';
-          roundRectPath(ctx, badgeX, badgeY + 2.5, badgeW, badgeH, 13);
-          ctx.fill();
-          ctx.fillStyle = '#2c4166';
-          roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 13);
-          ctx.fill();
-          ctx.fillStyle = '#ffffff';
-          ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
-          ctx.fillText(tr.equip || 'EQUIP', cx + cardW * 0.5, badgeY + badgeH * 0.5 + 0.5);
-        } else {
-          ctx.fillStyle = affordable ? '#925406' : 'rgba(9, 15, 26, 0.6)';
-          roundRectPath(ctx, badgeX, badgeY + 2.5, badgeW, badgeH, 13);
-          ctx.fill();
-          ctx.fillStyle = affordable ? '#ffd166' : 'rgba(255, 255, 255, 0.06)';
-          roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 13);
-          ctx.fill();
-          ctx.fillStyle = affordable ? '#261402' : 'rgba(185, 200, 225, 0.5)';
-          ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
-          ctx.fillText(
-            affordable ? `${tr.buy || 'GET'} • ✦${acc.cost}` : `✦ ${acc.cost}`,
-            cx + cardW * 0.5,
-            badgeY + badgeH * 0.5 + 0.5
+
+          this._drawMiniJellyPreview(ctx, cx + cardW * 0.5, cy + 38, 16, acc.id);
+
+          const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
+          ctx.fillStyle = '#f1f5ff';
+          ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(accName, cx + cardW * 0.5, cy + 74);
+
+          const badgeW = 104;
+          const badgeH = 25;
+          const badgeX = cx + (cardW - badgeW) * 0.5;
+          const badgeY = cy + 87;
+          this._drawGearCardButton(
+            ctx,
+            badgeX,
+            badgeY,
+            badgeW,
+            badgeH,
+            equipped,
+            unlocked,
+            affordable,
+            equipped
+              ? tr.equipped || 'EQUIPPED'
+              : unlocked
+              ? tr.equip || 'EQUIP'
+              : affordable
+              ? `${tr.buy || 'GET'} • ✦${acc.cost}`
+              : `✦ ${acc.cost}`
           );
+        }
+      } else {
+        // 2x2 Progression Milestone Showcase Cards
+        const gapY = 14;
+        const cardH = 183;
+        for (let i = 0; i < milestoneList.length; i++) {
+          const acc = milestoneList[i];
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const cx = gridX + col * (cardW + gapX);
+          const cy = gridY + row * (cardH + gapY);
+
+          const unlocked = this.unlockedAccessories.has(acc.id);
+          const equipped = this.equippedAccessory === acc.id;
+          const prog = accMod.getMilestoneProgress(acc, stats);
+          const bonusDrops = (acc.milestone && acc.milestone.bonusDrops) || 0;
+
+          this.uiRects.shopCards.push({
+            accessory: acc,
+            rect: { x: cx, y: cy, w: cardW, h: cardH }
+          });
+
+          const cardGrad = ctx.createLinearGradient(cx, cy, cx, cy + cardH);
+          if (equipped) {
+            cardGrad.addColorStop(0, 'rgba(22, 68, 56, 0.78)');
+            cardGrad.addColorStop(1, 'rgba(10, 26, 30, 0.84)');
+          } else if (unlocked) {
+            cardGrad.addColorStop(0, 'rgba(42, 34, 18, 0.72)');
+            cardGrad.addColorStop(1, 'rgba(15, 22, 38, 0.8)');
+          } else {
+            cardGrad.addColorStop(0, 'rgba(16, 25, 44, 0.8)');
+            cardGrad.addColorStop(1, 'rgba(10, 16, 30, 0.85)');
+          }
+
+          ctx.fillStyle = cardGrad;
+          ctx.strokeStyle = equipped
+            ? C.COLORS.jellyPrimary
+            : unlocked
+            ? '#ffd166'
+            : 'rgba(165, 205, 255, 0.16)';
+          ctx.lineWidth = equipped ? 2.2 : unlocked ? 1.6 : 1.2;
+          roundRectPath(ctx, cx, cy, cardW, cardH, 18);
+          ctx.fill();
+          ctx.stroke();
+
+          // Bonus Drops pill in top-right corner of milestone card
+          if (bonusDrops > 0) {
+            ctx.fillStyle = unlocked
+              ? 'rgba(54, 245, 176, 0.18)'
+              : 'rgba(255, 209, 102, 0.16)';
+            roundRectPath(ctx, cx + cardW - 56, cy + 8, 48, 20, 10);
+            ctx.fill();
+            ctx.fillStyle = unlocked ? '#8affdb' : '#ffeaa7';
+            ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(unlocked ? `✓ +${bonusDrops}✦` : `+${bonusDrops}✦`, cx + cardW - 32, cy + 18.5);
+          }
+
+          // Spotlight glow & pedestal under rare milestone gear
+          const heroX = cx + cardW * 0.5;
+          const heroY = cy + 52;
+          ctx.fillStyle = unlocked ? 'rgba(255, 209, 102, 0.16)' : 'rgba(255, 255, 255, 0.05)';
+          ctx.beginPath();
+          ctx.ellipse(heroX, heroY + 20, 26, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.save();
+          if (!unlocked) ctx.globalAlpha = 0.78;
+          this._drawMiniJellyPreview(ctx, heroX, heroY, 19, acc.id);
+          ctx.restore();
+
+          // Gear title
+          const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
+          ctx.textAlign = 'center';
+          ctx.fillText(accName, heroX, cy + 94);
+
+          // Goal subtitle
+          const goalLabel =
+            (tr.accMilestones && tr.accMilestones[acc.id]) ||
+            `${prog.target}`;
+          ctx.fillStyle = unlocked ? '#ffeaa7' : '#94b8e8';
+          ctx.font = `600 10.5px ${C.FONTS.UI}`;
+          ctx.fillText(goalLabel, heroX, cy + 114);
+
+          if (unlocked) {
+            this._drawGearCardButton(
+              ctx,
+              cx + (cardW - 116) * 0.5,
+              cy + 140,
+              116,
+              28,
+              equipped,
+              true,
+              false,
+              equipped ? tr.equipped || 'EQUIPPED' : tr.equip || 'EQUIP'
+            );
+          } else {
+            // Smooth visual progress bar toward milestone goal
+            const barW = cardW - 28;
+            const barH = 18;
+            const barX = cx + 14;
+            const barY = cy + 144;
+            ctx.fillStyle = '#070e1c';
+            ctx.strokeStyle = 'rgba(165, 205, 255, 0.18)';
+            ctx.lineWidth = 1;
+            roundRectPath(ctx, barX, barY, barW, barH, 9);
+            ctx.fill();
+            ctx.stroke();
+
+            if (prog.ratio > 0) {
+              const fillW = Math.max(12, (barW - 4) * prog.ratio);
+              const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY);
+              barGrad.addColorStop(0, '#ffd166');
+              barGrad.addColorStop(1, '#36f5b0');
+              ctx.fillStyle = barGrad;
+              roundRectPath(ctx, barX + 2, barY + 2, fillW, barH - 4, 7);
+              ctx.fill();
+            }
+
+            const unitSuffix = acc.milestone && acc.milestone.stat === 'bestTempo' ? '' : ' m';
+            const prefix = acc.milestone && acc.milestone.stat === 'bestTempo' ? 'x' : '';
+            const progText = `${prefix}${prog.current} / ${prefix}${prog.target}${unitSuffix}`;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(progText, heroX, barY + barH * 0.5 + 0.5);
+          }
         }
       }
 
@@ -4505,6 +4838,39 @@
       ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 17);
 
       ctx.restore();
+    }
+
+    _drawGearCardButton(ctx, x, y, w, h, equipped, unlocked, affordable, label) {
+      const r = h * 0.5;
+      if (equipped) {
+        ctx.fillStyle = '#057856';
+        roundRectPath(ctx, x, y + 2.5, w, h, r);
+        ctx.fill();
+        ctx.fillStyle = C.COLORS.jellyPrimary;
+        roundRectPath(ctx, x, y, w, h, r);
+        ctx.fill();
+        ctx.fillStyle = '#06241b';
+      } else if (unlocked) {
+        ctx.fillStyle = '#0b1322';
+        roundRectPath(ctx, x, y + 2.5, w, h, r);
+        ctx.fill();
+        ctx.fillStyle = '#2c4166';
+        roundRectPath(ctx, x, y, w, h, r);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+      } else {
+        ctx.fillStyle = affordable ? '#925406' : 'rgba(9, 15, 26, 0.6)';
+        roundRectPath(ctx, x, y + 2.5, w, h, r);
+        ctx.fill();
+        ctx.fillStyle = affordable ? '#ffd166' : 'rgba(255, 255, 255, 0.06)';
+        roundRectPath(ctx, x, y, w, h, r);
+        ctx.fill();
+        ctx.fillStyle = affordable ? '#261402' : 'rgba(185, 200, 225, 0.5)';
+      }
+      ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x + w * 0.5, y + h * 0.5 + 0.5);
     }
 
     _drawTrophyIcon(ctx, x, y, scale = 1) {
@@ -4554,6 +4920,119 @@
       ctx.restore();
     }
 
+    _drawRankCrest(ctx, x, y, rank, ghost = false) {
+      ctx.save();
+      ctx.translate(x, y);
+      if (ghost) ctx.globalAlpha = 0.4;
+
+      if (rank >= 1 && rank <= 3) {
+        const palettes = {
+          1: { top: '#fff5b8', mid: '#ffd166', bot: '#d97706', rim: '#78350f', text: '#3b1d02' },
+          2: { top: '#ffffff', mid: '#cbd5e1', bot: '#64748b', rim: '#334155', text: '#0f172a' },
+          3: { top: '#fed7aa', mid: '#f4a261', bot: '#b45309', rim: '#5a2308', text: '#2e1002' }
+        };
+        const p = palettes[rank];
+
+        if (rank === 1 && !ghost) {
+          // Crowned gold champion medallion
+          const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+          glow.addColorStop(0, 'rgba(255, 209, 102, 0.42)');
+          glow.addColorStop(1, 'rgba(255, 209, 102, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(0, 0, 22, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Tiny sculpted crown floating on shield rim
+          ctx.fillStyle = '#ffd166';
+          ctx.strokeStyle = p.rim;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(-8, -11);
+          ctx.lineTo(-9, -17);
+          ctx.lineTo(-3.5, -13.5);
+          ctx.lineTo(0, -18.5);
+          ctx.lineTo(3.5, -13.5);
+          ctx.lineTo(9, -17);
+          ctx.lineTo(8, -11);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        const sGrad = ctx.createLinearGradient(0, -13, 0, 14);
+        sGrad.addColorStop(0, p.top);
+        sGrad.addColorStop(0.55, p.mid);
+        sGrad.addColorStop(1, p.bot);
+        ctx.fillStyle = sGrad;
+        ctx.strokeStyle = p.rim;
+        ctx.lineWidth = 1.6;
+
+        // Hex-crest shield silhouette
+        ctx.beginPath();
+        ctx.moveTo(0, -13);
+        ctx.lineTo(12, -8);
+        ctx.lineTo(10, 5);
+        ctx.lineTo(0, 13.5);
+        ctx.lineTo(-10, 5);
+        ctx.lineTo(-12, -8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = p.text;
+        ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${rank}`, 0, 0.5);
+      } else {
+        ctx.fillStyle = 'rgba(17, 27, 46, 0.85)';
+        ctx.strokeStyle = 'rgba(165, 205, 255, 0.22)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(205, 222, 248, 0.86)';
+        ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`#${rank}`, 0, 0.5);
+      }
+
+      ctx.restore();
+    }
+
+    _drawModeTabIcon(ctx, x, y, mode, active) {
+      ctx.save();
+      ctx.translate(x, y);
+      if (mode === 'rising') {
+        ctx.fillStyle = active ? '#2b0903' : '#ff793f';
+        ctx.beginPath();
+        ctx.moveTo(0, -7);
+        ctx.quadraticCurveTo(6.5, -1, 4.5, 5.5);
+        ctx.quadraticCurveTo(1.5, 7.5, -0.5, 6);
+        ctx.quadraticCurveTo(-5.5, 5, -5, -0.5);
+        ctx.quadraticCurveTo(-2, -3.5, 0, -7);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        // Summit / altitude diamond peak
+        ctx.fillStyle = active ? '#06241b' : '#36f5b0';
+        ctx.beginPath();
+        ctx.moveTo(0, -6.5);
+        ctx.lineTo(6.5, 5);
+        ctx.lineTo(2, 5);
+        ctx.lineTo(0, 2);
+        ctx.lineTo(-2, 5);
+        ctx.lineTo(-6.5, 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     _drawLeaderboardModal(ctx) {
       const tr = this.t();
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
@@ -4567,7 +5046,7 @@
       ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
 
       const panelW = 396;
-      const panelH = 602;
+      const panelH = 622;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -4578,18 +5057,61 @@
 
       this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
 
-      // Header title + trophy
-      this._drawTrophyIcon(ctx, panelX + 32, panelY + 34, 0.92);
+      // Ambient radial spotlight glow inside header matching selected game mode
+      ctx.save();
+      roundRectPath(ctx, panelX + 3, panelY + 3, panelW - 6, panelH - 6, 23);
+      if (typeof ctx.clip === 'function') ctx.clip();
+      const auraGrad = ctx.createRadialGradient(
+        panelX + panelW * 0.45,
+        panelY + 26,
+        8,
+        panelX + panelW * 0.45,
+        panelY + 26,
+        210
+      );
+      auraGrad.addColorStop(
+        0,
+        isRising ? 'rgba(255, 121, 63, 0.22)' : 'rgba(54, 245, 176, 0.2)'
+      );
+      auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = auraGrad;
+      ctx.fillRect(panelX, panelY, panelW, 130);
+      ctx.restore();
+
+      const bucket =
+        this.leaderboard && this.leaderboard.data
+          ? this.leaderboard.data[this.lbTab]
+          : { entries: [], playerEntry: null, playerRank: null, totalPlayers: 0 };
+      const entries = bucket.entries || [];
+
+      // Sculpted Trophy Crest + Decorative Twinkle Stars + Title
+      this._drawTrophyIcon(ctx, panelX + 34, panelY + 34, 0.96);
+      ctx.fillStyle = 'rgba(255, 240, 175, 0.8)';
+      ctx.beginPath();
+      ctx.arc(panelX + 20, panelY + 21, 1.8, 0, Math.PI * 2);
+      ctx.arc(panelX + 47, panelY + 22, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.font = `700 19px ${C.FONTS.DISPLAY}`;
+      ctx.font = `700 18.5px ${C.FONTS.DISPLAY}`;
       ctx.lineWidth = 4;
       ctx.strokeStyle = '#091324';
-      ctx.strokeText(tr.leaderboardTitle || 'LEADERBOARD', panelX + 52, panelY + 35);
+      const titleY = entries.length > 0 ? panelY + 28 : panelY + 35;
+      ctx.strokeText(tr.leaderboardTitle || 'LEADERBOARD', panelX + 54, titleY);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(tr.leaderboardTitle || 'LEADERBOARD', panelX + 52, panelY + 35);
+      ctx.fillText(tr.leaderboardTitle || 'LEADERBOARD', panelX + 54, titleY);
 
-      // Refresh circular button next to Close medallion
+      if (entries.length > 0) {
+        const count = bucket.totalPlayers || entries.length;
+        const unit = count === 1 ? tr.climberUnit || 'climber' : tr.climbersUnit || 'climbers';
+        const countStr = `${count} ${unit}`;
+        ctx.fillStyle = accent;
+        ctx.font = `700 10.5px ${C.FONTS.UI}`;
+        ctx.fillText(countStr, panelX + 55, panelY + 46);
+      }
+
+      // Close medallion & Animated Refresh medallion
       const closeSize = 34;
       const closeX = panelX + panelW - closeSize - 18;
       const closeY = panelY + 18;
@@ -4608,24 +5130,30 @@
       ctx.arc(rCx, rCy, closeSize * 0.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+
+      ctx.save();
+      ctx.translate(rCx, rCy);
+      if (this.leaderboard && this.leaderboard.loading) {
+        ctx.rotate(this.hintTime * 6);
+      }
       ctx.strokeStyle = '#8affdb';
       ctx.fillStyle = '#8affdb';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(rCx, rCy, 7, 0.35, Math.PI * 1.75);
+      ctx.arc(0, 0, 7, 0.35, Math.PI * 1.75);
       ctx.stroke();
-      // Refresh arrowhead
       const ahAng = Math.PI * 1.75;
-      const ahX = rCx + Math.cos(ahAng) * 7;
-      const ahY = rCy + Math.sin(ahAng) * 7;
+      const ahX = Math.cos(ahAng) * 7;
+      const ahY = Math.sin(ahAng) * 7;
       ctx.beginPath();
       ctx.moveTo(ahX + 3.5, ahY + 1.5);
       ctx.lineTo(ahX - 1.5, ahY - 3.5);
       ctx.lineTo(ahX - 3.5, ahY + 2.5);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
 
-      // 2-Mode Tab Segmented Bar (CLASSIC | RISING FLOOR)
+      // 2-Mode Tab Segmented Bar (CLASSIC | RISING FLOOR) with vector mode emblems
       const tabW = panelW - 36;
       const tabH = 42;
       const tabX = panelX + 18;
@@ -4649,31 +5177,64 @@
       roundRectPath(ctx, activeTabX, tabY + 3, halfTabW - 5, tabH - 8, 17);
       ctx.fill();
 
-      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      roundRectPath(ctx, activeTabX + 12, tabY + 5.5, halfTabW - 29, 5, 2.5);
+      ctx.fill();
+
       ctx.textBaseline = 'middle';
       ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillStyle = !isRising ? '#06241b' : 'rgba(205, 222, 248, 0.72)';
-      ctx.fillText(tr.modeClassic || 'CLASSIC', tabX + halfTabW * 0.5, tabY + tabH * 0.5);
-      ctx.fillStyle = isRising ? '#240b03' : 'rgba(205, 222, 248, 0.72)';
-      ctx.fillText(tr.modeRising || 'RISING FLOOR', tabX + halfTabW * 1.5, tabY + tabH * 0.5);
 
-      // Player Profile & Nickname Editor Strip
+      const classicLabel = tr.modeClassic || 'CLASSIC';
+      const classicW = ctx.measureText(classicLabel).width;
+      const classicCenterX = tabX + halfTabW * 0.5;
+      this._drawModeTabIcon(ctx, classicCenterX - classicW * 0.5 - 6, tabY + tabH * 0.5, 'classic', !isRising);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = !isRising ? '#06241b' : 'rgba(205, 222, 248, 0.72)';
+      ctx.fillText(classicLabel, classicCenterX + 8, tabY + tabH * 0.5);
+
+      const risingLabel = tr.modeRising || 'RISING FLOOR';
+      const risingW = ctx.measureText(risingLabel).width;
+      const risingCenterX = tabX + halfTabW * 1.5;
+      this._drawModeTabIcon(ctx, risingCenterX - risingW * 0.5 - 6, tabY + tabH * 0.5, 'rising', isRising);
+      ctx.fillStyle = isRising ? '#240b03' : 'rgba(205, 222, 248, 0.72)';
+      ctx.fillText(risingLabel, risingCenterX + 8, tabY + tabH * 0.5);
+
+      // Player Profile Identity Card (no backend database jargon!)
       const profX = panelX + 18;
       const profY = panelY + 114;
       const profW = panelW - 36;
-      const profH = 44;
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.65)';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.15)';
+      const profH = 48;
+      const profGrad = ctx.createLinearGradient(profX, profY, profX + profW, profY + profH);
+      profGrad.addColorStop(0, 'rgba(18, 30, 52, 0.85)');
+      profGrad.addColorStop(1, 'rgba(10, 17, 30, 0.82)');
+      ctx.fillStyle = profGrad;
+      ctx.strokeStyle = 'rgba(165, 205, 255, 0.18)';
       ctx.lineWidth = 1.2;
       roundRectPath(ctx, profX, profY, profW, profH, 16);
       ctx.fill();
       ctx.stroke();
 
+      const activePal = this.player.getColorPalette();
+      const avGlow = ctx.createRadialGradient(
+        profX + 26,
+        profY + profH * 0.5,
+        2,
+        profX + 26,
+        profY + profH * 0.5,
+        21
+      );
+      avGlow.addColorStop(0, activePal.glow);
+      avGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = avGlow;
+      ctx.beginPath();
+      ctx.arc(profX + 26, profY + profH * 0.5, 21, 0, Math.PI * 2);
+      ctx.fill();
+
       this._drawMiniJellyPreview(
         ctx,
-        profX + 24,
+        profX + 26,
         profY + profH * 0.5,
-        12,
+        13,
         this.equippedAccessory,
         this.equippedColor
       );
@@ -4681,40 +5242,41 @@
       const nick = this.leaderboard ? this.leaderboard.nickname : 'JELLY';
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
-      ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(nick, profX + 46, profY + 16);
+      ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(nick, profX + 50, profY + 16.5);
 
-      // Storage status indicator pill beneath nick
       const src = this.leaderboard ? this.leaderboard.storageSource : 'offline';
-      const statusDotCol =
-        src === 'mongodb' ? '#36f5b0' : src === 'local' ? '#48dbfb' : '#ffd166';
-      const statusText =
-        src === 'mongodb'
-          ? tr.dbMongo || 'MongoDB Live'
-          : src === 'local'
-          ? tr.dbLocal || 'Local Server'
-          : tr.dbOffline || 'Offline Cache';
+      const isConnected = src === 'mongodb' || src === 'local';
+      const statusDotCol = isConnected ? '#36f5b0' : '#ffd166';
+      const statusText = isConnected
+        ? tr.dbMongo || 'Global Online'
+        : tr.dbOffline || 'Offline Mode';
+      const allGearCount = JellyGame.Accessories ? JellyGame.Accessories.LIST.length : 10;
+      const subtitleText = `${statusText}  •  ${this.unlockedAccessories.size}/${allGearCount} ${tr.gearUnit || 'Gear'}`;
 
       ctx.fillStyle = statusDotCol;
       ctx.beginPath();
-      ctx.arc(profX + 50, profY + 32, 3.5, 0, Math.PI * 2);
+      ctx.arc(profX + 54, profY + 34, 3.3, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = 'rgba(200, 222, 250, 0.75)';
+      ctx.fillStyle = 'rgba(195, 218, 250, 0.78)';
       ctx.font = `600 10.5px ${C.FONTS.UI}`;
-      ctx.fillText(statusText, profX + 58, profY + 32.5);
+      ctx.fillText(subtitleText, profX + 62, profY + 34.5);
 
-      // [EDIT] nickname button on right of profile strip
-      const editW = 78;
-      const editH = 28;
-      const editX = profX + profW - editW - 8;
+      // Tactile 3D [EDIT] button on right of profile strip
+      const editW = 80;
+      const editH = 29;
+      const editX = profX + profW - editW - 9;
       const editY = profY + (profH - editH) * 0.5;
       this.uiRects.lbEditNickBtn = { x: editX, y: editY, w: editW, h: editH };
 
-      ctx.fillStyle = '#283c5e';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.28)';
+      ctx.fillStyle = '#09111f';
+      roundRectPath(ctx, editX, editY + 2, editW, editH, 14.5);
+      ctx.fill();
+      ctx.fillStyle = '#283e62';
+      ctx.strokeStyle = 'rgba(165, 205, 255, 0.3)';
       ctx.lineWidth = 1.2;
-      roundRectPath(ctx, editX, editY, editW, editH, 14);
+      roundRectPath(ctx, editX, editY, editW, editH, 14.5);
       ctx.fill();
       ctx.stroke();
 
@@ -4723,30 +5285,35 @@
       ctx.textAlign = 'center';
       ctx.fillText(`✎ ${tr.editNick || 'EDIT'}`, editX + editW * 0.5, editY + editH * 0.5 + 0.5);
 
-      // Recessed Scrollable Ranked List Well
+      // Recessed Scrollable Hall-of-Fame Well
       const wellX = panelX + 18;
-      const wellY = panelY + 168;
+      const wellY = panelY + 172;
       const wellW = panelW - 36;
       const wellH = 342;
       this.uiRects.lbListWell = { x: wellX, y: wellY, w: wellW, h: wellH };
+      this.uiRects.lbPromoBtn = null;
 
-      ctx.fillStyle = 'rgba(8, 13, 24, 0.72)';
+      ctx.fillStyle = 'rgba(8, 13, 24, 0.78)';
       ctx.strokeStyle = 'rgba(165, 205, 255, 0.14)';
       ctx.lineWidth = 1.2;
       roundRectPath(ctx, wellX, wellY, wellW, wellH, 18);
       ctx.fill();
       ctx.stroke();
 
-      const bucket =
-        this.leaderboard && this.leaderboard.data
-          ? this.leaderboard.data[this.lbTab]
-          : { entries: [], playerEntry: null, playerRank: null, totalPlayers: 0 };
-      const entries = bucket.entries || [];
+      const rowGap = 7;
+      const openSlots = entries.length > 0 && entries.length < 3 ? 3 - entries.length : 0;
+      const showPromo = entries.length > 0 && entries.length <= 4;
+      const promoH = showPromo ? 72 : 0;
 
-      const rowH = 46;
-      const rowGap = 6;
-      const contentH = entries.length * (rowH + rowGap) + 12;
-      const maxScroll = Math.max(0, contentH - wellH);
+      let totalContentH = 12;
+      for (let i = 0; i < entries.length; i++) {
+        const rk = entries[i].rank;
+        totalContentH += (rk === 1 ? 60 : rk <= 3 ? 52 : 44) + rowGap;
+      }
+      totalContentH += openSlots * (48 + rowGap);
+      if (showPromo) totalContentH += promoH + 8;
+
+      const maxScroll = Math.max(0, totalContentH - wellH);
       if (this.lbScrollY > maxScroll) this.lbScrollY = maxScroll;
       if (this.lbScrollY < 0) this.lbScrollY = 0;
 
@@ -4755,104 +5322,120 @@
       if (typeof ctx.clip === 'function') ctx.clip();
 
       if (entries.length === 0) {
+        const emCx = wellX + wellW * 0.5;
+        const emCy = wellY + 115;
+        const emGlow = ctx.createRadialGradient(emCx, emCy, 6, emCx, emCy, 56);
+        emGlow.addColorStop(0, activePal.glow);
+        emGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = emGlow;
+        ctx.beginPath();
+        ctx.arc(emCx, emCy, 56, 0, Math.PI * 2);
+        ctx.fill();
+
+        this._drawRankCrest(ctx, emCx, emCy - 34, 1, false);
         this._drawMiniJellyPreview(
           ctx,
-          wellX + wellW * 0.5,
-          wellY + wellH * 0.42,
-          20,
+          emCx,
+          emCy + 10,
+          22,
           this.equippedAccessory,
           this.equippedColor
         );
-        ctx.fillStyle = 'rgba(205, 224, 250, 0.78)';
-        ctx.font = `600 13px ${C.FONTS.DISPLAY}`;
+        ctx.fillStyle = 'rgba(215, 232, 255, 0.86)';
+        ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.fillText(
           tr.emptyLeaderboard || 'No climbs recorded yet — be #1!',
-          wellX + wellW * 0.5,
-          wellY + wellH * 0.6
+          emCx,
+          wellY + 190
+        );
+        this.uiRects.lbPromoBtn = this._drawLbMilestonePromo(
+          ctx,
+          wellX + 8,
+          wellY + wellH - 82,
+          wellW - 16,
+          72,
+          tr
         );
       } else {
         const myId = this.leaderboard ? this.leaderboard.playerId : '';
+        const rx = wellX + 8;
+        const rw = wellW - 16;
+        let curY = wellY + 8 - this.lbScrollY;
+
         for (let i = 0; i < entries.length; i++) {
           const entry = entries[i];
-          const ry = wellY + 8 + i * (rowH + rowGap) - this.lbScrollY;
-          if (ry + rowH < wellY || ry > wellY + wellH) continue;
+          const rk = entry.rank;
+          const rowH = rk === 1 ? 60 : rk <= 3 ? 52 : 44;
 
-          const isMe = entry.playerId === myId;
-          const rx = wellX + 8;
-          const rw = wellW - 16;
+          if (curY + rowH >= wellY && curY <= wellY + wellH) {
+            this._drawLeaderboardRow(ctx, entry, rx, curY, rw, rowH, entry.playerId === myId, isRising, accent, tr);
+          }
+          curY += rowH + rowGap;
+        }
 
-          ctx.fillStyle = isMe
-            ? isRising
-              ? 'rgba(255, 121, 63, 0.16)'
-              : 'rgba(54, 245, 176, 0.14)'
-            : 'rgba(22, 34, 56, 0.72)';
-          ctx.strokeStyle = isMe ? accent : 'rgba(165, 205, 255, 0.1)';
-          ctx.lineWidth = isMe ? 1.5 : 1;
-          roundRectPath(ctx, rx, ry, rw, rowH, 14);
-          ctx.fill();
-          ctx.stroke();
+        // Stylized ghost podium placeholders if Top 3 isn't full yet
+        for (let slot = entries.length + 1; slot <= 3; slot++) {
+          const slotH = 48;
+          if (curY + slotH >= wellY && curY <= wellY + wellH) {
+            ctx.save();
+            ctx.setLineDash([5, 4]);
+            ctx.fillStyle = 'rgba(13, 21, 38, 0.45)';
+            ctx.strokeStyle =
+              slot === 2 ? 'rgba(203, 213, 225, 0.25)' : 'rgba(244, 162, 97, 0.25)';
+            ctx.lineWidth = 1.2;
+            roundRectPath(ctx, rx, curY, rw, slotH, 14);
+            ctx.fill();
+            ctx.stroke();
+            ctx.setLineDash([]);
 
-          // Rank Medal / Number
-          const rankCol =
-            entry.rank === 1
-              ? '#ffd166'
-              : entry.rank === 2
-              ? '#dbeafe'
-              : entry.rank === 3
-              ? '#f4a261'
-              : 'rgba(195, 215, 245, 0.72)';
-          ctx.fillStyle = rankCol;
-          ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          const medal =
-            entry.rank === 1
-              ? '🥇'
-              : entry.rank === 2
-              ? '🥈'
-              : entry.rank === 3
-              ? '🥉'
-              : `#${entry.rank}`;
-          ctx.fillText(medal, rx + 24, ry + rowH * 0.5 + 0.5);
+            this._drawRankCrest(ctx, rx + 26, curY + slotH * 0.5, slot, true);
+            ctx.textAlign = 'left';
+            ctx.fillStyle = 'rgba(180, 200, 232, 0.56)';
+            ctx.font = `600 11.5px ${C.FONTS.UI}`;
+            ctx.fillText(
+              tr.openPodiumSlot || 'PODIUM OPEN — Climb to claim!',
+              rx + 56,
+              curY + slotH * 0.5 + 0.5
+            );
+            ctx.restore();
+          }
+          curY += slotH + rowGap;
+        }
 
-          // Live Mini Jelly Avatar for that player's exact color + accessory!
-          this._drawMiniJellyPreview(
-            ctx,
-            rx + 62,
-            ry + rowH * 0.5,
-            11.5,
-            entry.accessory || 'none',
-            entry.color || 'mint'
-          );
-
-          // Nickname (+ YOU badge)
-          ctx.textAlign = 'left';
-          ctx.fillStyle = isMe ? '#ffffff' : '#e6f0ff';
-          ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
-          const nameLabel = isMe ? `${entry.nickname} (${tr.youTag || 'YOU'})` : entry.nickname;
-          ctx.fillText(nameLabel, rx + 84, ry + 17);
-
-          // Tempo badge below name
-          ctx.fillStyle = 'rgba(255, 209, 102, 0.82)';
-          ctx.font = `600 10.5px ${C.FONTS.DISPLAY}`;
-          ctx.fillText(`⚡ ${tr.tempo || 'TEMPO'} x${entry.maxTempo || 1}`, rx + 84, ry + 33);
-
-          // Right-aligned Meters Score
-          ctx.textAlign = 'right';
-          ctx.fillStyle = isMe ? accent : '#ffffff';
-          ctx.font = `700 15.5px ${C.FONTS.DISPLAY}`;
-          ctx.fillText(`${entry.meters} m`, rx + rw - 14, ry + rowH * 0.5 + 0.5);
+        // Interactive Milestone Promo banner at bottom when board is short
+        if (showPromo) {
+          const promoY = Math.max(curY + 4, wellY + wellH - promoH - 8);
+          if (promoY + promoH >= wellY && promoY <= wellY + wellH) {
+            this.uiRects.lbPromoBtn = this._drawLbMilestonePromo(
+              ctx,
+              rx,
+              promoY,
+              rw,
+              promoH,
+              tr
+            );
+          }
         }
       }
       ctx.restore();
 
-      // Pinned Footer "YOUR RANK" Summary Bar
+      // Subtle vertical scrollbar thumb if list scrolls
+      if (maxScroll > 0) {
+        const trackH = wellH - 24;
+        const thumbH = Math.max(30, (wellH / totalContentH) * trackH);
+        const thumbY = wellY + 12 + (this.lbScrollY / maxScroll) * (trackH - thumbH);
+        ctx.fillStyle = 'rgba(165, 205, 255, 0.25)';
+        roundRectPath(ctx, wellX + wellW - 6, thumbY, 3, thumbH, 1.5);
+        ctx.fill();
+      }
+
+      // Pinned Footer "YOUR RANK" Summary Bar with target meter gap!
       const footX = panelX + 18;
-      const footY = panelY + 520;
+      const footY = panelY + 526;
       const footW = panelW - 36;
-      const footH = 44;
-      ctx.fillStyle = isRising ? 'rgba(54, 20, 14, 0.92)' : 'rgba(12, 34, 34, 0.92)';
+      const footH = 48;
+      ctx.fillStyle = isRising ? 'rgba(54, 20, 14, 0.94)' : 'rgba(12, 34, 34, 0.94)';
       ctx.strokeStyle = accent;
       ctx.lineWidth = 1.6;
       roundRectPath(ctx, footX, footY, footW, footH, 16);
@@ -4860,28 +5443,198 @@
       ctx.stroke();
 
       const localBest = isRising ? this.bestRisingMeters : this.bestMeters;
-      const myRankStr = bucket.playerRank ? `#${bucket.playerRank}` : '--';
+      const myRankNum = bucket.playerRank;
+      const myRankStr = myRankNum ? `#${myRankNum}` : '--';
       ctx.textAlign = 'left';
       ctx.fillStyle = accent;
-      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
       ctx.fillText(`${tr.yourRank || 'YOUR RANK'}: ${myRankStr}`, footX + 16, footY + footH * 0.5 + 0.5);
 
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(
-        localBest > 0 ? `${localBest} m` : tr.unranked || 'Climb to rank!',
-        footX + footW - 16,
-        footY + footH * 0.5 + 0.5
-      );
+      // Compute motivating gap to the climber right above you (if any)
+      let gapLabel = '';
+      if (myRankNum && myRankNum > 1 && entries.length >= myRankNum - 1) {
+        const targetEntry = entries[myRankNum - 2];
+        const myScore = (bucket.playerEntry && bucket.playerEntry.meters) || localBest;
+        const delta = targetEntry ? targetEntry.meters - myScore + 1 : 0;
+        if (delta > 0) {
+          gapLabel = `▲ +${delta} m → #${targetEntry.rank}`;
+        }
+      }
 
-      // Subtle close hint underneath pinned footer
+      ctx.textAlign = 'right';
+      if (gapLabel) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(`${localBest} m`, footX + footW - 16, footY + 17);
+        ctx.fillStyle = '#ffeaa7';
+        ctx.font = `700 10.5px ${C.FONTS.UI}`;
+        ctx.fillText(gapLabel, footX + footW - 16, footY + 34);
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(
+          localBest > 0 ? `${localBest} m` : tr.unranked || 'Climb to rank!',
+          footX + footW - 16,
+          footY + footH * 0.5 + 0.5
+        );
+      }
+
+      // Close hint beneath footer
       ctx.fillStyle = 'rgba(185, 205, 235, 0.52)';
       ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 18);
 
       ctx.restore();
+    }
+
+    _drawLeaderboardRow(ctx, entry, rx, ry, rw, rowH, isMe, isRising, accent, tr) {
+      const rk = entry.rank;
+      const isChamp = rk === 1;
+
+      const cardGrad = ctx.createLinearGradient(rx, ry, rx + rw, ry + rowH);
+      if (isChamp) {
+        cardGrad.addColorStop(0, 'rgba(72, 54, 18, 0.85)');
+        cardGrad.addColorStop(1, 'rgba(30, 26, 20, 0.88)');
+      } else if (isMe) {
+        cardGrad.addColorStop(0, isRising ? 'rgba(84, 34, 22, 0.82)' : 'rgba(14, 54, 48, 0.82)');
+        cardGrad.addColorStop(1, 'rgba(16, 26, 44, 0.86)');
+      } else if (rk === 2) {
+        cardGrad.addColorStop(0, 'rgba(34, 48, 72, 0.82)');
+        cardGrad.addColorStop(1, 'rgba(20, 30, 50, 0.82)');
+      } else if (rk === 3) {
+        cardGrad.addColorStop(0, 'rgba(54, 34, 24, 0.78)');
+        cardGrad.addColorStop(1, 'rgba(24, 28, 46, 0.82)');
+      } else {
+        cardGrad.addColorStop(0, 'rgba(22, 34, 56, 0.74)');
+        cardGrad.addColorStop(1, 'rgba(16, 25, 42, 0.74)');
+      }
+
+      ctx.fillStyle = cardGrad;
+      ctx.strokeStyle = isChamp
+        ? '#ffd166'
+        : isMe
+        ? accent
+        : rk === 2
+        ? 'rgba(203, 213, 225, 0.42)'
+        : rk === 3
+        ? 'rgba(244, 162, 97, 0.42)'
+        : 'rgba(165, 205, 255, 0.12)';
+      ctx.lineWidth = isChamp || isMe ? 1.8 : 1.1;
+      roundRectPath(ctx, rx, ry, rw, rowH, 15);
+      ctx.fill();
+      ctx.stroke();
+
+      // Vector Rank Crest
+      this._drawRankCrest(ctx, rx + 26, ry + rowH * 0.5 + (isChamp ? 3 : 0), rk, false);
+
+      // Soft avatar glow halo on #1 Champion
+      const avX = rx + 64;
+      const avY = ry + rowH * 0.5;
+      if (isChamp) {
+        const hGlow = ctx.createRadialGradient(avX, avY, 2, avX, avY, 22);
+        hGlow.addColorStop(0, 'rgba(255, 209, 102, 0.36)');
+        hGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = hGlow;
+        ctx.beginPath();
+        ctx.arc(avX, avY, 22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      this._drawMiniJellyPreview(
+        ctx,
+        avX,
+        avY,
+        isChamp ? 13.5 : rk <= 3 ? 12 : 11,
+        entry.accessory || 'none',
+        entry.color || 'mint'
+      );
+
+      // Nickname + Champion / YOU micro tag
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isChamp ? '#fff5cf' : isMe ? '#ffffff' : '#e6f0ff';
+      ctx.font = `700 ${isChamp ? 14 : 13}px ${C.FONTS.DISPLAY}`;
+      const nameLabel = isMe ? `${entry.nickname} (${tr.youTag || 'YOU'})` : entry.nickname;
+      const nameY = ry + rowH * 0.34;
+      ctx.fillText(nameLabel, rx + 88, nameY);
+
+      // Tempo + Champion tag beneath nickname
+      ctx.fillStyle = 'rgba(255, 209, 102, 0.88)';
+      ctx.font = `600 10.5px ${C.FONTS.DISPLAY}`;
+      const subRowY = ry + rowH * 0.69;
+      const subText = isChamp
+        ? `★ ${tr.championTag || 'CHAMPION'}  •  ⚡ x${entry.maxTempo || 1}`
+        : `⚡ ${tr.tempo || 'TEMPO'} x${entry.maxTempo || 1}`;
+      ctx.fillText(subText, rx + 88, subRowY);
+
+      // Right-aligned Sculpted Score Pill
+      const scoreText = `${entry.meters} m`;
+      const pillW = 72;
+      const pillH = isChamp ? 30 : 26;
+      const pillX = rx + rw - pillW - 10;
+      const pillY = ry + (rowH - pillH) * 0.5;
+      ctx.fillStyle = isChamp
+        ? 'rgba(255, 209, 102, 0.2)'
+        : isMe
+        ? 'rgba(54, 245, 176, 0.16)'
+        : 'rgba(10, 17, 32, 0.65)';
+      ctx.strokeStyle = isChamp
+        ? 'rgba(255, 209, 102, 0.5)'
+        : isMe
+        ? accent
+        : 'rgba(165, 205, 255, 0.16)';
+      ctx.lineWidth = 1;
+      roundRectPath(ctx, pillX, pillY, pillW, pillH, pillH * 0.5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = isChamp ? '#ffd166' : isMe ? accent : '#ffffff';
+      ctx.font = `700 ${isChamp ? 14.5 : 13.5}px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(scoreText, pillX + pillW * 0.5, pillY + pillH * 0.5 + 0.5);
+    }
+
+    _drawLbMilestonePromo(ctx, x, y, w, h, tr) {
+      const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+      grad.addColorStop(0, 'rgba(32, 26, 56, 0.85)');
+      grad.addColorStop(1, 'rgba(16, 28, 50, 0.88)');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = 'rgba(255, 209, 102, 0.36)';
+      ctx.lineWidth = 1.2;
+      roundRectPath(ctx, x, y, w, h, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      // Preview miniature milestone gear icons inside promo banner
+      const previews = ['halo', 'visor', 'horns', 'wings'];
+      for (let i = 0; i < previews.length; i++) {
+        this._drawMiniJellyPreview(
+          ctx,
+          x + 26 + i * 28,
+          y + 27,
+          9.5,
+          previews[i],
+          ['amber', 'azure', 'coral', 'violet'][i]
+        );
+      }
+
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffd166';
+      ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(`🏆 ${tr.rewardsTab || 'MILESTONES'} →`, x + w - 12, y + 23);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(218, 232, 255, 0.85)';
+      ctx.font = `600 10.5px ${C.FONTS.UI}`;
+      ctx.fillText(
+        tr.milestoneHintStrip || 'Hit altitude & tempo goals to earn rare gear!',
+        x + 14,
+        y + 52
+      );
+
+      return { x, y, w, h };
     }
 
     _drawMiniJellyPreview(ctx, x, y, r, accessoryId, colorId) {
