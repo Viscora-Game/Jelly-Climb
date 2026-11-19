@@ -31,7 +31,7 @@
     A5: 880.0
   });
 
-  // Cozy Bioluminescent Cavern Progression: Fmaj7 -> G6 -> Em7 -> Am9
+  // Cozy-Upbeat Retro Arcade Chiptune Progression: Fmaj7 -> G6 -> Em7 -> Am7
   const CHORDS_COZY = [
     [NOTE.F3, NOTE.A3, NOTE.C4, NOTE.E4],
     [NOTE.G3, NOTE.B3, NOTE.D4, NOTE.E4],
@@ -40,23 +40,23 @@
   ];
   const BASS_COZY = [NOTE.F2, NOTE.G2, NOTE.E2, NOTE.A2];
 
-  // 64-step (4-bar) Kalimba/Marimba melody for Cozy/Classic mode (0 = rest)
+  // 64-step (4-bar) energetic Chiptune Arcade lead for Classic mode (0 = rest)
   const MELODY_COZY = [
     // Bar 1 (Fmaj7)
-    NOTE.A4, 0, NOTE.C5, 0, NOTE.E5, 0, NOTE.C5, 0,
-    NOTE.A4, 0, NOTE.G4, 0, NOTE.E4, 0, 0, 0,
+    NOTE.A4, 0, NOTE.C5, NOTE.E5, 0, NOTE.C5, NOTE.A4, 0,
+    NOTE.E5, 0, NOTE.D5, NOTE.C5, NOTE.A4, 0, NOTE.G4, 0,
     // Bar 2 (G6)
-    NOTE.B4, 0, NOTE.D5, 0, NOTE.G5, 0, NOTE.E5, 0,
-    NOTE.D5, 0, NOTE.B4, 0, NOTE.G4, 0, NOTE.A4, 0,
+    NOTE.B4, 0, NOTE.D5, NOTE.G5, 0, NOTE.E5, NOTE.D5, 0,
+    NOTE.G5, 0, NOTE.E5, NOTE.D5, NOTE.B4, 0, NOTE.A4, 0,
     // Bar 3 (Em7)
-    NOTE.G4, 0, NOTE.B4, 0, NOTE.E5, 0, NOTE.D5, 0,
-    NOTE.B4, 0, NOTE.G4, 0, NOTE.E4, 0, 0, 0,
-    // Bar 4 (Am9)
-    NOTE.A4, 0, NOTE.C5, 0, NOTE.E5, 0, NOTE.G5, 0,
-    NOTE.E5, 0, NOTE.C5, 0, NOTE.B4, 0, NOTE.G4, 0
+    NOTE.G4, 0, NOTE.B4, NOTE.E5, 0, NOTE.D5, NOTE.B4, 0,
+    NOTE.E5, 0, NOTE.D5, NOTE.B4, NOTE.G4, 0, NOTE.E4, 0,
+    // Bar 4 (Am7)
+    NOTE.A4, 0, NOTE.C5, NOTE.E5, 0, NOTE.G5, NOTE.E5, 0,
+    NOTE.A5, 0, NOTE.G5, NOTE.E5, NOTE.C5, 0, NOTE.B4, 0
   ];
 
-  // Energetic Rising Magma Progression: Am7 -> Fmaj7 -> Dm7 -> Em7
+  // Fast Arcade Synth Progression for Rising Floor: Am -> F -> Dm -> E
   const CHORDS_RISING = [
     [NOTE.A3, NOTE.C4, NOTE.E4, NOTE.G4],
     [NOTE.F3, NOTE.A3, NOTE.C4, NOTE.E4],
@@ -65,24 +65,24 @@
   ];
   const BASS_RISING = [NOTE.A2, NOTE.F2, NOTE.D3, NOTE.E2];
 
-  // 64-step driving synth-marimba melody for Rising Floor mode
+  // 64-step driving retro arcade chiptune melody for Rising Floor
   const MELODY_RISING = [
     // Bar 1 (Am)
-    NOTE.A4, 0, NOTE.E5, 0, NOTE.C5, 0, NOTE.A4, NOTE.C5,
-    NOTE.E5, 0, NOTE.G5, 0, NOTE.E5, 0, NOTE.C5, 0,
-    // Bar 2 (Fmaj7)
-    NOTE.A4, 0, NOTE.F5, 0, NOTE.C5, 0, NOTE.A4, NOTE.C5,
-    NOTE.E5, 0, NOTE.C5, 0, NOTE.A4, 0, NOTE.G4, 0,
-    // Bar 3 (Dm7)
-    NOTE.A4, 0, NOTE.D5, 0, NOTE.F5, 0, NOTE.D5, 0,
-    NOTE.C5, 0, NOTE.A4, 0, NOTE.F4, 0, NOTE.A4, 0,
-    // Bar 4 (Em7)
-    NOTE.B4, 0, NOTE.E5, 0, NOTE.G5, 0, NOTE.E5, 0,
-    NOTE.D5, 0, NOTE.B4, 0, NOTE.G4, 0, NOTE.E4, 0
+    NOTE.A4, NOTE.C5, NOTE.E5, 0, NOTE.A5, 0, NOTE.E5, NOTE.C5,
+    NOTE.E5, 0, NOTE.G5, NOTE.E5, NOTE.C5, 0, NOTE.A4, 0,
+    // Bar 2 (F)
+    NOTE.A4, NOTE.C5, NOTE.F5, 0, NOTE.A5, 0, NOTE.F5, NOTE.C5,
+    NOTE.E5, 0, NOTE.C5, NOTE.A4, NOTE.G4, 0, NOTE.A4, 0,
+    // Bar 3 (Dm)
+    NOTE.D5, NOTE.F5, NOTE.A5, 0, NOTE.F5, 0, NOTE.D5, NOTE.A4,
+    NOTE.C5, 0, NOTE.D5, NOTE.F5, NOTE.E5, 0, NOTE.D5, 0,
+    // Bar 4 (Em)
+    NOTE.E5, NOTE.G5, NOTE.B4, 0, NOTE.E5, 0, NOTE.G5, NOTE.E5,
+    NOTE.D5, 0, NOTE.B4, NOTE.G4, NOTE.A4, 0, NOTE.B4, 0
   ];
 
   /**
-   * Procedural Web Audio synthesizer for tactile jelly SFX & royalty-free original soundtrack.
+   * Web Audio SFX & BGM engine (supports drop-in MP3 via assets/bgm/track.json + chiptune synth fallback).
    */
   class SoundFX {
     constructor() {
@@ -91,9 +91,13 @@
       this.enabled = true;
       this.musicEnabled = true;
 
-      // Music engine state
+      // Procedural + external BGM state
       this.musicBus = null;
-      this.echoNode = null;
+      this.masterMusicGain = null;
+      this.externalMusicBuffer = null;
+      this.externalSource = null;
+      this.externalGain = null;
+      this.trackConfigChecked = false;
       this.noiseBuffer = null;
       this.musicStep = 0;
       this.nextNoteTime = 0;
@@ -111,8 +115,13 @@
       this.musicEnabled = Boolean(enabled);
       if (!this.musicEnabled) {
         this._stopMusicLoop();
+        this._stopExternalTrack();
       } else if (this.ctx && this.ctx.state === 'running') {
-        this._startMusicLoop();
+        if (this.externalMusicBuffer) {
+          this._startExternalTrack();
+        } else {
+          this._startMusicLoop();
+        }
       }
     }
 
@@ -120,6 +129,12 @@
       this.musicState = state || 'menu';
       this.musicMode = gameMode || 'classic';
       this.musicTempoTier = tempoTier || 1;
+      if (this.externalGain && this.ctx) {
+        const targetVol = this.musicState === 'dead' ? 0.12 : this.musicState === 'playing' ? 0.3 : 0.22;
+        try {
+          this.externalGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.18);
+        } catch (_) {}
+      }
     }
 
     unlock() {
@@ -133,11 +148,79 @@
         if (this.ctx.state === 'suspended') {
           this.ctx.resume();
         }
-        if (this.musicEnabled && !this.musicTimerId) {
-          this._startMusicLoop();
+        if (!this.trackConfigChecked) {
+          this.trackConfigChecked = true;
+          this._checkExternalTrackConfig();
+        }
+        if (this.musicEnabled) {
+          if (this.externalMusicBuffer) {
+            this._startExternalTrack();
+          } else if (!this.musicTimerId) {
+            this._startMusicLoop();
+          }
         }
       } catch (_) {
         // Ignore audio errors on restricted environments
+      }
+    }
+
+    async _checkExternalTrackConfig() {
+      if (typeof global.fetch !== 'function' || !this.ctx) return;
+      try {
+        const res = await global.fetch('assets/bgm/track.json', { cache: 'no-cache' });
+        if (!res || !res.ok) return;
+        const cfg = await res.json();
+        if (cfg && typeof cfg.url === 'string' && cfg.url.trim()) {
+          await this.loadExternalTrack(cfg.url.trim());
+        }
+      } catch (_) {
+        // Fallback smoothly to built-in chiptune synth
+      }
+    }
+
+    async loadExternalTrack(url) {
+      if (typeof global.fetch !== 'function' || !this.ctx || !url) return false;
+      try {
+        const res = await global.fetch(url);
+        if (!res || !res.ok) return false;
+        const arrBuf = await res.arrayBuffer();
+        const decoded = await this.ctx.decodeAudioData(arrBuf);
+        this.externalMusicBuffer = decoded;
+        if (this.musicEnabled && this.ctx.state === 'running') {
+          this._stopMusicLoop();
+          this._startExternalTrack();
+        }
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    _startExternalTrack() {
+      if (!this.ctx || !this.externalMusicBuffer || this.externalSource) return;
+      try {
+        if (!this.externalGain) {
+          this.externalGain = this.ctx.createGain();
+          this.externalGain.connect(this.ctx.destination);
+        }
+        const vol = this.musicState === 'dead' ? 0.12 : this.musicState === 'playing' ? 0.3 : 0.22;
+        this.externalGain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.externalMusicBuffer;
+        src.loop = true;
+        src.connect(this.externalGain);
+        src.start(0);
+        this.externalSource = src;
+      } catch (_) {}
+    }
+
+    _stopExternalTrack() {
+      if (this.externalSource) {
+        try {
+          this.externalSource.stop();
+          this.externalSource.disconnect();
+        } catch (_) {}
+        this.externalSource = null;
       }
     }
 
@@ -204,19 +287,19 @@
     }
 
     _getStepDuration() {
-      let bpm = 110;
+      let bpm = 128;
       if (this.musicState === 'playing') {
         if (this.musicMode === 'rising') {
-          bpm = 124 + Math.min(12, (this.musicTempoTier - 1) * 3);
+          bpm = 142 + Math.min(10, (this.musicTempoTier - 1) * 2.5);
         } else if (this.musicMode === 'tutorial') {
-          bpm = 112;
+          bpm = 126;
         } else {
-          bpm = 116 + Math.min(12, (this.musicTempoTier - 1) * 3);
+          bpm = 136 + Math.min(10, (this.musicTempoTier - 1) * 2.5);
         }
       } else if (this.musicState === 'dead') {
-        bpm = 96;
+        bpm = 110;
       }
-      // 16th-note step duration in seconds
+      // 16th-note arcade pulse step duration in seconds
       return 60 / bpm / 4;
     }
 
@@ -246,44 +329,43 @@
       const barIdx = Math.floor(step / 16) % 4;
       const stepInBar = step % 16;
 
-      // 1. Lush Warm Pad Chord at the start of every 16-step bar
-      if (stepInBar === 0) {
+      // 1. Arcade Chiptune Arpeggio Chord Pulse on 8th notes
+      if (stepInBar % 2 === 0 && !isDead) {
         const chord = chords[barIdx];
-        const padDur = stepDur * 15.5;
-        const padVol = isDead ? 0.032 : 0.048;
-        for (let i = 0; i < chord.length; i++) {
-          this._playMusicPadNote(chord[i], time, padDur, padVol);
-        }
+        const arpNote = chord[(stepInBar >> 1) % chord.length];
+        this._playMusicPadNote(arpNote, time, stepDur * 1.65, isPlaying ? 0.036 : 0.025);
       }
 
-      // 2. Warm Sub-Bass Groove
+      // 2. Driving Retro Synth Octave Bassline
       const bassRoot = bassNotes[barIdx];
-      if (stepInBar === 0 || (isPlaying && stepInBar === 8)) {
-        this._playMusicBassNote(bassRoot, time, stepDur * 5.5, isDead ? 0.07 : 0.11);
-      } else if (isRising && (stepInBar === 4 || stepInBar === 12)) {
-        this._playMusicBassNote(bassRoot * 2, time, stepDur * 2.8, 0.075);
-      } else if (isPlaying && stepInBar === 12) {
-        this._playMusicBassNote(bassRoot * 1.5, time, stepDur * 3.0, 0.065);
+      if (stepInBar % 4 === 0 || (isPlaying && stepInBar % 4 === 2)) {
+        const isOffbeat = stepInBar % 4 === 2;
+        this._playMusicBassNote(
+          isOffbeat ? bassRoot * 2 : bassRoot,
+          time,
+          stepDur * (isOffbeat ? 1.5 : 2.6),
+          isDead ? 0.055 : isOffbeat ? 0.068 : 0.098
+        );
       }
 
-      // 3. Plucky Kalimba / Marimba Lead Melody
+      // 3. Crisp Retro Chiptune Square/Triangle Lead Melody
       const melFreq = melody[step];
       if (melFreq && !isDead) {
-        const melVol = isPlaying ? 0.085 : 0.068;
-        this._playKalimbaPluck(melFreq, time, stepDur * 2.6, melVol);
+        const melVol = isPlaying ? 0.072 : 0.052;
+        this._playKalimbaPluck(melFreq, time, stepDur * 1.9, melVol);
       } else if (melFreq && isDead && step % 4 === 0) {
-        // Softer, sparser melody on Game Over screen
-        this._playKalimbaPluck(melFreq * 0.5, time, stepDur * 3.5, 0.04);
+        this._playKalimbaPluck(melFreq * 0.5, time, stepDur * 2.6, 0.034);
       }
 
-      // 4. Subtle Arcade Groove Percussion (Kick & Soft Shaker)
+      // 4. Snappy Arcade Drumbeat (Kick + Closed Hi-Hat + Crisp Noise Snare)
       if (isPlaying) {
-        if (stepInBar === 0 || stepInBar === 8) {
-          this._playSoftKick(time, isRising ? 0.11 : 0.08);
+        if (stepInBar === 0 || stepInBar === 8 || (isRising && stepInBar === 10)) {
+          this._playSoftKick(time, isRising ? 0.115 : 0.09);
         }
-        if (stepInBar === 4 || stepInBar === 12 || (isRising && stepInBar % 2 === 1)) {
-          const shakerVol = stepInBar % 4 === 0 ? 0.032 : 0.016;
-          this._playSoftShaker(time, shakerVol);
+        if (stepInBar === 4 || stepInBar === 12) {
+          this._playSoftShaker(time, 0.058, 2200, 0.075);
+        } else if (stepInBar % 2 === 1) {
+          this._playSoftShaker(time, 0.022, 6200, 0.035);
         }
       }
     }
@@ -294,19 +376,19 @@
         const osc2 = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        osc1.type = 'sine';
+        osc1.type = 'square';
         osc1.frequency.setValueAtTime(freq, time);
 
-        // Soft 2nd harmonic chime overtone
+        // Chiptune octave thickness with triangle wave
         osc2.type = 'triangle';
-        osc2.frequency.setValueAtTime(freq * 2, time);
+        osc2.frequency.setValueAtTime(freq * 0.5, time);
 
         const g2 = this.ctx.createGain();
-        g2.gain.setValueAtTime(0.18, time);
-        g2.gain.exponentialRampToValueAtTime(0.001, time + duration * 0.45);
+        g2.gain.setValueAtTime(0.32, time);
+        g2.gain.exponentialRampToValueAtTime(0.01, time + duration * 0.75);
 
         gain.gain.setValueAtTime(0.0001, time);
-        gain.gain.linearRampToValueAtTime(volume, time + 0.008);
+        gain.gain.linearRampToValueAtTime(volume, time + 0.006);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
 
         osc1.connect(gain);
@@ -330,14 +412,14 @@
         osc.frequency.setValueAtTime(freq, time);
 
         gain.gain.setValueAtTime(0.0001, time);
-        gain.gain.linearRampToValueAtTime(volume, time + duration * 0.25);
+        gain.gain.linearRampToValueAtTime(volume, time + 0.008);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
 
         osc.connect(gain);
         gain.connect(this.musicBus);
 
         osc.start(time);
-        osc.stop(time + duration + 0.04);
+        osc.stop(time + duration + 0.02);
       } catch (_) {}
     }
 
@@ -346,11 +428,11 @@
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        osc.type = 'sine';
+        osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(freq, time);
 
         gain.gain.setValueAtTime(0.0001, time);
-        gain.gain.linearRampToValueAtTime(volume, time + 0.015);
+        gain.gain.linearRampToValueAtTime(volume, time + 0.008);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
 
         osc.connect(gain);
@@ -367,11 +449,11 @@
         const gain = this.ctx.createGain();
 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(115, time);
-        osc.frequency.exponentialRampToValueAtTime(38, time + 0.09);
+        osc.frequency.setValueAtTime(125, time);
+        osc.frequency.exponentialRampToValueAtTime(42, time + 0.085);
 
         gain.gain.setValueAtTime(0.0001, time);
-        gain.gain.linearRampToValueAtTime(volume, time + 0.005);
+        gain.gain.linearRampToValueAtTime(volume, time + 0.004);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.11);
 
         osc.connect(gain);
@@ -382,7 +464,7 @@
       } catch (_) {}
     }
 
-    _playSoftShaker(time, volume) {
+    _playSoftShaker(time, volume, centerHz = 5200, dur = 0.045) {
       if (!this.noiseBuffer) return;
       try {
         const src = this.ctx.createBufferSource();
@@ -390,12 +472,12 @@
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'bandpass';
-        filter.frequency.value = 5200;
-        filter.Q.value = 1.8;
+        filter.frequency.value = centerHz;
+        filter.Q.value = 1.6;
 
         const gain = this.ctx.createGain();
         gain.gain.setValueAtTime(volume, time);
-        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
 
         src.connect(filter);
         filter.connect(gain);

@@ -34,4 +34,9 @@ if (fs.existsSync(srcDir)) {
   copyDir(srcDir, path.join(DIST, 'src'));
 }
 
+const assetsDir = path.join(ROOT, 'assets');
+if (fs.existsSync(assetsDir)) {
+  copyDir(assetsDir, path.join(DIST, 'assets'));
+}
+
 console.log('[build] Static game assets copied to dist/ successfully.');

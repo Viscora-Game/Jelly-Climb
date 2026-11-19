@@ -5469,7 +5469,7 @@
       } else {
         ctx.fillStyle = 'rgba(180, 202, 235, 0.45)';
         ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
-        ctx.fillText('Jelly Climb v1.1 • Play Store Ready', C.WIDTH * 0.5, panelY + 346);
+        ctx.fillText('Jelly Climb v1.2', C.WIDTH * 0.5, panelY + 346);
       }
 
       ctx.restore();
@@ -6981,7 +6981,7 @@
         ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.fillText(
-          tr.powersHint || 'Equip 1 Power — Tap orb or double-tap to fire!',
+          tr.powersHint || 'Pick 1 Power (tap orb or double-tap to use)',
           C.WIDTH * 0.5,
           panelY + panelH - 18,
           panelW - 40
@@ -7771,8 +7771,8 @@
       const isConnected = src === 'mongodb' || src === 'local';
       const statusDotCol = isConnected ? '#36f5b0' : '#ffd166';
       const statusText = isConnected
-        ? tr.dbMongo || 'Global Online'
-        : tr.dbOffline || 'Offline Mode';
+        ? tr.dbMongo || 'Online'
+        : tr.dbOffline || 'Offline';
       const allGearCount = JellyGame.Accessories ? JellyGame.Accessories.LIST.length : 18;
       const subtitleText = `${statusText}  •  ${this._getOwnedGearCount()}/${allGearCount} ${tr.gearUnit || 'Gear'}`;
 
@@ -7876,7 +7876,7 @@
         ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.fillText(
-          tr.emptyLeaderboard || 'No climbs recorded yet — be #1!',
+          tr.emptyLeaderboard || 'No climbs yet, claim #1!',
           emCx,
           wellY + 190
         );
@@ -7925,7 +7925,7 @@
             ctx.fillStyle = 'rgba(180, 200, 232, 0.56)';
             ctx.font = `600 11.5px ${C.FONTS.UI}`;
             ctx.fillText(
-              tr.openPodiumSlot || 'PODIUM OPEN — Climb to claim!',
+              tr.openPodiumSlot || 'Open spot, set a score!',
               rx + 56,
               curY + slotH * 0.5 + 0.5
             );
@@ -8081,36 +8081,38 @@
         entry.color || 'mint'
       );
 
-      // Nickname + Champion / YOU micro tag
+      // Nickname + Champion tag (#1 only; clean score rows with no cluttering Tempo tag)
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = isChamp ? '#fff5cf' : isMe ? '#ffffff' : '#e6f0ff';
       ctx.font = `700 ${isChamp ? 14 : 13}px ${C.FONTS.DISPLAY}`;
       const nameLabel = isMe ? `${entry.nickname} (${tr.youTag || 'YOU'})` : entry.nickname;
-      const nameY = ry + rowH * 0.34;
-      ctx.fillText(nameLabel, rx + 88, nameY);
+      const pillW = 72;
+      const pillX = rx + rw - pillW - 10;
+      const nameX = rx + 94;
+      const maxNameW = Math.max(80, pillX - nameX - 10);
+      const nameY = isChamp ? ry + rowH * 0.35 : ry + rowH * 0.5 + 0.5;
+      ctx.fillText(nameLabel, nameX, nameY, maxNameW);
 
-      // Tempo + Champion tag beneath nickname
-      ctx.font = `600 10.5px ${C.FONTS.DISPLAY}`;
-      const subRowY = ry + rowH * 0.69;
-      const subParts = isChamp
-        ? [
+      if (isChamp) {
+        ctx.font = `600 10.5px ${C.FONTS.DISPLAY}`;
+        const subRowY = ry + rowH * 0.69;
+        this._drawUiRow(
+          ctx,
+          [
             { icon: 'star', r: 4.1, color: '#ffd166', gap: 4 },
-            { text: `${tr.championTag || 'CHAMPION'}  •`, gap: 5 },
-            { icon: 'bolt', r: 3.9, color: '#ffd166', gap: 2 },
-            { text: `x${entry.maxTempo || 1}` }
-          ]
-        : [
-            { icon: 'bolt', r: 3.9, color: '#ffd166', gap: 3 },
-            { text: `${tr.tempo || 'TEMPO'} x${entry.maxTempo || 1}` }
-          ];
-      this._drawUiRow(ctx, subParts, rx + 88, subRowY, 'left', 'rgba(255, 209, 102, 0.92)');
+            { text: tr.championTag || 'CHAMPION' }
+          ],
+          nameX,
+          subRowY,
+          'left',
+          'rgba(255, 209, 102, 0.94)'
+        );
+      }
 
       // Right-aligned Sculpted Score Pill
       const scoreText = `${entry.meters} m`;
-      const pillW = 72;
       const pillH = isChamp ? 30 : 26;
-      const pillX = rx + rw - pillW - 10;
       const pillY = ry + (rowH - pillH) * 0.5;
       ctx.fillStyle = isChamp
         ? 'rgba(255, 209, 102, 0.2)'

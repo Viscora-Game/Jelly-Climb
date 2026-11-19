@@ -28,6 +28,9 @@ const MIME_TYPES = Object.freeze({
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
   '.webmanifest': 'application/manifest+json; charset=utf-8'
 });
 
