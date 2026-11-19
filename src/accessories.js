@@ -757,103 +757,105 @@
       drawStar(ctx, sx, sy, 3.6, 1.2);
       ctx.fill();
     } else if (id === 'horns') {
-      // Cute sculpted chibi Inferno Horns with molten gold cuffs, horn ridges & dancing ember flamelet
-      const centerX = eyeOffsetX * 0.25;
-      const topY = -r + 1;
+      // Sleek, glossy chibi Inferno Horns on a slim dark-crimson brow band with tiny center ember gem
+      const centerX = eyeOffsetX * 0.22;
+      const bandY = -r * 0.68;
 
-      // Soft warm infernal ambient glow behind the crown area
+      // Soft warm ruby-ember aura behind horns (subtle, no clutter)
       ctx.save();
-      const emberAura = ctx.createRadialGradient(centerX, topY - 6, 2, centerX, topY - 6, 22);
-      emberAura.addColorStop(0, 'rgba(255, 110, 54, 0.34)');
-      emberAura.addColorStop(1, 'rgba(255, 60, 20, 0)');
-      ctx.fillStyle = emberAura;
+      const aura = ctx.createRadialGradient(centerX, bandY - 5, 2, centerX, bandY - 5, 20);
+      aura.addColorStop(0, 'rgba(255, 92, 72, 0.28)');
+      aura.addColorStop(1, 'rgba(255, 60, 40, 0)');
+      ctx.fillStyle = aura;
       ctx.beginPath();
-      ctx.arc(centerX, topY - 6, 22, 0, Math.PI * 2);
+      ctx.arc(centerX, bandY - 5, 20, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
+      // Slim curved dark-obsidian & ruby headband hugging top brow
+      ctx.save();
+      ctx.translate(centerX, bandY);
+      ctx.strokeStyle = '#1b060d';
+      ctx.lineWidth = 4.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, 11, 16.2, -Math.PI * 0.77, -Math.PI * 0.23);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#7a1228';
+      ctx.lineWidth = 2.1;
+      ctx.beginPath();
+      ctx.arc(0, 11, 16.2, -Math.PI * 0.76, -Math.PI * 0.24);
+      ctx.stroke();
+      ctx.restore();
+
+      // Smooth candy-gloss chibi crescent devil horns
       for (const side of [-1, 1]) {
         ctx.save();
-        ctx.translate(side * (r * 0.56) + centerX, -r * 0.72);
+        ctx.translate(centerX + side * (r * 0.5), bandY - 1.2);
         ctx.scale(side, 1);
 
-        // Chubby S-curved imp horn arching outward then hooking inward upward
-        const hGrad = ctx.createLinearGradient(-2, 4, 8, -16);
-        hGrad.addColorStop(0, '#4a0c17');
-        hGrad.addColorStop(0.45, '#e63946');
-        hGrad.addColorStop(0.78, '#ff7b29');
-        hGrad.addColorStop(1, '#ffe066');
+        const hGrad = ctx.createLinearGradient(-1, 3, 4, -14);
+        hGrad.addColorStop(0, '#610c1e');
+        hGrad.addColorStop(0.45, '#e63956');
+        hGrad.addColorStop(0.82, '#ff7b54');
+        hGrad.addColorStop(1, '#ffd180');
 
         ctx.fillStyle = hGrad;
-        ctx.strokeStyle = '#1d050c';
-        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = '#1b060d';
+        ctx.lineWidth = 1.5;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
 
         ctx.beginPath();
-        ctx.moveTo(-4.2, 2.2);
-        ctx.bezierCurveTo(-5.5, -5.0, 2.5, -9.5, 4.8, -14.8);
-        ctx.quadraticCurveTo(8.2, -11.5, 7.6, -5.2);
-        ctx.bezierCurveTo(7.2, -0.8, 5.2, 1.8, 3.6, 3.2);
+        ctx.moveTo(-3.4, 2.0);
+        ctx.quadraticCurveTo(-2.6, -7.8, 3.2, -12.6);
+        ctx.quadraticCurveTo(5.6, -7.2, 3.5, 1.8);
+        ctx.quadraticCurveTo(0, 3.2, -3.4, 2.0);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Carved crescent ridge grooves across middle of horn for sculpted depth
-        ctx.strokeStyle = 'rgba(42, 6, 14, 0.55)';
+        // Crisp anime candy-gloss highlight arc along outer edge
+        ctx.strokeStyle = 'rgba(255, 245, 225, 0.85)';
         ctx.lineWidth = 1.25;
         ctx.beginPath();
-        ctx.arc(1.2, -2.5, 4.2, -0.5, 0.85);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(2.6, -6.4, 3.4, -0.4, 0.9);
+        ctx.moveTo(-1.1, -0.6);
+        ctx.quadraticCurveTo(-0.2, -6.4, 2.3, -10.2);
         ctx.stroke();
 
-        // Molten gold horn base cuff ring
-        ctx.fillStyle = '#ffd166';
-        ctx.strokeStyle = '#78350f';
-        ctx.lineWidth = 1.1;
-        roundRectPath(ctx, -4.6, 0.5, 8.8, 3.2, 1.6);
+        // Warm cherry rim gleam near base
+        ctx.fillStyle = 'rgba(255, 168, 180, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(0.4, 0.2, 2.1, 1.0, -0.2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
-
-        // Specular glossy gleam near glowing ember tip
-        ctx.strokeStyle = 'rgba(255, 250, 210, 0.82)';
-        ctx.lineWidth = 1.3;
-        ctx.beginPath();
-        ctx.moveTo(4.0, -12.6);
-        ctx.quadraticCurveTo(5.8, -9.0, 5.2, -4.5);
-        ctx.stroke();
-
         ctx.restore();
       }
 
-      // Cute tiny dancing Hellfire Ember Flame hovering playfully between the horns
-      const fBob = Math.sin(time * 7.5) * 1.1;
-      const fSway = Math.cos(time * 6.2) * 0.9;
+      // Tiny faceted center ruby-amber jewel set cleanly on brow band
+      const gemY = bandY - 4.8;
       ctx.save();
-      ctx.translate(centerX + fSway * 0.4, topY - 4.5 + fBob);
-
-      const fGrad = ctx.createLinearGradient(0, -8, 0, 3);
-      fGrad.addColorStop(0, '#fff3b0');
-      fGrad.addColorStop(0.5, '#ff9f43');
-      fGrad.addColorStop(1, '#ff4757');
-
-      ctx.fillStyle = fGrad;
-      ctx.strokeStyle = '#4a0c17';
+      ctx.translate(centerX, gemY);
+      const gemGrad = ctx.createLinearGradient(0, -3.4, 0, 3.4);
+      gemGrad.addColorStop(0, '#ffe082');
+      gemGrad.addColorStop(0.5, '#ff4d6d');
+      gemGrad.addColorStop(1, '#800f2f');
+      ctx.fillStyle = gemGrad;
+      ctx.strokeStyle = '#1b060d';
       ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.moveTo(0, -7.8);
-      ctx.bezierCurveTo(4.2, -3.5, 4.4, 1.5, 0, 2.8);
-      ctx.bezierCurveTo(-4.4, 1.5, -4.2, -3.5, 0, -7.8);
+      ctx.moveTo(0, -3.6);
+      ctx.lineTo(3.0, 0);
+      ctx.lineTo(0, 3.6);
+      ctx.lineTo(-3.0, 0);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Tiny bright cream inner core teardrop
-      ctx.fillStyle = '#fff9d6';
+      // Pinpoint white gem sparkle
+      ctx.fillStyle = '#fff9ec';
       ctx.beginPath();
-      ctx.arc(0, -0.8, 1.35, 0, Math.PI * 2);
+      ctx.arc(-0.7, -1.1, 0.85, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }

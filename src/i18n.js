@@ -91,7 +91,8 @@
       equip: 'EQUIP',
       buy: 'GET',
       closeHint: 'Tap outside or ✕ to close',
-      closeCall: 'CLOSE CALL! +2✦',
+      hpShort: 'HP',
+      closeCall: 'CLOSE CALL! +2',
       shieldGain: 'SHIELD!',
       shieldSaved: 'SHIELD SAVED!',
       bounce: 'BOUNCE!',
@@ -101,7 +102,7 @@
       bossAether: 'AETHER THE STORM',
       bossGlacius: 'GLACIUS EMPRESS',
       bossVoidon: 'VOIDON EMPEROR',
-      bossIncoming: '⚠ BOSS APPROACHING!',
+      bossIncoming: 'BOSS APPROACHING!',
       bossPhase: 'PHASE',
       bossEnraged: 'ENRAGED!',
       bossDefeated: 'BOSS DEFEATED!',
@@ -116,12 +117,12 @@
       modeSubClassic: 'Endless climb at your own rhythm',
       modeSubRising: 'Outrun the rising magma tide!',
       lavaWarning: '▲ MAGMA',
-      tutSkip: 'SKIP ⏭',
+      tutSkip: 'SKIP',
       tutTargetLabel: 'STICK HERE!',
       tutRetry: 'Oops! Watch the red ring — aim for the open wall!',
-      tutComplete: '★ YAY! YOU GOT IT! +15✦ ★',
-      tutCompleteDone: '★ TUTORIAL COMPLETE! ★',
-      tutFinishGate: '★ FINISH TRAINING (+15✦) ★',
+      tutComplete: 'YAY! YOU GOT IT! +15 DROPS',
+      tutCompleteDone: 'TUTORIAL COMPLETE!',
+      tutFinishGate: 'FINISH TRAINING (+15)',
       tutorialSteps: [
         {
           title: '1/5 • SLINGSHOT JUMP',
@@ -130,8 +131,8 @@
         },
         {
           title: '2/5 • WALL TO WALL & TEMPO',
-          bubble: 'Jump fast for ⚡ TEMPO!',
-          desc: '"Awesome! Now sling me quickly between walls to build ⚡ TEMPO & grab ✦ Drops!"'
+          bubble: 'Jump fast for TEMPO!',
+          desc: '"Awesome! Now sling me quickly between walls to build TEMPO & grab Drops!"'
         },
         {
           title: '3/5 • SPIKES, FLAMES & AIM RING',
@@ -140,7 +141,7 @@
         },
         {
           title: '4/5 • SHIELD, ARROWS & CRACKED ROCK',
-          bubble: 'Grab the cyan Shield! 🛡',
+          bubble: 'Grab the cyan Shield!',
           desc: '"Grab that Bubble Shield for me! Arrow traps glow before firing, and cracked stone breaks!"'
         },
         {
@@ -261,7 +262,7 @@
       rewardUnlockedToast: 'AÇILDI',
       rewardEarnedBadge: 'KAZANILDI',
       rewardBannerTitle: 'YENİ AKSESUAR KAZANILDI!',
-      milestoneHintStrip: 'İlerleme hedeflerini tamamla, özel aksesuar ve +✦ kazan!',
+      milestoneHintStrip: 'İlerleme hedeflerini tamamla, özel aksesuar ve bonus Öz kazan!',
       accMilestones: {
         halo: 'Klasik 50 m',
         visor: 'Tempo x5 Yap',
@@ -287,7 +288,8 @@
       equip: 'TAK',
       buy: 'AL',
       closeHint: 'Kapatmak için dışarı veya ✕ dokun',
-      closeCall: 'KIL PAYI! +2✦',
+      hpShort: 'CAN',
+      closeCall: 'KIL PAYI! +2',
       shieldGain: 'KALKAN!',
       shieldSaved: 'KALKAN KORUDU!',
       bounce: 'ZIP!',
@@ -297,7 +299,7 @@
       bossAether: 'FIRTINA AETHER',
       bossGlacius: 'BUZ KRALİÇESİ GLACIUS',
       bossVoidon: 'KOZMİK İMPARATOR VOIDON',
-      bossIncoming: '⚠ BOSS YAKLAŞIYOR!',
+      bossIncoming: 'BOSS YAKLAŞIYOR!',
       bossPhase: 'FAZ',
       bossEnraged: 'ÖFKELENDİ!',
       bossDefeated: 'BOSS YENİLDİ!',
@@ -312,12 +314,12 @@
       modeSubClassic: 'Kendi ritminde sonsuz tırmanış',
       modeSubRising: 'Yükselen lav dalgasından kaç!',
       lavaWarning: '▲ LAV',
-      tutSkip: 'ATLA ⏭',
+      tutSkip: 'ATLA',
       tutTargetLabel: 'BURAYA YAPIŞ!',
       tutRetry: 'Hop! Kırmızı halkaya dikkat — açık duvara nişan al!',
-      tutComplete: '★ HARİKA! ARTIK HAZIRIZ! +15✦ ★',
-      tutCompleteDone: '★ EĞİTİM TAMAMLANDI! ★',
-      tutFinishGate: '★ EĞİTİM BİTİŞİ (+15✦) ★',
+      tutComplete: 'HARİKA! ARTIK HAZIRIZ! +15 ÖZ',
+      tutCompleteDone: 'EĞİTİM TAMAMLANDI!',
+      tutFinishGate: 'EĞİTİM BİTİŞİ (+15)',
       tutorialSteps: [
         {
           title: '1/5 • GER VE FIRLAT',
@@ -326,8 +328,8 @@
         },
         {
           title: '2/5 • DUVARDAN DUVARA & TEMPO',
-          bubble: 'Hızlı zıpla, ⚡ TEMPO kazan!',
-          desc: '"Süper! Şimdi beni duvardan duvara hızlıca fırlat, ⚡ TEMPO ve ✦ Jel Özü toplayalım!"'
+          bubble: 'Hızlı zıpla, TEMPO kazan!',
+          desc: '"Süper! Şimdi beni duvardan duvara hızlıca fırlat, TEMPO ve Jel Özü toplayalım!"'
         },
         {
           title: '3/5 • DİKEN, ALEV VE NİŞAN HALKASI',
@@ -336,7 +338,7 @@
         },
         {
           title: '4/5 • KALKAN, OK VE ÇATLAK KAYA',
-          bubble: 'Mavi Kalkanı bana al! 🛡',
+          bubble: 'Mavi Kalkanı bana al!',
           desc: '"Şu mavi Kalkanı alalım! Ok tuzağı atış öncesi parlar; çatlak kaya ise tutununca kırılır!"'
         },
         {

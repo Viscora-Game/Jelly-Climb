@@ -830,14 +830,56 @@
 
     _drawArchetypeBody(ctx, r, accent, enraged, t) {
       if (this.id === 'craggo') {
-        // Obsidian Cave Golem with jagged rock silhouette + glowing core rune
-        ctx.fillStyle = '#24344d';
+        // Hovering runed stone shoulder pauldrons flanking the golem
+        const hover = Math.sin(t * 2.6) * 2.6;
+        for (const side of [-1, 1]) {
+          ctx.save();
+          ctx.translate(side * (r + 7.5), -2 + hover * side);
+          ctx.rotate(side * 0.16);
+          ctx.strokeStyle = accent;
+          ctx.globalAlpha = enraged ? 0.8 : 0.48;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(-side * 7, 1);
+          ctx.lineTo(-side * 1, 1);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+
+          const pGrad = ctx.createLinearGradient(-7, -11, 7, 11);
+          pGrad.addColorStop(0, '#3e5473');
+          pGrad.addColorStop(1, '#142033');
+          ctx.fillStyle = pGrad;
+          ctx.strokeStyle = '#09111f';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.moveTo(0, -11);
+          ctx.lineTo(7.5, -4);
+          ctx.lineTo(5.5, 10);
+          ctx.lineTo(-5.5, 10);
+          ctx.lineTo(-7.5, -4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = accent;
+          ctx.beginPath();
+          ctx.arc(0, -1, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Sculpted obsidian-slate cave golem octagon with 3D rock gradient & upper bevel
+        const rockGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.35, 4, 0, 0, r + 6);
+        rockGrad.addColorStop(0, '#3a506e');
+        rockGrad.addColorStop(0.55, '#203048');
+        rockGrad.addColorStop(1, '#101a2b');
+        ctx.fillStyle = rockGrad;
         ctx.strokeStyle = '#09111f';
         ctx.lineWidth = 2.6;
         ctx.beginPath();
         for (let i = 0; i < 8; i++) {
           const ang = (i / 8) * Math.PI * 2;
-          const rad = i % 2 === 0 ? r + 3 : r - 3;
+          const rad = i % 2 === 0 ? r + 3.2 : r - 2.6;
           const px = Math.cos(ang) * rad;
           const py = Math.sin(ang) * rad;
           if (i === 0) ctx.moveTo(px, py);
@@ -847,24 +889,71 @@
         ctx.fill();
         ctx.stroke();
 
-        // Stone horns & fierce glowing eyes
+        // Inner beveled plate & subtle rocky rim gleam
+        ctx.strokeStyle = 'rgba(155, 195, 240, 0.24)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, r - 6, -Math.PI * 0.85, -Math.PI * 0.15);
+        ctx.stroke();
+
+        // Glowing basalt energy fissures radiating from core
+        ctx.strokeStyle = accent;
+        ctx.globalAlpha = 0.45 + 0.22 * Math.sin(t * 4.5);
+        ctx.lineWidth = 1.7;
+        ctx.beginPath();
+        ctx.moveTo(-r + 7, -10);
+        ctx.lineTo(-10, -4);
+        ctx.lineTo(-7, 7);
+        ctx.moveTo(r - 7, -10);
+        ctx.lineTo(10, -4);
+        ctx.lineTo(7, 7);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // Heavy brow shadow + fierce glowing eyes
+        ctx.fillStyle = '#09111f';
+        ctx.beginPath();
+        ctx.moveTo(-17, -7);
+        ctx.lineTo(0, -2.5);
+        ctx.lineTo(17, -7);
+        ctx.lineTo(14, -11);
+        ctx.lineTo(-14, -11);
+        ctx.closePath();
+        ctx.fill();
+
         ctx.fillStyle = accent;
         ctx.beginPath();
         ctx.moveTo(-14, -4);
-        ctx.lineTo(-4, 0);
+        ctx.lineTo(-4, 0.5);
         ctx.lineTo(-14, 3);
         ctx.moveTo(14, -4);
-        ctx.lineTo(4, 0);
+        ctx.lineTo(4, 0.5);
         ctx.lineTo(14, 3);
         ctx.fill();
-
-        // Chest crystal weak core
-        ctx.fillStyle = accent;
+        ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.moveTo(0, 7);
-        ctx.lineTo(8, 15);
+        ctx.arc(-9.5, -0.4, 1.5, 0, Math.PI * 2);
+        ctx.arc(9.5, -0.4, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Multi-faceted beveled chest crystal weak core
+        ctx.fillStyle = accent;
+        ctx.strokeStyle = '#09111f';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(0, 6);
+        ctx.lineTo(8.5, 14.5);
         ctx.lineTo(0, 23);
-        ctx.lineTo(-8, 15);
+        ctx.lineTo(-8.5, 14.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.68)';
+        ctx.beginPath();
+        ctx.moveTo(0, 7.5);
+        ctx.lineTo(4, 13.5);
+        ctx.lineTo(0, 14.5);
+        ctx.lineTo(-4, 13.5);
         ctx.closePath();
         ctx.fill();
       } else if (this.id === 'ignis') {
