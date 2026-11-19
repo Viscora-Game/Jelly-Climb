@@ -90,6 +90,7 @@
       this.lastStretchStep = 0;
       this.enabled = true;
       this.musicEnabled = true;
+      this.musicVolume = 0.7;
 
       // Procedural + external BGM state
       this.musicBus = null;
@@ -115,16 +116,68 @@
 
     setMusicEnabled(enabled) {
       this.musicEnabled = Boolean(enabled);
+      this._applyMusicVolume();
       if (!this.musicEnabled) {
         this._stopMusicLoop();
         this._stopExternalTrack();
-      } else if (this.ctx && this.ctx.state === 'running') {
+      } else if (this.ctx && this.ctx.state === 'running' && this.musicVolume > 0.01) {
         if (this.externalMusicBuffer) {
           this._startExternalTrack();
         } else {
           this._startMusicLoop();
         }
       }
+    }
+
+    setMusicVolume(vol) {
+      const clamped = Math.max(0, Math.min(1, Number(vol)));
+      this.musicVolume = Number.isFinite(clamped) ? clamped : 0.7;
+      if (this.musicVolume <= 0.01) {
+        this.musicEnabled = false;
+        this._stopMusicLoop();
+        this._stopExternalTrack();
+      } else if (!this.musicEnabled && vol > 0.01) {
+        this.musicEnabled = true;
+      }
+      this._applyMusicVolume();
+      if (this.musicEnabled && this.ctx && this.ctx.state === 'running') {
+        if (this.externalMusicBuffer && !this.externalSource) {
+          this._startExternalTrack();
+        } else if (!this.externalMusicBuffer && !this.musicTimerId) {
+          this._startMusicLoop();
+        }
+      }
+    }
+
+    _getEffectiveBusGain() {
+      if (!this.musicEnabled || this.musicVolume <= 0.01) return 0;
+      return 0.31 * this.musicVolume;
+    }
+
+    _getEffectiveExternalGain() {
+      if (!this.musicEnabled || this.musicVolume <= 0.01) return 0;
+      const stateScale = this.musicState === 'dead' ? 0.14 : this.musicState === 'playing' ? 0.34 : 0.25;
+      return stateScale * this.musicVolume;
+    }
+
+    _applyMusicVolume() {
+      if (!this.ctx) return;
+      try {
+        if (this.masterMusicGain) {
+          this.masterMusicGain.gain.setTargetAtTime(
+            this._getEffectiveBusGain(),
+            this.ctx.currentTime,
+            0.05
+          );
+        }
+        if (this.externalGain) {
+          this.externalGain.gain.setTargetAtTime(
+            this._getEffectiveExternalGain(),
+            this.ctx.currentTime,
+            0.08
+          );
+        }
+      } catch (_) {}
     }
 
     setMusicContext(state, gameMode, tempoTier = 1) {
@@ -134,9 +187,12 @@
       this.targetBpm = this._computeTargetBpm();
 
       if (this.externalGain && this.ctx) {
-        const targetVol = this.musicState === 'dead' ? 0.12 : this.musicState === 'playing' ? 0.28 : 0.21;
         try {
-          this.externalGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.2);
+          this.externalGain.gain.setTargetAtTime(
+            this._getEffectiveExternalGain(),
+            this.ctx.currentTime,
+            0.2
+          );
         } catch (_) {}
       }
       if (this.externalSource && this.ctx) {
@@ -221,7 +277,7 @@
           this.externalGain = this.ctx.createGain();
           this.externalGain.connect(this.ctx.destination);
         }
-        const vol = this.musicState === 'dead' ? 0.12 : this.musicState === 'playing' ? 0.3 : 0.22;
+        const vol = this._getEffectiveExternalGain();
         this.externalGain.gain.setValueAtTime(vol, this.ctx.currentTime);
         const src = this.ctx.createBufferSource();
         src.buffer = this.externalMusicBuffer;
@@ -246,7 +302,7 @@
       if (!this.ctx || this.musicBus) return;
       try {
         const master = this.ctx.createGain();
-        master.gain.value = 0.22;
+        master.gain.value = this._getEffectiveBusGain();
 
         // Warm lowpass filter so music stays soft and never harsh
         const warmthFilter = this.ctx.createBiquadFilter();

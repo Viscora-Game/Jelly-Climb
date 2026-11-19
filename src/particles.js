@@ -102,17 +102,52 @@
         this.wallSplats.shift();
       }
       const wallEdgeX = side < 0 ? 18 : 450 - 18;
+      const isSlide = intensity <= 0.32;
+      const spanUp = isSlide ? 6 : 10 + intensity * 12;
+      const spanDown = isSlide ? 12 : 12 + intensity * 14;
+      const maxReach = isSlide ? 4.5 : 8 + intensity * 11;
+
+      // Pre-bake jagged splatter spikes & satellite impact drops so it looks smashed rather than oval
+      const lobes = isSlide
+        ? [
+            { dy: -spanUp * 0.4, reach: maxReach * 0.9 },
+            { dy: 0, reach: maxReach * 0.65 },
+            { dy: spanDown * 0.5, reach: maxReach * 0.85 }
+          ]
+        : [
+            { dy: -spanUp * 0.55, reach: maxReach * (0.72 + Math.random() * 0.4) },
+            { dy: -spanUp * 0.12, reach: maxReach * 0.38 },
+            { dy: spanDown * 0.08, reach: maxReach * (0.88 + Math.random() * 0.35) },
+            { dy: spanDown * 0.36, reach: maxReach * 0.35 },
+            { dy: spanDown * 0.62, reach: maxReach * (0.62 + Math.random() * 0.35) }
+          ];
+
+      const dots = [];
+      const dotCount = isSlide ? 1 : 4 + Math.floor(intensity * 3);
+      for (let i = 0; i < dotCount; i++) {
+        const angleSpread = (Math.random() - 0.5) * Math.PI * 0.9;
+        const dist = 5 + Math.random() * (maxReach + 9);
+        dots.push({
+          dx: Math.cos(angleSpread) * dist,
+          dy: Math.sin(angleSpread) * (dist * 1.35) + (Math.random() - 0.5) * 10,
+          r: 1.1 + Math.random() * (1.8 + intensity * 0.9)
+        });
+      }
+
       this.wallSplats.push({
         x: x != null ? x : wallEdgeX,
         y,
         side,
         color,
-        height: 16 + intensity * 14,
-        width: 4.5 + intensity * 3.5,
-        dripLen: 2,
-        dripSpeed: 6 + intensity * 14,
+        spanUp,
+        spanDown,
+        height: spanUp + spanDown,
+        lobes,
+        dots,
+        dripLen: isSlide ? 6 : 3,
+        dripSpeed: isSlide ? 2 : 7 + intensity * 16,
         life: 0,
-        maxLife: 2.2 + intensity * 0.9
+        maxLife: isSlide ? 1.15 : 2.3 + intensity * 0.9
       });
     }
 
@@ -333,31 +368,50 @@
     }
 
     draw(ctx, cameraY) {
-      // Dripping slime splatters painted along wall edges behind shockwaves
+      // Jagged impact slime splatters painted flush to the wall edge + scattered splash droplets
       for (let i = 0; i < this.wallSplats.length; i++) {
         const s = this.wallSplats[i];
         const sy = s.y - cameraY;
-        if (sy + s.height + s.dripLen < -20 || sy - s.height > 760) continue;
-        const alpha = (1 - Math.pow(s.life / s.maxLife, 1.8)) * 0.55;
+        if (sy + s.spanDown + s.dripLen < -25 || sy - s.spanUp > 765) continue;
+        const alpha = (1 - Math.pow(s.life / s.maxLife, 1.8)) * 0.68;
         const dir = s.side < 0 ? 1 : -1;
         ctx.save();
         ctx.globalAlpha = Math.max(0, alpha);
         ctx.fillStyle = s.color;
-        // Main flattened wall smear
+
+        // Flat wall-flush anchor spine expanding outward into irregular splashed impact fingers
         ctx.beginPath();
-        ctx.ellipse(s.x, sy, s.width, s.height * 0.5, 0, 0, Math.PI * 2);
+        ctx.moveTo(s.x - dir * 1.5, sy - s.spanUp);
+        let prevX = s.x + dir * 1.5;
+        let prevY = sy - s.spanUp * 0.75;
+        for (let k = 0; k < s.lobes.length; k++) {
+          const lb = s.lobes[k];
+          const lx = s.x + dir * lb.reach;
+          const ly = sy + lb.dy;
+          ctx.quadraticCurveTo((prevX + lx) * 0.5 - dir * 1.5, (prevY + ly) * 0.5, lx, ly);
+          prevX = lx;
+          prevY = ly;
+        }
+        ctx.quadraticCurveTo(prevX * 0.5 + (s.x + dir * 2) * 0.5, sy + s.spanDown * 0.85, s.x - dir * 1.5, sy + s.spanDown);
+        ctx.closePath();
         ctx.fill();
-        // Slow gravity-fed vertical drip tail
+
+        // Thin vertical gravity drip oozing straight down along the wall seam
+        const dripEndY = sy + s.spanDown + s.dripLen;
         ctx.beginPath();
-        ctx.moveTo(s.x, sy + s.height * 0.25);
-        ctx.quadraticCurveTo(
-          s.x + dir * s.width * 0.65,
-          sy + s.height * 0.5 + s.dripLen * 0.5,
-          s.x + dir * 1.4,
-          sy + s.height * 0.5 + s.dripLen
-        );
-        ctx.arc(s.x + dir * 1.4, sy + s.height * 0.5 + s.dripLen, 1.9, 0, Math.PI * 2);
+        ctx.moveTo(s.x - dir * 0.5, sy + s.spanDown - 2);
+        ctx.lineTo(s.x + dir * 2.1, sy + s.spanDown);
+        ctx.lineTo(s.x + dir * 1.2, dripEndY);
+        ctx.arc(s.x + dir * 0.8, dripEndY, 1.55, 0, Math.PI * 2);
         ctx.fill();
+
+        // Scattered micro splash droplets broken off from impact
+        for (let d = 0; d < s.dots.length; d++) {
+          const dtPt = s.dots[d];
+          ctx.beginPath();
+          ctx.arc(s.x + dir * dtPt.dx, sy + dtPt.dy, dtPt.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
 

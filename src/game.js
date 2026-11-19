@@ -16,6 +16,7 @@
     LANG: 'jelly_climb_lang',
     SOUND: 'jelly_climb_sound',
     MUSIC: 'jelly_climb_music',
+    MUSIC_VOLUME: 'jelly_climb_music_vol',
     TUTORIAL_DONE: 'jelly_climb_onboarding_v2_done',
     GAME_MODE: 'jelly_climb_mode',
     BEST_TEMPO: 'jelly_climb_best_tempo',
@@ -174,8 +175,11 @@
       this.lang = this._loadLang();
       this.soundEnabled = this._loadBool(STORAGE_KEYS.SOUND, true);
       this.musicEnabled = this._loadBool(STORAGE_KEYS.MUSIC, true);
+      this.musicVolume = clamp(this._loadInt(STORAGE_KEYS.MUSIC_VOLUME, 70), 0, 100) / 100;
+      this.musicSliderDragging = false;
       this.audio.setEnabled(this.soundEnabled);
-      this.audio.setMusicEnabled(this.musicEnabled);
+      this.audio.setMusicVolume(this.musicVolume);
+      this.audio.setMusicEnabled(this.musicEnabled && this.musicVolume > 0.01);
 
       // UI & state flags
       this.state = 'menu'; // 'menu' | 'playing' | 'dead'
@@ -237,8 +241,9 @@
         colorSwatches: [],
         soundOnBtn: null,
         soundOffBtn: null,
-        musicOnBtn: null,
-        musicOffBtn: null,
+        musicToggleBtn: null,
+        musicSliderTrack: null,
+        musicSliderHit: null,
         langEnBtn: null,
         langTrBtn: null,
         settingsPrivacyBtn: null,
@@ -835,6 +840,15 @@
           return;
         }
         if (this.activeModal === 'settings') {
+          if (pointInRect(pt.x, pt.y, this.uiRects.musicSliderHit)) {
+            this.musicSliderDragging = true;
+            this.activePointerId = e.pointerId;
+            try {
+              this.canvas.setPointerCapture(e.pointerId);
+            } catch (_) {}
+            this._setMusicVolumeFromSliderX(pt.x);
+            return;
+          }
           this._handleSettingsTap(pt.x, pt.y);
           return;
         }
@@ -966,6 +980,12 @@
           this.wardrobeScrollY = Math.max(0, this.wardrobeScrollY - dy);
           return;
         }
+        if (this.activeModal === 'settings' && this.musicSliderDragging && e.pointerId === this.activePointerId) {
+          e.preventDefault();
+          const pt = this._toLogicalPoint(e.clientX, e.clientY);
+          this._setMusicVolumeFromSliderX(pt.x);
+          return;
+        }
         if (this.activeModal || this.state === 'menu') return;
         if (e.pointerId !== this.activePointerId || !this.pointer.isDown) return;
         e.preventDefault();
@@ -1005,6 +1025,15 @@
           if (!canceled && !this.wardrobeDragMoved) {
             const pt = this._toLogicalPoint(e.clientX, e.clientY);
             this._handleAccessoriesTap(pt.x, pt.y);
+          }
+          return;
+        }
+
+        if (this.activeModal === 'settings' && this.musicSliderDragging && e.pointerId === this.activePointerId) {
+          this.musicSliderDragging = false;
+          this.activePointerId = null;
+          if (!canceled) {
+            this.audio.playUiTap();
           }
           return;
         }
@@ -1355,16 +1384,19 @@
         this.soundEnabled = false;
         this.audio.setEnabled(false);
         this._saveBool(STORAGE_KEYS.SOUND, false);
-      } else if (pointInRect(px, py, this.uiRects.musicOnBtn)) {
-        this.musicEnabled = true;
-        this.audio.setMusicEnabled(true);
-        this.audio.unlock();
-        this._saveBool(STORAGE_KEYS.MUSIC, true);
+      } else if (pointInRect(px, py, this.uiRects.musicSliderHit)) {
+        this._setMusicVolumeFromSliderX(px);
         this.audio.playUiTap();
-      } else if (pointInRect(px, py, this.uiRects.musicOffBtn)) {
-        this.musicEnabled = false;
-        this.audio.setMusicEnabled(false);
-        this._saveBool(STORAGE_KEYS.MUSIC, false);
+      } else if (pointInRect(px, py, this.uiRects.musicToggleBtn)) {
+        this.musicEnabled = !this.musicEnabled;
+        if (this.musicEnabled && this.musicVolume <= 0.05) {
+          this.musicVolume = 0.7;
+          this._saveInt(STORAGE_KEYS.MUSIC_VOLUME, 70);
+        }
+        this.audio.setMusicVolume(this.musicVolume);
+        this.audio.setMusicEnabled(this.musicEnabled);
+        if (this.musicEnabled) this.audio.unlock();
+        this._saveBool(STORAGE_KEYS.MUSIC, this.musicEnabled);
         this.audio.playUiTap();
       } else if (pointInRect(px, py, this.uiRects.langEnBtn)) {
         this.lang = 'en';
@@ -1392,6 +1424,21 @@
           this.resetAllUserData();
         }
       }
+    }
+
+    _setMusicVolumeFromSliderX(px) {
+      const track = this.uiRects.musicSliderTrack;
+      if (!track) return;
+      const ratio = clamp((px - track.x) / Math.max(1, track.w), 0, 1);
+      const pct = Math.round(ratio * 100);
+      this.musicVolume = pct / 100;
+      this.musicEnabled = pct > 0;
+      this.audio.setMusicVolume(this.musicVolume);
+      if (this.musicEnabled) {
+        this.audio.unlock();
+      }
+      this._saveInt(STORAGE_KEYS.MUSIC_VOLUME, pct);
+      this._saveBool(STORAGE_KEYS.MUSIC, this.musicEnabled);
     }
 
     _handlePrivacyTap(px, py) {
@@ -5441,32 +5488,70 @@
         this.soundEnabled
       );
 
-      // Row 2: Royalty-Free Music well + custom music note icon
+      // Row 2: Adaptive Music Volume Slider + clickable mute toggle on label
       const row2Y = panelY + 158;
       ctx.fillStyle = 'rgba(10, 17, 30, 0.55)';
       roundRectPath(ctx, panelX + 18, row2Y - 25, panelW - 36, 50, 16);
       ctx.fill();
 
-      this._drawMusicIcon(ctx, panelX + 42, row2Y, this.musicEnabled);
+      const effMusicRatio = this.musicEnabled ? clamp(this.musicVolume, 0, 1) : 0;
+      const musicOnNow = effMusicRatio > 0.01;
+      this.uiRects.musicToggleBtn = {
+        x: panelX + 18,
+        y: row2Y - 25,
+        w: segX - (panelX + 24),
+        h: 50
+      };
+
+      this._drawMusicIcon(ctx, panelX + 42, row2Y, musicOnNow);
 
       ctx.textAlign = 'left';
       ctx.fillStyle = '#eef5ff';
       ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(tr.music || 'Music', panelX + 64, row2Y + 0.5);
 
-      this.uiRects.musicOnBtn = { x: segX, y: row2Y - segH * 0.5, w: segW * 0.5, h: segH };
-      this.uiRects.musicOffBtn = { x: segX + segW * 0.5, y: row2Y - segH * 0.5, w: segW * 0.5, h: segH };
+      const trackX = segX + 6;
+      const trackW = 104;
+      this.uiRects.musicSliderTrack = { x: trackX, y: row2Y, w: trackW };
+      this.uiRects.musicSliderHit = { x: trackX - 10, y: row2Y - 24, w: trackW + 20, h: 48 };
 
-      this._drawSegmentedControl(
-        ctx,
-        segX,
-        row2Y - segH * 0.5,
-        segW,
-        segH,
-        tr.on || 'ON',
-        tr.off || 'OFF',
-        this.musicEnabled
-      );
+      // Recessed volume groove
+      ctx.fillStyle = '#09111f';
+      ctx.strokeStyle = 'rgba(165, 205, 255, 0.16)';
+      ctx.lineWidth = 1;
+      roundRectPath(ctx, trackX, row2Y - 4.5, trackW, 9, 4.5);
+      ctx.fill();
+      ctx.stroke();
+
+      // Bioluminescent fill
+      if (effMusicRatio > 0.01) {
+        const fillW = Math.max(9, trackW * effMusicRatio);
+        const sGrad = ctx.createLinearGradient(trackX, row2Y, trackX + fillW, row2Y);
+        sGrad.addColorStop(0, '#10b981');
+        sGrad.addColorStop(1, '#6effd2');
+        ctx.fillStyle = sGrad;
+        roundRectPath(ctx, trackX, row2Y - 4.5, fillW, 9, 4.5);
+        ctx.fill();
+      }
+
+      // Glossy slider knob
+      const knobX = trackX + trackW * effMusicRatio;
+      ctx.fillStyle = '#071422';
+      ctx.beginPath();
+      ctx.arc(knobX, row2Y + 1.5, 9.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = musicOnNow ? '#8affdb' : '#6e86ad';
+      ctx.strokeStyle = '#06241b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(knobX, row2Y, 8.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = musicOnNow ? '#36f5b0' : 'rgba(180, 200, 232, 0.55)';
+      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(`${Math.round(effMusicRatio * 100)}%`, segX + segW - 2, row2Y + 0.5);
 
       // Row 3: Language well + custom globe icon
       const row3Y = panelY + 218;
