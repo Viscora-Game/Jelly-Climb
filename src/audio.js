@@ -196,8 +196,8 @@
         } catch (_) {}
       }
       if (this.externalSource && this.ctx) {
-        const tierBoost = this.musicState === 'playing' ? Math.max(0, this.musicTempoTier - 1) * 0.025 : 0;
-        const rate = this.musicState === 'dead' ? 0.92 : Math.min(1.1, 0.98 + tierBoost);
+        const tierBoost = this.musicState === 'playing' ? Math.max(0, this.musicTempoTier - 1) * 0.015 : 0;
+        const rate = this.musicState === 'dead' ? 0.94 : Math.min(1.07, 1.0 + tierBoost);
         try {
           this.externalSource.playbackRate.setTargetAtTime(rate, this.ctx.currentTime, 0.35);
         } catch (_) {}
