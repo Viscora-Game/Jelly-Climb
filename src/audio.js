@@ -555,6 +555,30 @@
       this._playTone(320, 75, 0.18, 'sawtooth', 0.09);
       this._playTone(190, 55, 0.22, 'sine', 0.11, 0.02);
     }
+
+    playAirDash() {
+      this._playTone(280, 680, 0.14, 'sine', 0.09, 0);
+      this._playTone(540, 960, 0.12, 'triangle', 0.07, 0.04);
+    }
+
+    playChronoRewind() {
+      this._playTone(760, 290, 0.16, 'sine', 0.085, 0);
+      this._playTone(290, 880, 0.2, 'triangle', 0.09, 0.14);
+      this._playTone(1174.66, 1567.98, 0.16, 'sine', 0.075, 0.28);
+    }
+
+    playAngelRevive() {
+      this._playTone(523.25, 659.25, 0.18, 'sine', 0.09, 0);
+      this._playTone(659.25, 783.99, 0.18, 'triangle', 0.085, 0.09);
+      this._playTone(783.99, 1046.5, 0.26, 'sine', 0.1, 0.18);
+      this._playTone(1046.5, 1318.5, 0.28, 'triangle', 0.08, 0.28);
+    }
+
+    playRelicUpgrade() {
+      this._playTone(440, 554.37, 0.08, 'triangle', 0.09, 0);
+      this._playTone(554.37, 659.25, 0.09, 'triangle', 0.095, 0.07);
+      this._playTone(659.25, 880, 0.18, 'sine', 0.1, 0.14);
+    }
   }
 
   JellyGame.SoundFX = SoundFX;

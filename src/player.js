@@ -88,9 +88,9 @@
       this.trail = [];
       this.trailTimer = 0;
 
-      // Health, Shield & post-hit invulnerability
-      this.maxHp = 2;
-      this.hp = 2;
+      // Health (1 Heart normal climb, 3 Hearts inside Boss arenas), Shield & recovery frames
+      this.maxHp = 1;
+      this.hp = 1;
       this.hasShield = false;
       this.invulnTimer = 0;
 

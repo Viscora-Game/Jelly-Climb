@@ -30,10 +30,37 @@
       tabHead: 'HATS',
       tabFace: 'GLASSES',
       tabBack: 'BACK',
+      tabPowers: 'POWERS',
       slotNames: {
         head: 'HAT',
         face: 'FACE',
-        back: 'BACK'
+        back: 'BACK',
+        power: 'PWR'
+      },
+      powersHint: 'Equip 1 Power — Tap orb or double-tap to fire!',
+      powerReady: 'READY',
+      powerUnlock: 'UNLOCK',
+      powerUpgrade: 'UPGRADE',
+      powerMaxed: 'MAX LV.10',
+      powerCdSec: 's CD',
+      powerReviveUnit: 'revive',
+      powerRevivesUnit: 'revives',
+      powerTriggerShell: 'CRYSTAL SHELL!',
+      powerTriggerDash: 'HYDRO DASH!',
+      powerTriggerChrono: 'TIME REWIND!',
+      powerTriggerAngel: 'GUARDIAN ANGEL!',
+      bossHeartsHint: '+3 BOSS HEARTS!',
+      abilityNames: {
+        shield: 'Crystal Shell',
+        airDash: 'Hydro Dash',
+        chrono: 'Chrono Jelly',
+        angel: 'Guardian Angel'
+      },
+      abilityDescs: {
+        shield: 'Instant Bubble Shield',
+        airDash: 'Mid-air directional boost',
+        chrono: 'Rewind ~4.5s back to safety',
+        angel: 'Auto-revive on fatal hit'
       },
       rewardUnlockedToast: 'UNLOCKED',
       rewardEarnedBadge: 'EARNED',
@@ -197,10 +224,37 @@
       tabHead: 'ŞAPKA',
       tabFace: 'GÖZLÜK',
       tabBack: 'SIRT',
+      tabPowers: 'GÜÇLER',
       slotNames: {
         head: 'ŞAPKA',
         face: 'YÜZ',
-        back: 'SIRT'
+        back: 'SIRT',
+        power: 'GÜÇ'
+      },
+      powersHint: '1 Güç seç — Küreye veya ekrana çift dokun!',
+      powerReady: 'HAZIR',
+      powerUnlock: 'AÇ',
+      powerUpgrade: 'YÜKSELT',
+      powerMaxed: 'MAKS LV.10',
+      powerCdSec: 'sn',
+      powerReviveUnit: 'hak',
+      powerRevivesUnit: 'hak',
+      powerTriggerShell: 'KRİSTAL KABUK!',
+      powerTriggerDash: 'HAVA ATILIMI!',
+      powerTriggerChrono: 'ZAMAN GERİ SARILDI!',
+      powerTriggerAngel: 'KORUYUCU MELEK!',
+      bossHeartsHint: '+3 BOSS CANI!',
+      abilityNames: {
+        shield: 'Kristal Kabuk',
+        airDash: 'Hava Atılımı',
+        chrono: 'Zaman Jeli',
+        angel: 'Koruyucu Melek'
+      },
+      abilityDescs: {
+        shield: 'Anlık Koruma Kalkanı',
+        airDash: 'Havada yönlü çift sıçrama',
+        chrono: '4.5 sn öncesine geri sar',
+        angel: 'Ölünce duvardan diriltir'
       },
       rewardUnlockedToast: 'AÇILDI',
       rewardEarnedBadge: 'KAZANILDI',

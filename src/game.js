@@ -21,7 +21,9 @@
     BEST_TEMPO: 'jelly_climb_best_tempo',
     TOTAL_CLOSE_CALLS: 'jelly_climb_close_calls',
     REWARDS_CLAIMED: 'jelly_climb_rewards_claimed',
-    BOSSES_DEFEATED: 'jelly_climb_bosses_defeated'
+    BOSSES_DEFEATED: 'jelly_climb_bosses_defeated',
+    ABILITY_LEVELS: 'jelly_climb_ability_levels',
+    EQUIPPED_ABILITY: 'jelly_climb_equipped_ability'
   });
 
   function clamp(val, min, max) {
@@ -140,13 +142,28 @@
       this.rewardToast = null;
       this.runUnlockedGear = [];
 
-      // Boss encounter progression (250m -> 500m -> 1000m -> 2000m -> 4000m -> 8000m...)
+      // Boss encounter progression (500m -> 1000m -> 2000m -> 4000m -> 8000m...)
       this.bossesDefeated = this._loadInt(STORAGE_KEYS.BOSSES_DEFEATED, 0);
       this.activeBoss = null;
       this.nextBossIndex = 0;
       this.runBossesDefeated = 0;
       this.bossWarnedIndex = -1;
       this.bossWarningTimer = 0;
+
+      // Jelly Powers / Relics progression (Shield, Air Dash, Chrono Rewind, Guardian Angel)
+      this.abilityLevels = this._loadAbilityLevels();
+      this.equippedAbility = this._loadEquippedAbility();
+      this.abilityCooldown = 0;
+      this.abilityMaxCooldown = 0;
+      this.angelCharges = 0;
+      this.angelMaxCharges = 0;
+      this.chronoBuffer = [];
+      this.chronoSampleTimer = 0;
+      this.chronoRewindAnim = null;
+      this.angelReviveAnim = null;
+      this.shockwaveRings = [];
+      this.lastTapInfo = { time: 0, x: 0, y: 0 };
+      this._syncRunAbilityState();
 
       // Altitude theme banner state
       this.announcedThemeIdx = 0;
@@ -206,9 +223,12 @@
         wardrobeTabHeadBtn: null,
         wardrobeTabFaceBtn: null,
         wardrobeTabBackBtn: null,
+        wardrobeTabPowersBtn: null,
         wardrobeTabRewardsBtn: null,
         wardrobeWell: null,
+        abilityOrbBtn: null,
         shopCards: [],
+        powerCards: [],
         colorSwatches: [],
         soundOnBtn: null,
         soundOffBtn: null,
@@ -418,6 +438,67 @@
       } catch (_) {}
     }
 
+    _loadAbilityLevels() {
+      const defaults = { shield: 0, airDash: 0, chrono: 0, angel: 0 };
+      try {
+        const raw = global.localStorage.getItem(STORAGE_KEYS.ABILITY_LEVELS);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && typeof parsed === 'object') {
+          for (const key of Object.keys(defaults)) {
+            const val = Math.floor(Number(parsed[key]) || 0);
+            defaults[key] = val < 0 ? 0 : val > 10 ? 10 : val;
+          }
+        }
+      } catch (_) {}
+      return defaults;
+    }
+
+    _saveAbilityLevels() {
+      try {
+        global.localStorage.setItem(STORAGE_KEYS.ABILITY_LEVELS, JSON.stringify(this.abilityLevels));
+      } catch (_) {}
+    }
+
+    _loadEquippedAbility() {
+      try {
+        const id = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED_ABILITY);
+        if (id && id !== 'none' && this.abilityLevels && this.abilityLevels[id] >= 1) {
+          return id;
+        }
+      } catch (_) {}
+      return 'none';
+    }
+
+    _saveEquippedAbility(id) {
+      try {
+        global.localStorage.setItem(STORAGE_KEYS.EQUIPPED_ABILITY, id || 'none');
+      } catch (_) {}
+    }
+
+    getAbilityLevel(id) {
+      return (this.abilityLevels && this.abilityLevels[id]) || 0;
+    }
+
+    _syncRunAbilityState() {
+      const Ab = JellyGame.Abilities;
+      this.abilityCooldown = 0;
+      this.abilityMaxCooldown = 0;
+      this.chronoBuffer = [];
+      this.chronoSampleTimer = 0;
+      this.chronoRewindAnim = null;
+      this.angelReviveAnim = null;
+      this.shockwaveRings = [];
+
+      if (Ab && this.equippedAbility === 'angel') {
+        const lvl = this.getAbilityLevel('angel');
+        this.angelMaxCharges = Ab.getCharges('angel', lvl);
+        this.angelCharges = this.angelMaxCharges;
+      } else {
+        this.angelMaxCharges = 0;
+        this.angelCharges = 0;
+      }
+    }
+
     resetAllUserData() {
       try {
         global.localStorage.removeItem(STORAGE_KEYS.BEST);
@@ -432,6 +513,8 @@
         global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED_COLOR);
         global.localStorage.removeItem(STORAGE_KEYS.REWARDS_CLAIMED);
         global.localStorage.removeItem(STORAGE_KEYS.BOSSES_DEFEATED);
+        global.localStorage.removeItem(STORAGE_KEYS.ABILITY_LEVELS);
+        global.localStorage.removeItem(STORAGE_KEYS.EQUIPPED_ABILITY);
         global.localStorage.removeItem(STORAGE_KEYS.TUTORIAL_DONE);
         global.localStorage.removeItem(STORAGE_KEYS.GAME_MODE);
       } catch (_) {}
@@ -455,6 +538,9 @@
       this.equippedAccessory = 'none';
       this.unlockedColors = new Set(['mint']);
       this.equippedColor = 'mint';
+      this.abilityLevels = { shield: 0, airDash: 0, chrono: 0, angel: 0 };
+      this.equippedAbility = 'none';
+      this._syncRunAbilityState();
       this.claimedRewards = new Set();
       this.unseenRewards = new Set();
       this.runUnlockedGear = [];
@@ -543,6 +629,14 @@
         for (let i = 0; i < C.JELLY_COLORS.length; i++) {
           const col = C.JELLY_COLORS[i];
           if (!this.unlockedColors.has(col.id) && this.gems >= col.cost) {
+            return true;
+          }
+        }
+      }
+      if (JellyGame.Abilities && JellyGame.Abilities.LIST) {
+        for (let i = 0; i < JellyGame.Abilities.LIST.length; i++) {
+          const ab = JellyGame.Abilities.LIST[i];
+          if (this.getAbilityLevel(ab.id) === 0 && this.gems >= ab.unlockCost) {
             return true;
           }
         }
@@ -799,6 +893,37 @@
           return;
         }
 
+        // Bottom-right Ability Orb quick tap (never interferes with slingshot aim)
+        if (
+          this.state === 'playing' &&
+          this.equippedAbility &&
+          this.equippedAbility !== 'none' &&
+          pointInRect(pt.x, pt.y, this.uiRects.abilityOrbBtn)
+        ) {
+          this._tryActivateAbility(pt.x, pt.y, true);
+          return;
+        }
+
+        // Quick airborne double-tap triggers active ability cleanly (left/right side steers Air Dash)
+        const nowSec =
+          (global.performance && typeof global.performance.now === 'function'
+            ? global.performance.now()
+            : Date.now()) * 0.001;
+        if (
+          this.state === 'playing' &&
+          !this.player.isAttached() &&
+          nowSec - this.lastTapInfo.time <= 0.32 &&
+          Math.hypot(pt.x - this.lastTapInfo.x, pt.y - this.lastTapInfo.y) <= 72
+        ) {
+          this.lastTapInfo.time = 0;
+          if (this._tryActivateAbility(pt.x, pt.y, false)) {
+            return;
+          }
+        }
+        if (this.state === 'playing' && !this.player.isAttached()) {
+          this.lastTapInfo = { time: nowSec, x: pt.x, y: pt.y };
+        }
+
         if (this.activePointerId !== null) return;
 
         this.activePointerId = e.pointerId;
@@ -897,11 +1022,27 @@
         if (!canceled && !this.activeModal && this.state === 'playing' && this.player.isAttached()) {
           const dx = this.pointer.currX - this.pointer.startX;
           const dy = this.pointer.currY - this.pointer.startY;
+          const dragDist = Math.hypot(dx, dy);
           this.player.updateAim(dx, dy, this.tempoTier);
 
           const shot = this.player.releaseLaunch();
           if (shot) {
+            this.lastTapInfo.time = 0;
             this._onPlayerLaunch(shot);
+          } else if (dragDist < C.MIN_DRAG_PX) {
+            const nowSec =
+              (global.performance && typeof global.performance.now === 'function'
+                ? global.performance.now()
+                : Date.now()) * 0.001;
+            if (
+              nowSec - this.lastTapInfo.time <= 0.34 &&
+              Math.hypot(this.pointer.currX - this.lastTapInfo.x, this.pointer.currY - this.lastTapInfo.y) <= 65
+            ) {
+              this.lastTapInfo.time = 0;
+              this._tryActivateAbility(this.pointer.currX, this.pointer.currY, false);
+            } else {
+              this.lastTapInfo = { time: nowSec, x: this.pointer.currX, y: this.pointer.currY };
+            }
           }
         } else {
           this.player.cancelAim();
@@ -950,6 +1091,12 @@
         const isLocalQa =
           global.location &&
           (global.location.hostname === '127.0.0.1' || global.location.hostname === 'localhost');
+        if (isLocalQa && e.code === 'KeyJ') {
+          e.preventDefault();
+          this.gems += 1000;
+          this.hudGemPulse = 1;
+          return;
+        }
         if (isLocalQa && (e.code === 'KeyB' || e.code === 'KeyV')) {
           e.preventDefault();
           if (this.state !== 'playing') {
@@ -957,7 +1104,7 @@
             this.resetRun();
           }
           const bossIdx = e.code === 'KeyV' ? 4 : 0;
-          const targetM = JellyGame.Bosses ? JellyGame.Bosses.getMilestoneMeters(bossIdx) : 250;
+          const targetM = JellyGame.Bosses ? JellyGame.Bosses.getMilestoneMeters(bossIdx) : 500;
           this.isQaWarpRun = true;
           this.hasLaunchedOnce = true;
           this.highestY = C.START_PLAYER_Y - targetM * C.PIXELS_PER_METER;
@@ -966,7 +1113,7 @@
           if (boss) {
             boss.introTimer = 0;
             if (e.code === 'KeyV') {
-              boss.hp = Math.min(8, boss.maxHp);
+              boss.hp = Math.min(7, boss.maxHp);
               boss.phase = 2;
               boss._refreshOrbitOrbs();
             }
@@ -1000,8 +1147,13 @@
             e.preventDefault();
             this.resetRun();
           }
-        } else if (e.code === 'KeyR' && this.state === 'playing') {
-          this.resetRun();
+        } else if (this.state === 'playing') {
+          if (e.code === 'Space') {
+            e.preventDefault();
+            this._tryActivateAbility();
+          } else if (e.code === 'KeyR') {
+            this.resetRun();
+          }
         }
       });
     }
@@ -1215,6 +1367,7 @@
         preferredTab === 'head' ||
         preferredTab === 'face' ||
         preferredTab === 'back' ||
+        preferredTab === 'powers' ||
         preferredTab === 'rewards'
       ) {
         this.wardrobeTab = preferredTab;
@@ -1224,6 +1377,7 @@
         this.wardrobeTab !== 'head' &&
         this.wardrobeTab !== 'face' &&
         this.wardrobeTab !== 'back' &&
+        this.wardrobeTab !== 'powers' &&
         this.wardrobeTab !== 'rewards'
       ) {
         this.wardrobeTab = 'head';
@@ -1275,6 +1429,7 @@
         ['wardrobeTabHeadBtn', 'head'],
         ['wardrobeTabFaceBtn', 'face'],
         ['wardrobeTabBackBtn', 'back'],
+        ['wardrobeTabPowersBtn', 'powers'],
         ['wardrobeTabRewardsBtn', 'rewards']
       ];
       for (let i = 0; i < tabMap.length; i++) {
@@ -1322,6 +1477,47 @@
       }
 
       if (this.uiRects.wardrobeWell && !pointInRect(px, py, this.uiRects.wardrobeWell)) {
+        return;
+      }
+
+      if (this.wardrobeTab === 'powers' && this.uiRects.powerCards) {
+        const Ab = JellyGame.Abilities;
+        for (let i = 0; i < this.uiRects.powerCards.length; i++) {
+          const pCard = this.uiRects.powerCards[i];
+          if (!pointInRect(px, py, pCard.rect)) continue;
+          const ab = pCard.ability;
+          const lvl = this.getAbilityLevel(ab.id);
+          const nextCost = Ab ? Ab.getNextUpgradeCost(ab.id, lvl) : null;
+
+          // Tapped bottom Upgrade / Unlock button (or locked card body) -> buy or level up!
+          if ((lvl === 0 || pointInRect(px, py, pCard.upgradeRect)) && nextCost !== null) {
+            if (this.gems >= nextCost) {
+              this.gems -= nextCost;
+              this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+              this.abilityLevels[ab.id] = lvl + 1;
+              this._saveAbilityLevels();
+              this.equippedAbility = ab.id;
+              this._saveEquippedAbility(ab.id);
+              this._syncRunAbilityState();
+              this.wardrobePreviewBounce = 1;
+              if (this.audio.playRelicUpgrade) this.audio.playRelicUpgrade();
+              else this.audio.playUnlock();
+            } else {
+              this.audio.playStick(300);
+            }
+            return;
+          }
+
+          // Tapped upper card area of an unlocked Power -> toggle Equip / Unequip
+          if (lvl >= 1) {
+            this.equippedAbility = this.equippedAbility === ab.id ? 'none' : ab.id;
+            this._saveEquippedAbility(this.equippedAbility);
+            this._syncRunAbilityState();
+            this.wardrobePreviewBounce = 1;
+            this.audio.playCollect(false);
+          }
+          return;
+        }
         return;
       }
 
@@ -1385,6 +1581,7 @@
       this.bossWarnedIndex = -1;
       this.bossWarningTimer = 0;
       this.isQaWarpRun = false;
+      this._syncRunAbilityState();
 
       this.cameraY = C.START_CAMERA_Y;
       this.highestY = C.START_PLAYER_Y;
@@ -1417,6 +1614,7 @@
       this.bossWarnedIndex = -1;
       this.bossWarningTimer = 0;
       this.isQaWarpRun = false;
+      this._syncRunAbilityState();
 
       this.cameraY = C.START_CAMERA_Y;
       this.highestY = C.START_PLAYER_Y;
@@ -1534,12 +1732,31 @@
         return;
       }
 
+      this._updateShockwaveRings(dt);
+
+      if (this.chronoRewindAnim) {
+        this._updateChronoRewind(dt);
+        this.particles.update(dt);
+        return;
+      }
+
+      if (this.angelReviveAnim) {
+        this._updateAngelRevive(dt);
+        this.particles.update(dt);
+        return;
+      }
+
       // Micro slow-mo dilation during Close Call moments
       let simDt = dt;
       if (this.slowMoTimer > 0) {
         this.slowMoTimer = Math.max(0, this.slowMoTimer - dt);
         simDt = dt * 0.44;
       }
+
+      if (this.abilityCooldown > 0 && this.hasLaunchedOnce) {
+        this.abilityCooldown = Math.max(0, this.abilityCooldown - simDt);
+      }
+      this._recordChronoSnapshot(simDt, false);
 
       // Tempo countdown while attached to a wall (pauses fairly while airborne)
       if (this.hasLaunchedOnce && this.player.isAttached()) {
@@ -1565,6 +1782,7 @@
         const attachEvt = this.player.stepPhysics(step);
         if (attachEvt) {
           this._onPlayerAttach(attachEvt);
+          this._recordChronoSnapshot(0, true);
         }
 
         this._updateAndCheckCollectibles(step);
@@ -1767,7 +1985,7 @@
       if (this.player.positionY + C.HITBOX.PLAYER_HURT_RADIUS >= this.risingFloorY) {
         if (this._tryConsumeShield(true)) {
           this.risingFloorY += 95;
-        } else if (!this._consumeHeartOrSurvive(true)) {
+        } else if (!this._consumeHeartOrSurvive(true) && !this._tryFatalRescue(true)) {
           this.audio.playLavaSizzle();
           this._triggerDeath();
         }
@@ -1845,7 +2063,385 @@
         return true;
       }
 
-      return this._consumeHeartOrSurvive(false);
+      return this._consumeHeartOrSurvive(false) || this._tryFatalRescue(false);
+    }
+
+    _spawnShockwaveRing(x, y, maxR = 68, color = '#74f2ff', lineWidth = 3) {
+      this.shockwaveRings.push({ x, y, r: 10, maxR, color, lineWidth, alpha: 1 });
+    }
+
+    _updateShockwaveRings(dt) {
+      for (let i = this.shockwaveRings.length - 1; i >= 0; i--) {
+        const ring = this.shockwaveRings[i];
+        ring.r += (ring.maxR - ring.r) * Math.min(1, dt * 10);
+        ring.alpha -= dt * 2.5;
+        if (ring.alpha <= 0) {
+          this.shockwaveRings.splice(i, 1);
+        }
+      }
+    }
+
+    _recordChronoSnapshot(dt, forceSave = false) {
+      if (this.equippedAbility !== 'chrono' || !this.player.alive || this.state !== 'playing') return;
+      this.chronoSampleTimer += dt;
+      if (!forceSave && this.chronoSampleTimer < 0.1) return;
+      this.chronoSampleTimer = 0;
+
+      const p = this.player;
+      const snap = {
+        t: this.hintTime,
+        x: p.positionX,
+        y: p.positionY,
+        vx: p.velocityX,
+        vy: p.velocityY,
+        wallAttached: p.wallAttached,
+        floorAttached: p.floorAttached,
+        attached: p.isAttached(),
+        cameraY: this.cameraY,
+        risingFloorY: this.risingFloorY,
+        bossIndex: this.activeBoss && !this.activeBoss.defeated ? this.activeBoss.index : -1
+      };
+
+      const buf = this.chronoBuffer;
+      buf.push(snap);
+      while (buf.length > 65 || (buf.length > 1 && this.hintTime - buf[0].t > 5.5)) {
+        buf.shift();
+      }
+    }
+
+    _tryActivateAbility(tapX, tapY, fromOrb = false) {
+      const Ab = JellyGame.Abilities;
+      const id = this.equippedAbility;
+      if (!Ab || !id || id === 'none' || this.state !== 'playing' || this.activeModal) return false;
+      if (this.chronoRewindAnim || this.angelReviveAnim) return false;
+
+      const lvl = this.getAbilityLevel(id);
+      if (lvl < 1 || id === 'angel') return false;
+
+      if (this.abilityCooldown > 0) {
+        this.audio.playStick(240);
+        return false;
+      }
+
+      const tr = this.t();
+      const p = this.player;
+
+      if (id === 'shield') {
+        if (p.hasShield) {
+          this.audio.playStick(340);
+          return false;
+        }
+        const cd = Ab.getCooldown('shield', lvl);
+        this.abilityCooldown = cd;
+        this.abilityMaxCooldown = cd;
+        p.hasShield = true;
+        this.audio.playShieldGain();
+        this._spawnShockwaveRing(p.positionX, p.positionY, 72, '#36f5b0', 3.5);
+        this.particles.spawnSparkBurst(p.positionX, p.positionY, 0, '#74f2ff', 14);
+        this.particles.spawnFloatingLabel(
+          p.positionX,
+          p.positionY - 26,
+          tr.powerTriggerShell || 'CRYSTAL SHELL!',
+          '#36f5b0',
+          14.5
+        );
+        return true;
+      }
+
+      if (id === 'airDash') {
+        if (p.isAttached()) return false;
+        const cd = Ab.getCooldown('airDash', lvl);
+        this.abilityCooldown = cd;
+        this.abilityMaxCooldown = cd;
+
+        let dirX;
+        if (!fromOrb && typeof tapX === 'number') {
+          dirX = tapX < C.WIDTH * 0.5 ? -1 : 1;
+        } else {
+          dirX = p.positionX < C.WIDTH * 0.5 ? 1 : -1;
+        }
+
+        p.velocityX = dirX * 530;
+        p.velocityY = -685;
+        p.stretchAmount = 0.44;
+        p.wobbleTime = 0;
+        p.wobbleAmp = 0.25;
+        this.hasLaunchedOnce = true;
+        this.tempoTimer = C.TEMPO.WINDOW_SEC;
+        this.shakeMag = Math.max(this.shakeMag, 3.8);
+
+        if (this.audio.playAirDash) this.audio.playAirDash();
+        else this.audio.playLaunch(0.8);
+
+        this._spawnShockwaveRing(p.positionX, p.positionY, 64, '#48dbfb', 3);
+        this._spawnShockwaveRing(p.positionX - dirX * 14, p.positionY + 12, 46, '#ffeaa7', 2);
+        this.particles.spawnSparkBurst(p.positionX, p.positionY, -dirX, '#48dbfb', 12);
+        this.particles.spawnFloatingLabel(
+          p.positionX,
+          p.positionY - 24,
+          tr.powerTriggerDash || 'HYDRO DASH!',
+          '#74f2ff',
+          14
+        );
+        return true;
+      }
+
+      if (id === 'chrono') {
+        return this._startChronoRewind();
+      }
+
+      return false;
+    }
+
+    _startChronoRewind() {
+      const Ab = JellyGame.Abilities;
+      if (!Ab || this.equippedAbility !== 'chrono' || this.abilityCooldown > 0) return false;
+      if (this.chronoRewindAnim || this.angelReviveAnim || this.chronoBuffer.length === 0) return false;
+
+      const lvl = this.getAbilityLevel('chrono');
+      if (lvl < 1) return false;
+
+      const curBossIdx = this.activeBoss && !this.activeBoss.defeated ? this.activeBoss.index : -1;
+      const nowT = this.hintTime;
+
+      let pool = this.chronoBuffer.filter((s) => s.bossIndex === curBossIdx);
+      if (pool.length === 0) pool = this.chronoBuffer;
+
+      // Prefer a safe attached snapshot ~3.5s–4.8s back; fall back gracefully on young runs
+      let targetIdx = 0;
+      const idealList = pool.filter((s) => nowT - s.t >= 3.0 && nowT - s.t <= 4.9);
+      const attachedIdeal = idealList.filter((s) => s.attached);
+      const chosen =
+        attachedIdeal.length > 0
+          ? attachedIdeal[0]
+          : idealList.length > 0
+          ? idealList[0]
+          : pool.find((s) => s.attached) || pool[0];
+
+      targetIdx = Math.max(0, this.chronoBuffer.indexOf(chosen));
+      const path = this.chronoBuffer.slice(targetIdx).reverse();
+      if (path.length === 0) path.push(chosen);
+
+      const cd = Ab.getCooldown('chrono', lvl);
+      this.abilityCooldown = cd;
+      this.abilityMaxCooldown = cd;
+      this.player.cancelAim();
+      this.pointer.isDown = false;
+      this.activePointerId = null;
+      this.projectiles.length = 0;
+      this.player.hp = Math.max(1, this.player.hp);
+      this.player.invulnTimer = 0.95;
+
+      this._spawnShockwaveRing(this.player.positionX, this.player.positionY, 85, '#74f2ff', 3.5);
+      if (this.audio.playChronoRewind) this.audio.playChronoRewind();
+      else this.audio.playShieldGain();
+
+      this.particles.spawnFloatingLabel(
+        this.player.positionX,
+        this.player.positionY - 26,
+        this.t().powerTriggerChrono || 'TIME REWIND!',
+        '#74f2ff',
+        15
+      );
+
+      this.chronoRewindAnim = {
+        elapsed: 0,
+        duration: 0.42,
+        startX: this.player.positionX,
+        startY: this.player.positionY,
+        startCamY: this.cameraY,
+        startRisingY: this.risingFloorY,
+        path,
+        target: chosen
+      };
+      return true;
+    }
+
+    _updateChronoRewind(dt) {
+      const anim = this.chronoRewindAnim;
+      if (!anim) return;
+
+      anim.elapsed += dt;
+      const t = clamp(anim.elapsed / anim.duration, 0, 1);
+      const idxFloat = t * Math.max(0, anim.path.length - 1);
+      const i0 = Math.floor(idxFloat);
+      const i1 = Math.min(anim.path.length - 1, i0 + 1);
+      const frac = idxFloat - i0;
+      const a = anim.path[i0] || anim.target;
+      const b = anim.path[i1] || anim.target;
+
+      this.player.positionX = a.x + (b.x - a.x) * frac;
+      this.player.positionY = a.y + (b.y - a.y) * frac;
+      this.player.velocityX = 0;
+      this.player.velocityY = 0;
+      this.cameraY = anim.startCamY + (anim.target.cameraY - anim.startCamY) * t;
+      this.risingFloorY = anim.startRisingY + (anim.target.risingFloorY - anim.startRisingY) * t;
+
+      if (Math.random() < 0.6) {
+        this.particles.spawnSparkBurst(
+          this.player.positionX,
+          this.player.positionY,
+          0,
+          '#a78bfa',
+          2
+        );
+      }
+
+      if (t >= 1) {
+        const tg = anim.target;
+        this.player.positionX = tg.x;
+        this.player.positionY = tg.y;
+        this.player.wallAttached = tg.wallAttached;
+        this.player.floorAttached = tg.floorAttached;
+        this.player.velocityX = tg.attached ? 0 : tg.vx * 0.4;
+        this.player.velocityY = tg.attached ? 0 : Math.min(0, tg.vy * 0.4);
+        this.player.invulnTimer = 0.95;
+        this.player.hp = Math.max(1, this.player.hp);
+        this.cameraY = tg.cameraY;
+        this.risingFloorY = Math.max(tg.risingFloorY, tg.y + 115);
+        this.projectiles.length = 0;
+        this.chronoBuffer = [tg];
+        this.chronoRewindAnim = null;
+        this._spawnShockwaveRing(tg.x, tg.y, 62, '#a78bfa', 2.8);
+      }
+    }
+
+    _findNearestSafeWallSpot(refY) {
+      const p = this.player;
+      const nearSide = p.positionX < C.WIDTH * 0.5 ? -1 : 1;
+      const sides = [nearSide, -nearSide];
+      const offsets = [0, -55, 55, -110, 110, -170, 170, -230];
+      const minY = this.activeBoss && !this.activeBoss.defeated ? this.activeBoss.arenaTopY + 55 : -999999;
+      const maxY =
+        this.activeBoss && !this.activeBoss.defeated
+          ? this.activeBoss.arenaFloorY - 55
+          : C.FLOOR_Y - p.radius - 10;
+
+      for (let oi = 0; oi < offsets.length; oi++) {
+        for (let si = 0; si < sides.length; si++) {
+          const side = sides[si];
+          const wallEdgeX = side < 0 ? C.WALL_WIDTH + p.radius : C.WIDTH - C.WALL_WIDTH - p.radius;
+          const testY = clamp(refY + offsets[oi], minY, maxY);
+
+          if (this._checkLandingState(wallEdgeX, testY, side) !== 'safe') continue;
+
+          // Ensure no nearby obstacle hitbox sits close above/below
+          let blocked = false;
+          const obstacles = this.generator.obstacles;
+          for (let k = 0; k < obstacles.length; k++) {
+            const o = obstacles[k];
+            if (o.side === side && Math.abs(o.y - testY) < 62) {
+              blocked = true;
+              break;
+            }
+          }
+          if (!blocked) {
+            return { side, x: wallEdgeX, y: testY };
+          }
+        }
+      }
+
+      const fallbackX = nearSide < 0 ? C.WALL_WIDTH + p.radius : C.WIDTH - C.WALL_WIDTH - p.radius;
+      return { side: nearSide, x: fallbackX, y: clamp(refY - 50, minY, maxY) };
+    }
+
+    _startAngelRevive(isLava = false) {
+      if (this.equippedAbility !== 'angel' || this.angelCharges <= 0) return false;
+      if (this.angelReviveAnim || this.chronoRewindAnim) return false;
+
+      this.angelCharges -= 1;
+      const p = this.player;
+      p.cancelAim();
+      this.pointer.isDown = false;
+      this.activePointerId = null;
+      p.wallAttached = 0;
+      p.floorAttached = false;
+      p.velocityX = 0;
+      p.velocityY = 0;
+      p.hp = Math.max(1, p.hp);
+      p.invulnTimer = 1.6;
+      this.hitStopTimer = 0.06;
+      this.shakeMag = Math.max(this.shakeMag, 6.0);
+      this.projectiles.length = 0;
+
+      const baseTargetY = isLava ? Math.min(p.positionY, this.risingFloorY - 145) : p.positionY - 36;
+      const safeSpot = this._findNearestSafeWallSpot(baseTargetY);
+      if (this.gameMode === 'rising') {
+        this.risingFloorY = Math.max(this.risingFloorY, safeSpot.y + 150);
+      }
+
+      if (this.audio.playAngelRevive) this.audio.playAngelRevive();
+      else this.audio.playUnlock();
+
+      this._spawnShockwaveRing(p.positionX, p.positionY, 90, '#ffd166', 4);
+      this.particles.spawnCollectBurst(p.positionX, p.positionY, 3);
+      this.particles.spawnFloatingLabel(
+        p.positionX,
+        p.positionY - 28,
+        this.t().powerTriggerAngel || 'GUARDIAN ANGEL!',
+        '#ffd166',
+        16
+      );
+
+      this.angelReviveAnim = {
+        elapsed: 0,
+        duration: 0.62,
+        startX: p.positionX,
+        startY: p.positionY,
+        endX: safeSpot.x,
+        endY: safeSpot.y,
+        side: safeSpot.side
+      };
+      return true;
+    }
+
+    _updateAngelRevive(dt) {
+      const anim = this.angelReviveAnim;
+      if (!anim) return;
+
+      anim.elapsed += dt;
+      const rawT = clamp(anim.elapsed / anim.duration, 0, 1);
+      const ease = 1 - Math.pow(1 - rawT, 3);
+      const arcLift = Math.sin(rawT * Math.PI) * -42;
+
+      this.player.positionX = anim.startX + (anim.endX - anim.startX) * ease;
+      this.player.positionY = anim.startY + (anim.endY - anim.startY) * ease + arcLift;
+      this.player.invulnTimer = 1.4;
+
+      if (Math.random() < 0.5) {
+        this.particles.spawnSparkBurst(
+          this.player.positionX,
+          this.player.positionY,
+          0,
+          '#ffd166',
+          2
+        );
+      }
+
+      if (rawT >= 1) {
+        this.player.positionX = anim.endX;
+        this.player.positionY = anim.endY;
+        this.player.wallAttached = anim.side;
+        this.player.floorAttached = false;
+        this.player.velocityX = 0;
+        this.player.velocityY = 0;
+        this.player.invulnTimer = 1.45;
+        this.player.hp = Math.max(1, this.player.hp);
+        this.tempoTimer = C.TEMPO.WINDOW_SEC;
+        this.angelReviveAnim = null;
+        this._spawnShockwaveRing(anim.endX, anim.endY, 64, '#fff5bd', 3);
+      }
+    }
+
+    _tryFatalRescue(isLava = false) {
+      if (this.chronoRewindAnim || this.angelReviveAnim) return true;
+      if (this.equippedAbility === 'chrono' && this.abilityCooldown <= 0 && this.chronoBuffer.length > 0) {
+        if (this._startChronoRewind()) return true;
+      }
+      if (this.equippedAbility === 'angel' && this.angelCharges > 0) {
+        if (this._startAngelRevive(isLava)) return true;
+      }
+      return false;
     }
 
     _recordRunMaxTempo() {
@@ -2230,16 +2826,16 @@
       }
 
       this.projectiles.length = 0;
-      if (this.player.hp < this.player.maxHp) {
-        this.player.hp = this.player.maxHp;
-        this.particles.spawnFloatingLabel(
-          this.player.positionX,
-          this.player.positionY - 26,
-          `+${this.player.maxHp} ❤️`,
-          '#ff6b81',
-          14
-        );
-      }
+      const tr = this.t();
+      this.player.maxHp = 3;
+      this.player.hp = 3;
+      this.particles.spawnFloatingLabel(
+        this.player.positionX,
+        this.player.positionY - 26,
+        tr.bossHeartsHint || '+3 BOSS HEARTS!',
+        '#ff6b81',
+        14.5
+      );
       this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.85);
       this.shakeMag = Math.max(this.shakeMag, 6.5);
       this.audio.playBossWarning();
@@ -2344,7 +2940,9 @@
       this.runBossesDefeated += 1;
       this._saveInt(STORAGE_KEYS.BOSSES_DEFEATED, this.bossesDefeated);
 
-      this.player.hp = this.player.maxHp;
+      // Normal climb returns to 1 Heart + fresh Bubble Shield bonus
+      this.player.maxHp = 1;
+      this.player.hp = 1;
       this.player.hasShield = true;
       this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.9);
 
@@ -2362,7 +2960,7 @@
       this.particles.spawnFloatingLabel(
         boss.x,
         boss.y - 18,
-        `+${gemsReward} ✦  ❤️🛡️`,
+        `+${gemsReward} ✦  🛡️`,
         '#ffd166',
         18
       );
@@ -2582,7 +3180,15 @@
         this._drawTempoRing(ctx);
       }
 
+      if (this.chronoRewindAnim) {
+        this._drawChronoRewindGhost(ctx);
+      }
+      if (this.angelReviveAnim) {
+        this._drawAngelReviveWings(ctx);
+      }
+
       this.player.draw(ctx, this.cameraY, this._boundCheckLanding);
+      this._drawShockwaveRings(ctx);
       this.particles.draw(ctx, this.cameraY);
 
       // Rising Magma Tide rendered over lower shaft in Rising Floor mode
@@ -2600,10 +3206,25 @@
 
       ctx.restore();
 
+      if (this.chronoRewindAnim) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(72, 219, 251, 0.14)';
+        ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+        ctx.restore();
+      } else if (this.angelReviveAnim) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 209, 102, 0.13)';
+        ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+        ctx.restore();
+      }
+
       if (this.state === 'menu') {
         this._drawMainMenu(ctx);
       } else {
         this._drawHUD(ctx);
+        if (this.state === 'playing' && this.equippedAbility && this.equippedAbility !== 'none') {
+          this._drawAbilityHUDOrb(ctx);
+        }
         if (this.activeBoss && !this.activeBoss.defeated && this.state === 'playing') {
           this._drawBossHUD(ctx);
         } else if (this.bossWarningTimer > 0 && !this.activeBoss && this.state === 'playing') {
@@ -4577,23 +5198,28 @@
       roundRectPath(ctx, mBtn.x + 11, mBtn.y + 22.5, 13, 3.2, 1.6);
       ctx.fill();
 
-      // Player Hearts capsule beside top-left Menu button (2 Hearts)
-      const hMax = this.player.maxHp || 2;
+      // Player Hearts capsule beside top-left Menu button (1 Heart normal, 3 Boss Arena Hearts)
+      const hMax = this.player.maxHp || 1;
       const hCur = clamp(this.player.hp || 0, 0, hMax);
       const hpX = mBtn.x + mBtn.w + 8;
       const hpY = mBtn.y + 4;
-      const hpW = hMax * 23 + 12;
+      const hpW = hMax * 21 + 12;
       const hpH = 32;
 
-      ctx.fillStyle = 'rgba(13, 21, 38, 0.84)';
-      ctx.strokeStyle = hCur === 1 ? 'rgba(255, 107, 129, 0.75)' : 'rgba(175, 210, 255, 0.24)';
-      ctx.lineWidth = 1.4;
+      ctx.fillStyle = hMax >= 3 ? 'rgba(38, 16, 26, 0.9)' : 'rgba(13, 21, 38, 0.84)';
+      ctx.strokeStyle =
+        hMax >= 3
+          ? '#ffd166'
+          : hCur === 1
+          ? 'rgba(255, 107, 129, 0.58)'
+          : 'rgba(175, 210, 255, 0.24)';
+      ctx.lineWidth = hMax >= 3 ? 1.6 : 1.4;
       roundRectPath(ctx, hpX, hpY, hpW, hpH, 16);
       ctx.fill();
       ctx.stroke();
 
       for (let i = 0; i < hMax; i++) {
-        this._drawHeartIcon(ctx, hpX + 17.5 + i * 23, hpY + hpH * 0.5 + 1, 8.2, i < hCur);
+        this._drawHeartIcon(ctx, hpX + 16.5 + i * 21, hpY + hpH * 0.5 + 1, 7.9, i < hCur);
       }
 
       // Top-center plump extruded altitude counter with milestone bounce
@@ -4723,6 +5349,181 @@
         ctx.stroke();
       }
       ctx.restore();
+
+      ctx.restore();
+    }
+
+    _drawShockwaveRings(ctx) {
+      if (!this.shockwaveRings || this.shockwaveRings.length === 0) return;
+      ctx.save();
+      for (let i = 0; i < this.shockwaveRings.length; i++) {
+        const ring = this.shockwaveRings[i];
+        ctx.globalAlpha = clamp(ring.alpha, 0, 1);
+        ctx.strokeStyle = ring.color;
+        ctx.lineWidth = ring.lineWidth;
+        ctx.beginPath();
+        ctx.arc(ring.x, ring.y - this.cameraY, ring.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    _drawChronoRewindGhost(ctx) {
+      const anim = this.chronoRewindAnim;
+      if (!anim || !anim.path) return;
+      ctx.save();
+      const total = anim.path.length;
+      const stride = Math.max(1, Math.floor(total / 8));
+      for (let i = 0; i < total; i += stride) {
+        const pt = anim.path[i];
+        const alpha = 0.14 + (i / total) * 0.28;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#74f2ff';
+        ctx.strokeStyle = '#a78bfa';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y - this.cameraY, this.player.radius * 0.78, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    _drawAngelReviveWings(ctx) {
+      const anim = this.angelReviveAnim;
+      if (!anim) return;
+      const sx = this.player.positionX;
+      const sy = this.player.positionY - this.cameraY;
+      const flap = Math.sin(this.hintTime * 22) * 0.22;
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.scale(side, 1);
+        ctx.rotate(-0.25 + flap);
+        const wingGrad = ctx.createLinearGradient(0, -18, 34, 14);
+        wingGrad.addColorStop(0, '#fff7cc');
+        wingGrad.addColorStop(1, '#ffd166');
+        ctx.fillStyle = wingGrad;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(6, -2);
+        ctx.quadraticCurveTo(28, -28, 38, -8);
+        ctx.quadraticCurveTo(32, 8, 22, 12);
+        ctx.quadraticCurveTo(24, 19, 12, 16);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    _drawAbilityHUDOrb(ctx) {
+      const Ab = JellyGame.Abilities;
+      const id = this.equippedAbility;
+      if (!Ab || !id || id === 'none') {
+        this.uiRects.abilityOrbBtn = null;
+        return;
+      }
+      const def = Ab.getById(id);
+      if (!def) return;
+
+      const lvl = this.getAbilityLevel(id);
+      const cx = C.WIDTH - 52;
+      const cy = C.HEIGHT - 68;
+      const r = 24;
+      this.uiRects.abilityOrbBtn = { x: cx - r - 6, y: cy - r - 6, w: (r + 6) * 2, h: (r + 6) * 2 };
+
+      const tr = this.t();
+      const isPassive = def.kind === 'passive';
+      const cdLeft = this.abilityCooldown;
+      const cdMax = Math.max(1, this.abilityMaxCooldown || Ab.getCooldown(id, lvl) || 1);
+      const isAirLocked = id === 'airDash' && this.player.isAttached();
+      const isShieldLocked = id === 'shield' && this.player.hasShield;
+      const isReady = isPassive ? this.angelCharges > 0 : cdLeft <= 0 && !isAirLocked && !isShieldLocked;
+
+      ctx.save();
+      // Drop shadow
+      ctx.fillStyle = '#070c16';
+      ctx.beginPath();
+      ctx.arc(cx, cy + 3, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Frosted orb body
+      ctx.fillStyle = 'rgba(13, 21, 38, 0.9)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (isPassive) {
+        const hasCharge = this.angelCharges > 0;
+        ctx.strokeStyle = hasCharge ? def.primaryColor : 'rgba(165, 205, 255, 0.25)';
+        ctx.lineWidth = hasCharge ? 2.4 : 1.5;
+        ctx.stroke();
+
+        ctx.globalAlpha = hasCharge ? 1 : 0.35;
+        Ab.drawIcon(ctx, id, cx, cy - 2, 13, this.hintTime);
+        ctx.globalAlpha = 1;
+
+        // Remaining angel charge pips along bottom edge of orb
+        const total = Math.max(1, this.angelMaxCharges || Ab.getCharges('angel', lvl));
+        const dotSp = 8;
+        const startX = cx - ((total - 1) * dotSp) * 0.5;
+        for (let i = 0; i < total; i++) {
+          ctx.fillStyle = i < this.angelCharges ? '#ffd166' : 'rgba(255, 255, 255, 0.16)';
+          ctx.beginPath();
+          ctx.arc(startX + i * dotSp, cy + 14, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        // Cooldown sweep track + active pulse glow
+        if (cdLeft > 0) {
+          const ratio = clamp(1 - cdLeft / cdMax, 0, 1);
+          ctx.strokeStyle = 'rgba(165, 205, 255, 0.16)';
+          ctx.lineWidth = 2.6;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = def.primaryColor;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r - 1, -Math.PI * 0.5, -Math.PI * 0.5 + ratio * Math.PI * 2);
+          ctx.stroke();
+
+          ctx.globalAlpha = 0.28;
+          Ab.drawIcon(ctx, id, cx, cy, 13, this.hintTime);
+          ctx.globalAlpha = 1;
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${Math.ceil(cdLeft)}`, cx, cy + 0.5);
+        } else {
+          const pulse = isReady ? 0.65 + 0.35 * Math.sin(this.hintTime * 5) : 0.35;
+          ctx.strokeStyle = isReady ? def.primaryColor : 'rgba(165, 205, 255, 0.3)';
+          ctx.globalAlpha = pulse;
+          ctx.lineWidth = isReady ? 2.6 : 1.6;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = isReady ? 1 : 0.48;
+          Ab.drawIcon(ctx, id, cx, cy - 1, 13.5, this.hintTime);
+          ctx.globalAlpha = 1;
+
+          if (isReady) {
+            ctx.fillStyle = def.accentColor;
+            ctx.font = `700 8px ${C.FONTS.DISPLAY}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tr.powerReady || 'READY', cx, cy + r + 8);
+          }
+        }
+      }
 
       ctx.restore();
     }
@@ -5184,33 +5985,49 @@
       this._drawMiniJellyPreview(ctx, 0, 0, 21, this.equippedAccessory);
       ctx.restore();
 
-      // Active slot pills showing equipped combo (HAT | FACE | BACK)
+      // Active slot pills showing equipped combo (HAT | FACE | BACK | PWR)
       const slotPillMeta = [
         ['head', (tr.slotNames && tr.slotNames.head) || 'HAT'],
         ['face', (tr.slotNames && tr.slotNames.face) || 'FACE'],
-        ['back', (tr.slotNames && tr.slotNames.back) || 'BACK']
+        ['back', (tr.slotNames && tr.slotNames.back) || 'BACK'],
+        ['power', (tr.slotNames && tr.slotNames.power) || 'PWR']
       ];
       for (let i = 0; i < slotPillMeta.length; i++) {
         const [sKey, sLbl] = slotPillMeta[i];
-        const isActiveSlot = this.equippedSlots && this.equippedSlots[sKey] !== 'none';
-        const px = stageX + 102 + i * 44;
+        const isActiveSlot =
+          sKey === 'power'
+            ? this.equippedAbility && this.equippedAbility !== 'none'
+            : this.equippedSlots && this.equippedSlots[sKey] !== 'none';
+        const px = stageX + 92 + i * 38;
         const py = stageY + 11;
-        ctx.fillStyle = isActiveSlot ? 'rgba(54, 245, 176, 0.2)' : 'rgba(255, 255, 255, 0.06)';
-        ctx.strokeStyle = isActiveSlot ? C.COLORS.jellyPrimary : 'rgba(165, 205, 255, 0.18)';
+        ctx.fillStyle = isActiveSlot
+          ? sKey === 'power'
+            ? 'rgba(116, 242, 255, 0.22)'
+            : 'rgba(54, 245, 176, 0.2)'
+          : 'rgba(255, 255, 255, 0.06)';
+        ctx.strokeStyle = isActiveSlot
+          ? sKey === 'power'
+            ? '#74f2ff'
+            : C.COLORS.jellyPrimary
+          : 'rgba(165, 205, 255, 0.18)';
         ctx.lineWidth = 1;
-        roundRectPath(ctx, px, py, 40, 20, 10);
+        roundRectPath(ctx, px, py, 35, 20, 10);
         ctx.fill();
         ctx.stroke();
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = isActiveSlot ? '#8affdb' : 'rgba(180, 200, 232, 0.55)';
-        ctx.font = `700 9px ${C.FONTS.DISPLAY}`;
-        ctx.fillText(sLbl, px + 20, py + 10.5);
+        ctx.fillStyle = isActiveSlot
+          ? sKey === 'power'
+            ? '#b8f2ff'
+            : '#8affdb'
+          : 'rgba(180, 200, 232, 0.55)';
+        ctx.font = `700 8.5px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(sLbl, px + 17.5, py + 10.5, 31);
       }
 
       // Golden Drops counter pouch on top-right of Hero Stage
-      const pouchW = 104;
+      const pouchW = 100;
       const pouchX = stageX + stageW - pouchW - 10;
       const pouchY = stageY + 9;
       ctx.fillStyle = 'rgba(255, 209, 102, 0.16)';
@@ -5280,18 +6097,19 @@
         ctx.restore();
       }
 
-      // 4-Category Filter Tabs: HATS (head) | GLASSES (face) | BACK (back) | GOALS (rewards)
+      // 5-Category Filter Tabs: HATS | GLASSES | BACK | POWERS | GOALS
       const tabBarX = panelX + 20;
       const tabBarY = panelY + 154;
       const tabBarW = panelW - 40;
       const tabH = 36;
-      const tabGap = 6;
-      const oneTabW = (tabBarW - tabGap * 3) / 4;
+      const tabGap = 5;
+      const oneTabW = (tabBarW - tabGap * 4) / 5;
 
       const tabs = [
-        { key: 'head', rectKey: 'wardrobeTabHeadBtn', label: tr.tabHead || 'HATS', count: 8 },
-        { key: 'face', rectKey: 'wardrobeTabFaceBtn', label: tr.tabFace || 'GLASSES', count: 7 },
-        { key: 'back', rectKey: 'wardrobeTabBackBtn', label: tr.tabBack || 'BACK', count: 3 },
+        { key: 'head', rectKey: 'wardrobeTabHeadBtn', label: tr.tabHead || 'HATS' },
+        { key: 'face', rectKey: 'wardrobeTabFaceBtn', label: tr.tabFace || 'GLASSES' },
+        { key: 'back', rectKey: 'wardrobeTabBackBtn', label: tr.tabBack || 'BACK' },
+        { key: 'powers', rectKey: 'wardrobeTabPowersBtn', label: `✦ ${tr.tabPowers || 'POWERS'}`, cyan: true },
         { key: 'rewards', rectKey: 'wardrobeTabRewardsBtn', label: `🏆 ${tr.rewardsTab || 'GOALS'}`, gold: true }
       ];
 
@@ -5301,42 +6119,60 @@
         const isOn = activeTab === tb.key;
         this.uiRects[tb.rectKey] = { x: tx, y: tabBarY, w: oneTabW, h: tabH };
 
-        ctx.fillStyle = isOn ? (tb.gold ? '#925406' : '#057a58') : '#091220';
-        roundRectPath(ctx, tx, tabBarY + 2.5, oneTabW, tabH - 2, 14);
+        ctx.fillStyle = isOn
+          ? tb.gold
+            ? '#925406'
+            : tb.cyan
+            ? '#086b82'
+            : '#057a58'
+          : '#091220';
+        roundRectPath(ctx, tx, tabBarY + 2.5, oneTabW, tabH - 2, 13);
         ctx.fill();
 
         ctx.fillStyle = isOn
           ? tb.gold
             ? '#ffd166'
+            : tb.cyan
+            ? '#74f2ff'
             : C.COLORS.jellyPrimary
           : 'rgba(20, 32, 54, 0.9)';
         ctx.strokeStyle = isOn ? 'transparent' : 'rgba(165, 205, 255, 0.16)';
         ctx.lineWidth = 1.2;
-        roundRectPath(ctx, tx, tabBarY, oneTabW, tabH - 2, 14);
+        roundRectPath(ctx, tx, tabBarY, oneTabW, tabH - 2, 13);
         ctx.fill();
         if (!isOn) ctx.stroke();
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
-        ctx.fillStyle = isOn ? (tb.gold ? '#261402' : '#06241b') : 'rgba(205, 222, 248, 0.78)';
-        ctx.fillText(tb.label, tx + oneTabW * 0.5, tabBarY + (tabH - 2) * 0.5 + 0.5);
+        ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
+        ctx.fillStyle = isOn ? (tb.gold ? '#261402' : '#06241b') : 'rgba(205, 222, 248, 0.8)';
+        ctx.fillText(tb.label, tx + oneTabW * 0.5, tabBarY + (tabH - 2) * 0.5 + 0.5, oneTabW - 6);
 
-        // Notification dot on GOALS if unseen reward unlocked, or emerald dot if slot equipped
         if (tb.key === 'rewards' && this.unseenRewards.size > 0 && !isOn) {
           ctx.fillStyle = '#ff4757';
           ctx.beginPath();
-          ctx.arc(tx + oneTabW - 8, tabBarY + 7, 4, 0, Math.PI * 2);
+          ctx.arc(tx + oneTabW - 7, tabBarY + 6.5, 3.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (
+          tb.key === 'powers' &&
+          this.equippedAbility &&
+          this.equippedAbility !== 'none' &&
+          !isOn
+        ) {
+          ctx.fillStyle = '#74f2ff';
+          ctx.beginPath();
+          ctx.arc(tx + oneTabW - 7, tabBarY + 6.5, 3.2, 0, Math.PI * 2);
           ctx.fill();
         } else if (
           tb.key !== 'rewards' &&
+          tb.key !== 'powers' &&
           this.equippedSlots &&
           this.equippedSlots[tb.key] !== 'none' &&
           !isOn
         ) {
           ctx.fillStyle = '#36f5b0';
           ctx.beginPath();
-          ctx.arc(tx + oneTabW - 8, tabBarY + 7, 3.2, 0, Math.PI * 2);
+          ctx.arc(tx + oneTabW - 7, tabBarY + 6.5, 3.2, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -5348,6 +6184,7 @@
       const wellH = 406;
       this.uiRects.wardrobeWell = { x: wellX, y: wellY, w: wellW, h: wellH };
       this.uiRects.shopCards = [];
+      this.uiRects.powerCards = [];
 
       ctx.fillStyle = 'rgba(7, 12, 22, 0.55)';
       ctx.strokeStyle = 'rgba(165, 205, 255, 0.12)';
@@ -5355,6 +6192,44 @@
       roundRectPath(ctx, wellX, wellY, wellW, wellH, 18);
       ctx.fill();
       ctx.stroke();
+
+      if (activeTab === 'powers' && JellyGame.Abilities) {
+        const abList = JellyGame.Abilities.LIST || [];
+        const pCols = 2;
+        const pGapX = 12;
+        const pGapY = 12;
+        const pPadX = 10;
+        const pPadY = 11;
+        const pCardW = (wellW - pPadX * 2 - pGapX) / pCols;
+        const pCardH = 186;
+        this.wardrobeScrollY = 0;
+
+        for (let i = 0; i < abList.length; i++) {
+          const ab = abList[i];
+          const col = i % pCols;
+          const row = Math.floor(i / pCols);
+          const cx = wellX + pPadX + col * (pCardW + pGapX);
+          const cy = wellY + pPadY + row * (pCardH + pGapY);
+          const upRect = this._drawPowerShowcaseCard(ctx, ab, cx, cy, pCardW, pCardH, tr);
+          this.uiRects.powerCards.push({
+            ability: ab,
+            rect: { x: cx, y: cy, w: pCardW, h: pCardH },
+            upgradeRect: upRect
+          });
+        }
+
+        ctx.fillStyle = '#8affdb';
+        ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          tr.powersHint || 'Equip 1 Power — Tap orb or double-tap to fire!',
+          C.WIDTH * 0.5,
+          panelY + panelH - 18,
+          panelW - 40
+        );
+        ctx.restore();
+        return;
+      }
 
       const cols = 2;
       const gapX = 12;
@@ -5408,6 +6283,145 @@
       ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 18);
 
       ctx.restore();
+    }
+
+    _drawPowerShowcaseCard(ctx, ab, cx, cy, cardW, cardH, tr) {
+      const Ab = JellyGame.Abilities;
+      const lvl = this.getAbilityLevel(ab.id);
+      const unlocked = lvl >= 1;
+      const equipped = this.equippedAbility === ab.id;
+      const nextCost = Ab ? Ab.getNextUpgradeCost(ab.id, lvl) : null;
+      const canAfford = nextCost !== null && this.gems >= nextCost;
+
+      ctx.fillStyle = equipped
+        ? 'rgba(20, 44, 62, 0.92)'
+        : unlocked
+        ? 'rgba(16, 26, 46, 0.88)'
+        : 'rgba(11, 18, 32, 0.8)';
+      ctx.strokeStyle = equipped
+        ? ab.primaryColor
+        : unlocked
+        ? 'rgba(165, 205, 255, 0.28)'
+        : canAfford
+        ? '#ffd166'
+        : 'rgba(165, 205, 255, 0.14)';
+      ctx.lineWidth = equipped ? 2.2 : 1.3;
+      roundRectPath(ctx, cx, cy, cardW, cardH, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      // Vector emblem medallion on top-left
+      const medX = cx + 28;
+      const medY = cy + 30;
+      ctx.fillStyle = 'rgba(7, 12, 22, 0.78)';
+      ctx.strokeStyle = unlocked ? ab.primaryColor : 'rgba(165, 205, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(medX, medY, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.save();
+      if (!unlocked) ctx.globalAlpha = 0.65;
+      if (Ab) Ab.drawIcon(ctx, ab.id, medX, medY, 11.5, this.hintTime);
+      ctx.restore();
+
+      // Top-right Level Pill
+      const lvlTxt = unlocked ? `LV.${lvl}/10` : '🔒 0/10';
+      ctx.fillStyle = unlocked ? 'rgba(116, 242, 255, 0.16)' : 'rgba(255, 255, 255, 0.06)';
+      roundRectPath(ctx, cx + cardW - 60, cy + 10, 50, 18, 9);
+      ctx.fill();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = unlocked ? ab.accentColor : 'rgba(180, 200, 232, 0.55)';
+      ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(lvlTxt, cx + cardW - 35, cy + 19.5);
+
+      // Localized Title & Description
+      const pName = (tr.abilityNames && tr.abilityNames[ab.id]) || ab.id;
+      const pDesc = (tr.abilityDescs && tr.abilityDescs[ab.id]) || '';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(pName, cx + 10, cy + 62, cardW - 20);
+
+      ctx.fillStyle = '#9bb6dc';
+      ctx.font = `600 9.5px ${C.FONTS.UI}`;
+      ctx.fillText(pDesc, cx + 10, cy + 79, cardW - 20);
+
+      // Cooldown / Charges Progression Line
+      let statText = '';
+      if (ab.id === 'angel') {
+        const curCh = Ab.getCharges('angel', Math.max(1, lvl));
+        const unit = curCh > 1 ? tr.powerRevivesUnit || 'revives' : tr.powerReviveUnit || 'revive';
+        const nextMilestone = lvl < 5 ? 'Lv.5 → 2' : lvl < 10 ? 'Lv.10 → 3' : tr.powerMaxed || 'MAX';
+        statText = `${curCh} ${unit} • ${nextMilestone}`;
+      } else {
+        const curCd = Ab.getCooldown(ab.id, Math.max(1, lvl));
+        const nxtCd = lvl > 0 && lvl < 10 ? Ab.getCooldown(ab.id, lvl + 1) : null;
+        const unit = tr.powerCdSec || 's';
+        statText = nxtCd ? `${curCd}${unit} → ${nxtCd}${unit}` : `${curCd}${unit}`;
+      }
+      ctx.fillStyle = unlocked ? ab.primaryColor : '#ffd166';
+      ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(statText, cx + 10, cy + 98, cardW - 20);
+
+      // 10-pip mini level bar
+      const pipW = (cardW - 20 - 9 * 2.5) / 10;
+      const pipY = cy + 114;
+      for (let k = 0; k < 10; k++) {
+        ctx.fillStyle = k < lvl ? ab.primaryColor : 'rgba(255, 255, 255, 0.1)';
+        roundRectPath(ctx, cx + 10 + k * (pipW + 2.5), pipY, pipW, 4.5, 2);
+        ctx.fill();
+      }
+
+      // Action buttons along bottom
+      const btnY = cy + cardH - 36;
+      const btnH = 26;
+      if (!unlocked) {
+        const fullW = cardW - 18;
+        const bx = cx + 9;
+        this._drawGearCardButton(
+          ctx,
+          bx,
+          btnY,
+          fullW,
+          btnH,
+          false,
+          false,
+          canAfford,
+          `${tr.powerUnlock || 'UNLOCK'} • ✦${nextCost}`
+        );
+        return { x: bx, y: btnY, w: fullW, h: btnH };
+      }
+
+      const eqW = 58;
+      const upW = cardW - 18 - eqW - 6;
+      const eqX = cx + 9;
+      const upX = eqX + eqW + 6;
+      this._drawGearCardButton(
+        ctx,
+        eqX,
+        btnY,
+        eqW,
+        btnH,
+        equipped,
+        true,
+        false,
+        equipped ? '✓' : tr.equip || 'EQUIP'
+      );
+      this._drawGearCardButton(
+        ctx,
+        upX,
+        btnY,
+        upW,
+        btnH,
+        false,
+        nextCost === null,
+        canAfford,
+        nextCost !== null ? `⬆ ✦${nextCost}` : tr.powerMaxed || 'MAX'
+      );
+      return { x: upX, y: btnY, w: upW, h: btnH };
     }
 
     _drawGearShowcaseCard(ctx, acc, cx, cy, cardW, cardH, stats, tr, showGoalTag) {

@@ -9,10 +9,10 @@
       id: 'craggo',
       nameKey: 'bossCraggo',
       defaultName: 'CRAGGO THE GOLEM',
-      baseHp: 5,
+      baseHp: 4,
       maxPhases: 1,
       hitRadius: 34,
-      rewardGems: 30,
+      rewardGems: 40,
       boltType: 'rock',
       primaryColor: '#36f5b0',
       secondaryColor: '#1e2b42',
@@ -22,10 +22,10 @@
       id: 'ignis',
       nameKey: 'bossIgnis',
       defaultName: 'IGNIS THE WYRM',
-      baseHp: 7,
+      baseHp: 5,
       maxPhases: 2,
       hitRadius: 35,
-      rewardGems: 45,
+      rewardGems: 60,
       boltType: 'fireball',
       primaryColor: '#ff793f',
       secondaryColor: '#4b161b',
@@ -35,10 +35,10 @@
       id: 'aether',
       nameKey: 'bossAether',
       defaultName: 'AETHER THE STORM',
-      baseHp: 9,
-      maxPhases: 2,
+      baseHp: 7,
+      maxPhases: 3,
       hitRadius: 33,
-      rewardGems: 65,
+      rewardGems: 85,
       boltType: 'volt',
       primaryColor: '#48dbfb',
       secondaryColor: '#1c284d',
@@ -48,10 +48,10 @@
       id: 'glacius',
       nameKey: 'bossGlacius',
       defaultName: 'GLACIUS EMPRESS',
-      baseHp: 11,
+      baseHp: 9,
       maxPhases: 3,
       hitRadius: 35,
-      rewardGems: 90,
+      rewardGems: 115,
       boltType: 'iceSpear',
       primaryColor: '#74f2ff',
       secondaryColor: '#103b4a',
@@ -61,10 +61,10 @@
       id: 'voidon',
       nameKey: 'bossVoidon',
       defaultName: 'VOIDON EMPEROR',
-      baseHp: 14,
+      baseHp: 11,
       maxPhases: 4,
       hitRadius: 37,
-      rewardGems: 125,
+      rewardGems: 160,
       boltType: 'voidComet',
       primaryColor: '#c56cf0',
       secondaryColor: '#170f2e',
@@ -77,14 +77,14 @@
   }
 
   function getMilestoneMeters(bossIndex) {
-    return 250 * Math.pow(2, Math.max(0, bossIndex));
+    return 500 * Math.pow(2, Math.max(0, bossIndex));
   }
 
   function getBossDefForIndex(bossIndex) {
     const idx = Math.max(0, Math.floor(bossIndex));
     const arch = BOSS_ARCHETYPES[idx % BOSS_ARCHETYPES.length];
     const cycle = Math.floor(idx / BOSS_ARCHETYPES.length) + 1;
-    const extraHp = (cycle - 1) * 4;
+    const extraHp = (cycle - 1) * 3;
     return {
       index: idx,
       cycle,
@@ -92,7 +92,7 @@
       maxHp: arch.baseHp + extraHp,
       maxPhases: Math.min(4, arch.maxPhases + (cycle - 1)),
       hitRadius: arch.hitRadius,
-      rewardGems: arch.rewardGems + (cycle - 1) * 50,
+      rewardGems: arch.rewardGems + (cycle - 1) * 60,
       milestoneMeters: getMilestoneMeters(idx)
     };
   }
@@ -471,18 +471,18 @@
         }
       }
 
-      // Attack cycle with brief visible windup flash (telegraphTimer)
+      // Attack cycle with clear readable windup flash (telegraphTimer)
       if (this.telegraphTimer > 0) {
         this.telegraphTimer -= dt;
         if (this.telegraphTimer <= 0) {
           this._executeAttack(context);
-          const baseCadence = Math.max(1.15, 2.25 - this.index * 0.08 - (this.phase - 1) * 0.34);
-          this.attackTimer = baseCadence / (1 + (this.cycle - 1) * 0.14);
+          const baseCadence = Math.max(1.45, 2.75 - this.index * 0.12 - (this.phase - 1) * 0.24);
+          this.attackTimer = baseCadence / (1 + (this.cycle - 1) * 0.12);
         }
       } else {
         this.attackTimer -= dt;
         if (this.attackTimer <= 0) {
-          this.telegraphTimer = 0.45;
+          this.telegraphTimer = 0.65;
         }
       }
     }
@@ -707,7 +707,7 @@
 
       // Telegraph windup ring just before firing projectiles
       if (this.telegraphTimer > 0) {
-        const pulse = 1 - this.telegraphTimer / 0.45;
+        const pulse = 1 - this.telegraphTimer / 0.65;
         ctx.strokeStyle = '#ff5e57';
         ctx.lineWidth = 3;
         ctx.globalAlpha = 0.85;
