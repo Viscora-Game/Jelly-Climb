@@ -76,10 +76,21 @@
       this.aimDirX = 1;
       this.aimDirY = -1;
 
-      // Squash & stretch animation state
+      // Squash & stretch + soft-body spring physics state
       this.stretchAmount = 0;
       this.wobbleTime = 10;
       this.wobbleAmp = 0;
+      this.lastImpactFlatten = 0;
+      this.sagOffset = 0;
+      this.sagVel = 0;
+      this.eyeLagX = 0;
+      this.eyeLagY = 0;
+      this.eyeLagVx = 0;
+      this.eyeLagVy = 0;
+      this.accTilt = 0;
+      this.accTiltVel = 0;
+      this._prevVx = 0;
+      this._prevVy = 0;
       this.idleTime = 0;
       this.blinkTimer = 2.4;
       this.isBlinking = false;
@@ -220,14 +231,22 @@
       this.aimValid = false;
       this.dragStrength = 0;
       this.stretchAmount = 0.25 + strength * 0.25;
-      this.wobbleAmp = 0.14;
+      this.wobbleAmp = 0.16 + strength * 0.08;
       this.wobbleTime = 0;
+      this.lastImpactFlatten = 0;
+      this.sagOffset = 0;
+      this.sagVel = 0;
+      this.eyeLagVx -= dirX * (65 + strength * 70);
+      this.eyeLagVy -= dirY * (65 + strength * 70);
+      this.accTiltVel += (dirX > 0 ? -1 : 1) * (3.2 + strength * 4.5);
+      this._prevVx = this.velocityX;
+      this._prevVy = this.velocityY;
       this.trail.length = 0;
 
       return { dirX, dirY, strength, power };
     }
 
-    attachToWall(side, impactSpeed) {
+    attachToWall(side, impactSpeed, impactVy = 0) {
       this.wallAttached = side;
       this.floorAttached = false;
       this.positionX =
@@ -236,8 +255,15 @@
       this.velocityX = 0;
       this.velocityY = 0;
       this.stretchAmount = 0;
-      this.wobbleAmp = clamp(impactSpeed / 1050, 0.18, 0.42);
+      this.wobbleAmp = clamp(impactSpeed / 1000, 0.2, 0.45);
       this.wobbleTime = 0;
+      this.lastImpactFlatten = clamp(impactSpeed / 880, 0.28, 1.0);
+      this.sagVel = clamp((impactVy || impactSpeed * 0.35) * 0.22, -65, 115);
+      this.eyeLagVx += (side < 0 ? -1 : 1) * clamp(impactSpeed * 0.085, 22, 95);
+      this.eyeLagVy += clamp(impactVy * 0.06, -45, 55);
+      this.accTiltVel = side * clamp(impactSpeed / 95, 2.8, 8.8);
+      this._prevVx = 0;
+      this._prevVy = 0;
       this.trail.length = 0;
     }
 
@@ -249,8 +275,12 @@
       this.velocityX = 0;
       this.velocityY = 0;
       this.stretchAmount = 0;
-      this.wobbleAmp = clamp(impactSpeed / 1050, 0.16, 0.36);
+      this.wobbleAmp = clamp(impactSpeed / 1000, 0.18, 0.38);
       this.wobbleTime = 0;
+      this.lastImpactFlatten = clamp(impactSpeed / 900, 0.25, 0.95);
+      this.eyeLagVy += clamp(impactSpeed * 0.08, 22, 85);
+      this._prevVx = 0;
+      this._prevVy = 0;
       this.trail.length = 0;
     }
 
@@ -271,24 +301,27 @@
 
       // Left wall contact (only when moving left so we never re-stick on launch)
       if (this.positionX <= leftBound && this.velocityX < 0) {
-        const impactSpeed = Math.hypot(this.velocityX, this.velocityY);
-        this.attachToWall(-1, impactSpeed);
-        return { type: 'wall', side: -1, normalX: 1, impactSpeed };
+        const prevVy = this.velocityY;
+        const impactSpeed = Math.hypot(this.velocityX, prevVy);
+        this.attachToWall(-1, impactSpeed, prevVy);
+        return { type: 'wall', side: -1, normalX: 1, impactSpeed, impactVy: prevVy };
       }
 
       // Right wall contact (only when moving right)
       if (this.positionX >= rightBound && this.velocityX > 0) {
-        const impactSpeed = Math.hypot(this.velocityX, this.velocityY);
-        this.attachToWall(1, impactSpeed);
-        return { type: 'wall', side: 1, normalX: -1, impactSpeed };
+        const prevVy = this.velocityY;
+        const impactSpeed = Math.hypot(this.velocityX, prevVy);
+        this.attachToWall(1, impactSpeed, prevVy);
+        return { type: 'wall', side: 1, normalX: -1, impactSpeed, impactVy: prevVy };
       }
 
       // Starting cushion floor safety contact
       if (this.positionY >= floorBound && this.velocityY > 0) {
-        const impactSpeed = Math.hypot(this.velocityX, this.velocityY);
+        const prevVy = this.velocityY;
+        const impactSpeed = Math.hypot(this.velocityX, prevVy);
         this.positionX = clamp(this.positionX, leftBound, rightBound);
         this.attachToFloor(impactSpeed);
-        return { type: 'floor', side: 0, normalX: 0, impactSpeed };
+        return { type: 'floor', side: 0, normalX: 0, impactSpeed, impactVy: prevVy };
       }
 
       return null;
@@ -296,12 +329,47 @@
 
     updateVisuals(dt) {
       if (!this.alive) return;
+      const safeDt = clamp(dt, 0, 0.05);
 
       this.idleTime += dt;
       this.wobbleTime += dt;
       if (this.invulnTimer > 0) {
         this.invulnTimer = Math.max(0, this.invulnTimer - dt);
       }
+      if (this.lastImpactFlatten > 0) {
+        this.lastImpactFlatten = Math.max(0, this.lastImpactFlatten - safeDt * 2.6);
+      }
+
+      // Gravitational wall-sag spring (elastic downward weight dip upon landing on vertical walls)
+      if (this.wallAttached !== 0 && !this.isAiming) {
+        const sagRest = 1.8;
+        const sagForce = (sagRest - this.sagOffset) * 240 - this.sagVel * 13.5;
+        this.sagVel += sagForce * safeDt;
+        this.sagOffset = clamp(this.sagOffset + this.sagVel * safeDt, -8, 10);
+      } else {
+        this.sagOffset += (0 - this.sagOffset) * Math.min(1, safeDt * 18);
+        this.sagVel *= Math.exp(-12 * safeDt);
+      }
+
+      // Secondary inertia spring for eyes, sheen & headwear
+      if (!this.isAttached()) {
+        const dvx = this.velocityX - this._prevVx;
+        const dvy = this.velocityY - this._prevVy;
+        this.eyeLagVx -= dvx * 0.16;
+        this.eyeLagVy -= dvy * 0.16;
+      }
+      const eyeK = 220;
+      const eyeDamp = 16;
+      this.eyeLagVx += (-this.eyeLagX * eyeK - this.eyeLagVx * eyeDamp) * safeDt;
+      this.eyeLagVy += (-this.eyeLagY * eyeK - this.eyeLagVy * eyeDamp) * safeDt;
+      this.eyeLagX = clamp(this.eyeLagX + this.eyeLagVx * safeDt, -5.5, 5.5);
+      this.eyeLagY = clamp(this.eyeLagY + this.eyeLagVy * safeDt, -5.5, 5.5);
+
+      this.accTiltVel += (-this.accTilt * 185 - this.accTiltVel * 11) * safeDt;
+      this.accTilt = clamp(this.accTilt + this.accTiltVel * safeDt, -0.34, 0.34);
+
+      this._prevVx = this.velocityX;
+      this._prevVy = this.velocityY;
 
       // Cute eye blink cadence
       this.blinkTimer -= dt;
@@ -505,7 +573,12 @@
         ctx.translate(bodyX, bodyY);
         ctx.rotate(stretchAngle);
         ctx.scale(scaleAlong, scalePerp);
-        this._drawJellyBody(ctx, r, this.aimDirX, this.aimDirY, stretchAngle, this.dragStrength);
+        this._drawJellyBody(ctx, r, this.aimDirX, this.aimDirY, stretchAngle, this.dragStrength, {
+          contactAngle: Math.PI,
+          flatten: this.dragStrength * 0.22,
+          jiggle: 0,
+          aero: this.dragStrength * 0.16
+        });
         ctx.restore();
         return;
       }
@@ -521,17 +594,24 @@
         return;
       }
 
-      // Idle / post-impact wobbling jelly pivoted at wall/floor contact edge
+      // Idle / post-impact wobbling jelly pivoted at wall/floor contact edge with gravitational sag
+      const sag = this.wallAttached !== 0 ? this.sagOffset : 0;
+      const flattenAmt = this.lastImpactFlatten * (0.45 + 0.55 * Math.max(0, Math.cos(this.wobbleTime * 18)));
       ctx.save();
       if (this.wallAttached !== 0) {
         const normalX = -this.wallAttached;
         const scalePerpToWall = clamp(1 - wobble + idleBreath, 0.58, 1.38);
         const scaleAlongWall = 1 / scalePerpToWall;
 
-        ctx.translate(anchorX, screenY);
+        ctx.translate(anchorX, screenY + sag);
         ctx.scale(scalePerpToWall, scaleAlongWall);
         ctx.translate(normalX * r, 0);
-        this._drawJellyBody(ctx, r, normalX, -0.18, 0, 0);
+        this._drawJellyBody(ctx, r, normalX, -0.18, 0, 0, {
+          contactAngle: this.wallAttached < 0 ? Math.PI : 0,
+          flatten: Math.max(flattenAmt, 0.12),
+          jiggle: wobble * 0.55,
+          aero: 0
+        });
       } else {
         // Floor attached
         const scaleY = clamp(1 - wobble + idleBreath, 0.62, 1.35);
@@ -539,7 +619,12 @@
         ctx.translate(screenX, anchorY);
         ctx.scale(scaleX, scaleY);
         ctx.translate(0, -r);
-        this._drawJellyBody(ctx, r, 0, -1, 0, 0);
+        this._drawJellyBody(ctx, r, 0, -1, 0, 0, {
+          contactAngle: Math.PI * 0.5,
+          flatten: Math.max(flattenAmt, 0.1),
+          jiggle: wobble * 0.5,
+          aero: 0
+        });
       }
       ctx.restore();
     }
@@ -615,20 +700,86 @@
       ctx.translate(screenX, screenY);
       ctx.rotate(angle);
       ctx.scale(scaleAlong, scalePerp);
-      this._drawJellyBody(ctx, r, lookX, lookY, angle, 0);
+      this._drawJellyBody(ctx, r, lookX, lookY, angle, 0, {
+        contactAngle: Math.PI,
+        flatten: 0,
+        jiggle: wobble * 0.45,
+        aero: clamp(speed / 1200, 0, 1) * 0.42
+      });
       ctx.restore();
     }
 
-    _drawJellyBody(ctx, r, lookX, lookY, bodyRotation, strain) {
+    _traceSoftBodyPath(ctx, r, deform) {
+      if (!deform || (deform.flatten <= 0.01 && Math.abs(deform.jiggle) <= 0.01 && deform.aero <= 0.01)) {
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        return;
+      }
+
+      const steps = 20;
+      const flatten = clamp(deform.flatten || 0, 0, 0.75);
+      const contactAng = deform.contactAngle || 0;
+      const jiggle = clamp(deform.jiggle || 0, -0.3, 0.3);
+      const aero = clamp(deform.aero || 0, 0, 0.5);
+      const wobbleWave = Math.sin(this.wobbleTime * 24) * jiggle;
+
+      const pts = new Array(steps);
+      for (let i = 0; i < steps; i++) {
+        const theta = (i / steps) * Math.PI * 2;
+        const cDiff = Math.cos(theta - contactAng);
+
+        // 1. D-shape wall/floor flattening on contact side + gentle orthogonal volume bulge
+        let rad = r;
+        if (flatten > 0.01) {
+          if (cDiff > 0.15) {
+            const flatCurve = (cDiff - 0.15) / 0.85;
+            rad -= r * flatten * 0.36 * flatCurve * flatCurve;
+          } else {
+            const orthoSq = 1 - cDiff * cDiff;
+            rad += r * flatten * 0.14 * orthoSq;
+          }
+        }
+
+        // 2. Aerodynamic teardrop nose + slightly fuller trailing body
+        if (aero > 0.01) {
+          rad += r * aero * 0.14 * Math.cos(theta);
+          rad -= r * aero * 0.09 * Math.sin(theta) * Math.sin(theta);
+        }
+
+        // 3. Harmonic surface jiggle ripple across jelly membrane
+        if (Math.abs(wobbleWave) > 0.002) {
+          rad += r * wobbleWave * 0.28 * Math.cos(theta * 3);
+        }
+
+        pts[i] = {
+          x: Math.cos(theta) * rad,
+          y: Math.sin(theta) * rad
+        };
+      }
+
+      ctx.beginPath();
+      const firstMidX = (pts[steps - 1].x + pts[0].x) * 0.5;
+      const firstMidY = (pts[steps - 1].y + pts[0].y) * 0.5;
+      ctx.moveTo(firstMidX, firstMidY);
+      for (let i = 0; i < steps; i++) {
+        const p = pts[i];
+        const next = pts[(i + 1) % steps];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + next.x) * 0.5, (p.y + next.y) * 0.5);
+      }
+      ctx.closePath();
+    }
+
+    _drawJellyBody(ctx, r, lookX, lookY, bodyRotation, strain, deform = null) {
       const pal = this.getColorPalette();
       const speedRatio = this.isAttached()
         ? 0
         : clamp(Math.hypot(this.velocityX, this.velocityY) / 1200, 0, 1);
 
-      // Draw back-slot accessories (cape, wings, jetpack) cleanly behind jelly sphere
+      // Draw back-slot accessories with subtle secondary spring lag & tilt
       if (JellyGame.Accessories && this.equippedAccessory && this.equippedAccessory !== 'none') {
         ctx.save();
-        ctx.rotate(-bodyRotation);
+        ctx.rotate(-bodyRotation + this.accTilt * 0.8);
+        ctx.translate(this.eyeLagX * 0.45, this.eyeLagY * 0.45);
         JellyGame.Accessories.drawAccessory(
           ctx,
           this.equippedAccessory,
@@ -642,7 +793,7 @@
         ctx.restore();
       }
 
-      // Soft outer glow
+      // Soft outer glow + 20-vertex organic soft-body membrane
       ctx.save();
       ctx.shadowColor =
         this.tempoTier >= 3 ? 'rgba(255, 209, 102, 0.55)' : pal.glow;
@@ -657,8 +808,7 @@
       ctx.fillStyle = grad;
       ctx.strokeStyle = pal.rim;
       ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      this._traceSoftBodyPath(ctx, r, deform);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.stroke();
@@ -692,23 +842,23 @@
         ctx.restore();
       }
 
-      // Glossy specular shine
+      // Glossy specular shine with subtle inertia shift
       ctx.save();
       ctx.fillStyle = C.COLORS.jellyHighlight;
       ctx.beginPath();
-      ctx.ellipse(-r * 0.34, -r * 0.36, r * 0.26, r * 0.15, -0.55, 0, Math.PI * 2);
+      ctx.ellipse(-r * 0.34 + this.eyeLagX * 0.28, -r * 0.36 + this.eyeLagY * 0.28, r * 0.26, r * 0.15, -0.55, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(-r * 0.56, -r * 0.12, r * 0.08, 0, Math.PI * 2);
+      ctx.arc(-r * 0.56 + this.eyeLagX * 0.22, -r * 0.12 + this.eyeLagY * 0.22, r * 0.08, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      // Un-rotate slightly for upright expressive eyes in local look space
+      // Un-rotate slightly for upright expressive eyes with spring inertia in local look space
       ctx.save();
       ctx.rotate(-bodyRotation);
 
-      const eyeOffsetX = clamp(lookX * 3.8, -4.5, 4.5);
-      const eyeOffsetY = clamp(lookY * 3.4, -4.0, 4.0);
+      const eyeOffsetX = clamp(lookX * 3.8 + this.eyeLagX * 0.55, -5.2, 5.2);
+      const eyeOffsetY = clamp(lookY * 3.4 + this.eyeLagY * 0.55, -4.6, 4.6);
       const eyeSpread = 5.6;
 
       if (this.isBlinking) {
@@ -765,8 +915,11 @@
       }
       ctx.stroke();
 
-      // Render equipped front accessories (face eyewear + headwear) cleanly in upright space
+      // Render equipped front accessories with subtle momentum tilt & spring follow
       if (JellyGame.Accessories && this.equippedAccessory && this.equippedAccessory !== 'none') {
+        ctx.save();
+        ctx.rotate(this.accTilt * 0.65);
+        ctx.translate(this.eyeLagX * 0.28, this.eyeLagY * 0.28);
         JellyGame.Accessories.drawAccessory(
           ctx,
           this.equippedAccessory,
@@ -777,6 +930,7 @@
           speedRatio,
           'front'
         );
+        ctx.restore();
       }
 
       ctx.restore();

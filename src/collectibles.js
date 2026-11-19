@@ -31,15 +31,18 @@
       if (this.collected) return;
       this.phase += dt * 3.8;
 
-      // Gentle magnetic pull when flying jelly comes close
+      // Snappy magnetic curve pull when flying jelly sweeps close
       if (player && player.alive && !player.isAttached()) {
         const dx = player.positionX - this.x;
         const dy = player.positionY - this.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > 1 && dist < C.HITBOX.PLAYER_MAGNET_RADIUS) {
-          const pull = (1 - dist / C.HITBOX.PLAYER_MAGNET_RADIUS) * 320 * dt;
-          this.x += (dx / dist) * pull;
-          this.baseY += (dy / dist) * pull;
+        const magR = (C.HITBOX.PLAYER_MAGNET_RADIUS || 70) * 1.18;
+        if (dist > 1 && dist < magR) {
+          const proximity = 1 - dist / magR;
+          const pull = (160 + proximity * proximity * 640) * dt;
+          const step = Math.min(dist, pull);
+          this.x += (dx / dist) * step;
+          this.baseY += (dy / dist) * step;
         }
       }
 

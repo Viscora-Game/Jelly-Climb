@@ -186,6 +186,11 @@
       this.deathTimer = 0;
       this.hitStopTimer = 0;
       this.shakeMag = 0;
+      this.camPunchX = 0;
+      this.camPunchY = 0;
+      this.camPunchVx = 0;
+      this.camPunchVy = 0;
+      this.camZoom = 1;
       this.hasLaunchedOnce = false;
       this.hintTime = 0;
       this.pressedBtn = null;
@@ -1698,6 +1703,11 @@
       this.deathTimer = 0;
       this.hitStopTimer = 0;
       this.shakeMag = 0;
+      this.camPunchX = 0;
+      this.camPunchY = 0;
+      this.camPunchVx = 0;
+      this.camPunchVy = 0;
+      this.camZoom = 1;
       this.hasLaunchedOnce = false;
       this.pointer.isDown = false;
       this.activePointerId = null;
@@ -1769,6 +1779,24 @@
       if (this.shakeMag > 0) {
         this.shakeMag = Math.max(0, this.shakeMag - dt * 28);
       }
+
+      // Damped spring directional camera punch + subtle velocity-driven micro FOV zoom
+      const camDt = Math.min(dt, 0.05);
+      this.camPunchVx += (-this.camPunchX * 240 - this.camPunchVx * 15) * camDt;
+      this.camPunchVy += (-this.camPunchY * 240 - this.camPunchVy * 15) * camDt;
+      this.camPunchX = clamp(this.camPunchX + this.camPunchVx * camDt, -14, 14);
+      this.camPunchY = clamp(this.camPunchY + this.camPunchVy * camDt, -14, 14);
+
+      let targetZoom = 1;
+      if (this.state === 'playing' && !this.activeBoss) {
+        if (!this.player.isAttached()) {
+          const flySpeed = Math.hypot(this.player.velocityX, this.player.velocityY);
+          targetZoom = 1 - clamp((flySpeed - 420) / 1400, 0, 0.024);
+        } else if (this.player.isAiming && this.player.aimValid) {
+          targetZoom = 1 + this.player.dragStrength * 0.01;
+        }
+      }
+      this.camZoom += (targetZoom - this.camZoom) * Math.min(1, camDt * 6.5);
 
       if (this.hitStopTimer > 0) {
         this.hitStopTimer -= dt;
@@ -2529,13 +2557,16 @@
       this.audio.setMusicContext(this.state, this.gameMode, this.tempoTier);
 
       this.audio.playLaunch(shot.strength, this.tempoTier);
+      this.camPunchVx -= shot.dirX * (22 + shot.strength * 30);
+      this.camPunchVy -= shot.dirY * (22 + shot.strength * 30);
       this.particles.spawnLaunchBurst(
         this.player.positionX,
         this.player.positionY,
         shot.dirX,
         shot.dirY,
         shot.strength,
-        this.tempoTier
+        this.tempoTier,
+        this.player.getColorPalette().primary
       );
 
       if (this.tempoTier >= 2) {
@@ -2555,13 +2586,15 @@
     }
 
     _onPlayerAttach(evt) {
+      const pal = this.player.getColorPalette();
+
       // Check if player hit an Elastic Bounce Pad Surface!
       if (evt.type === 'wall' && this.generator.surfaces) {
         const surfaces = this.generator.surfaces;
         for (let i = 0; i < surfaces.length; i++) {
           const s = surfaces[i];
           if (s.type === 'bouncePad' && s.containsWallPoint(evt.side, this.player.positionY)) {
-            s.triggerBounce();
+            s.triggerBounce(this.player.positionY);
             const outDir = -evt.side;
             this.player.wallAttached = 0;
             this.player.floorAttached = false;
@@ -2569,13 +2602,18 @@
             this.player.velocityX = outDir * ((C.SURFACES && C.SURFACES.BOUNCE_VX) || 700);
             this.player.velocityY = (C.SURFACES && C.SURFACES.BOUNCE_VY) || -750;
             this.player.stretchAmount = 0.42;
+            this.player.wobbleAmp = 0.28;
+            this.player.wobbleTime = 0;
+            this.camPunchVx += outDir * 60;
+            this.camPunchVy -= 42;
 
             this.hasLaunchedOnce = true;
             this.tempoTier = Math.min(C.TEMPO.MAX_TIER, this.tempoTier + 1);
             this._recordRunMaxTempo();
+            this.audio.setMusicContext(this.state, this.gameMode, this.tempoTier);
 
             this.audio.playBouncePad();
-            this.particles.spawnStickBurst(this.player.positionX, this.player.positionY, outDir, 950);
+            this.particles.spawnStickBurst(this.player.positionX, this.player.positionY, outDir, 950, '#ff79c6');
             this.particles.spawnFloatingLabel(
               this.player.positionX + outDir * 36,
               this.player.positionY - 18,
@@ -2592,6 +2630,12 @@
       if (evt.impactSpeed > 900) {
         this.shakeMag = Math.max(this.shakeMag, 2.2);
       }
+      if (evt.type === 'wall') {
+        this.camPunchVx -= evt.normalX * clamp(evt.impactSpeed * 0.08, 12, 52);
+        this.camPunchVy += clamp((evt.impactVy || 0) * 0.055, -20, 36);
+      } else {
+        this.camPunchVy += clamp(evt.impactSpeed * 0.06, 12, 42);
+      }
 
       // Open fresh rhythm window upon wall contact
       if (this.hasLaunchedOnce) {
@@ -2599,18 +2643,27 @@
       }
 
       if (evt.type === 'wall') {
+        const wallEdgeX = evt.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
+        this.particles.spawnWallSplat(
+          wallEdgeX,
+          this.player.positionY,
+          evt.side,
+          pal.primary,
+          clamp(evt.impactSpeed / 950, 0.35, 1.0)
+        );
         this.particles.spawnStickBurst(
           this.player.positionX,
           this.player.positionY,
           evt.normalX,
-          evt.impactSpeed
+          evt.impactSpeed,
+          pal.primary
         );
       } else {
         this.particles.spawnSparkBurst(
           this.player.positionX,
           C.FLOOR_Y,
           0,
-          this.player.getColorPalette().primary,
+          pal.primary,
           5
         );
       }
@@ -2654,6 +2707,15 @@
               1
             );
           }
+          if (Math.random() < dt * 5.5) {
+            this.particles.spawnWallSplat(
+              side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH,
+              this.player.positionY,
+              side,
+              this.player.getColorPalette().primary,
+              0.28
+            );
+          }
         } else if (s.type === 'crackedWall') {
           const crackDur = (C.SURFACES && C.SURFACES.CRACK_DURATION) || 1.25;
           s.crackTimer += dt * 1.35;
@@ -2665,7 +2727,17 @@
             this.player.cancelAim();
             this.player.velocityX = outDir * 95;
             this.player.velocityY = 40;
+            this.camPunchVx += outDir * 32;
             this.audio.playCrack();
+            if (this.particles.spawnDebris) {
+              this.particles.spawnDebris(
+                side < 0 ? C.WALL_WIDTH + 4 : C.WIDTH - C.WALL_WIDTH - 4,
+                this.player.positionY,
+                outDir,
+                '#9c6b3b',
+                9
+              );
+            }
             this.particles.spawnSparkBurst(
               this.player.positionX,
               this.player.positionY,
@@ -2808,6 +2880,8 @@
             this.gems += amount;
             this.runGemsEarned += amount;
             this.hudGemPulse = 1;
+            this.player.wobbleAmp = Math.max(this.player.wobbleAmp, 0.14);
+            this.player.wobbleTime = 0;
             this._saveInt(STORAGE_KEYS.GEMS, this.gems);
             this.audio.playCollect(amount > 1);
             this.particles.spawnCollectBurst(item.x, item.y, amount);
@@ -2828,6 +2902,7 @@
             this.player.velocityX = (this.player.positionX < C.WIDTH * 0.5 ? 1 : -1) * 260;
           }
           this.player.stretchAmount = 0.4;
+          this.camPunchVy -= 48;
           this.hasLaunchedOnce = true;
           this.tempoTimer = C.TEMPO.WINDOW_SEC;
           if (this.audio.playWindBoost) this.audio.playWindBoost();
@@ -3221,7 +3296,12 @@
       this._drawBackground(ctx, theme);
 
       ctx.save();
-      ctx.translate(shakeX, shakeY);
+      ctx.translate(shakeX + this.camPunchX, shakeY + this.camPunchY);
+      if (this.state === 'playing' && Math.abs(this.camZoom - 1) > 0.0005) {
+        ctx.translate(C.WIDTH * 0.5, C.HEIGHT * 0.5);
+        ctx.scale(this.camZoom, this.camZoom);
+        ctx.translate(-C.WIDTH * 0.5, -C.HEIGHT * 0.5);
+      }
 
       if (this.state !== 'menu') {
         this._drawAltitudeMarkers(ctx);
@@ -4074,12 +4154,12 @@
       const w = C.WALL_WIDTH;
 
       ctx.fillStyle = theme.wallBase;
-      ctx.fillRect(0, 0, w, C.HEIGHT);
-      ctx.fillRect(C.WIDTH - w, 0, w, C.HEIGHT);
+      ctx.fillRect(-28, -28, w + 28, C.HEIGHT + 56);
+      ctx.fillRect(C.WIDTH - w, -28, w + 28, C.HEIGHT + 56);
 
       ctx.fillStyle = theme.wallShadow;
-      ctx.fillRect(0, 0, w * 0.44, C.HEIGHT);
-      ctx.fillRect(C.WIDTH - w * 0.44, 0, w * 0.44, C.HEIGHT);
+      ctx.fillRect(-28, -28, w * 0.44 + 28, C.HEIGHT + 56);
+      ctx.fillRect(C.WIDTH - w * 0.44, -28, w * 0.44 + 28, C.HEIGHT + 56);
 
       // Biome-specific architectural wall detailing scrolling with camera
       const wallStyle = theme.wallStyle || 'stone';
@@ -6455,6 +6535,8 @@
       );
 
       const activeBest = this.getActiveBestMeters();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
       if (this.isNewRecord) {
         this._drawUiRow(
@@ -6469,8 +6551,6 @@
           C.COLORS.jellyPrimary
         );
       } else {
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
         ctx.fillStyle = 'rgba(195, 218, 250, 0.78)';
         ctx.fillText(`${tr.best || 'BEST'}: ${activeBest} m`, C.WIDTH * 0.5, cardY + 86);
       }
@@ -6593,10 +6673,19 @@
       ctx.fill();
       ctx.stroke();
 
-      this._drawTrophyIcon(ctx, lbX + 20, shopY + shopH * 0.5, 0.62);
-      ctx.fillStyle = '#ffeaa7';
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(tr.leaderboard || 'RANKS', lbX + halfW * 0.5 + 8, shopY + shopH * 0.5 + 0.5);
+      this._drawUiRow(
+        ctx,
+        [
+          { icon: 'trophy', r: 5.2, color: '#ffd166', gap: 5 },
+          { text: tr.leaderboard || 'RANKS', color: '#ffeaa7' }
+        ],
+        lbX + halfW * 0.5,
+        shopY + shopH * 0.5 + 0.5,
+        'center',
+        '#ffeaa7',
+        halfW - 14
+      );
 
       // Quiet Tactile Menu Pill
       const menuY = cardY + 256;
@@ -6607,6 +6696,8 @@
       roundRectPath(ctx, btnX, menuY, btnW, menuH, 17);
       ctx.fill();
 
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(205, 222, 248, 0.78)';
       ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
       ctx.fillText(tr.menu || 'MENU', C.WIDTH * 0.5, menuY + menuH * 0.5 + 0.5);

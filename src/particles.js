@@ -7,21 +7,27 @@
   const MAX_PARTICLES = 160;
   const MAX_RINGS = 16;
   const MAX_LABELS = 14;
+  const MAX_SPLATS = 36;
+  const MAX_DEBRIS = 36;
 
   /**
-   * Lightweight particle, shockwave ring & floating label system optimized for 60fps mobile Canvas.
+   * Lightweight particle, dripping wall splat, tumbling debris & floating label system optimized for 60fps mobile Canvas.
    */
   class ParticleSystem {
     constructor() {
       this.particles = [];
       this.rings = [];
       this.labels = [];
+      this.wallSplats = [];
+      this.debris = [];
     }
 
     clear() {
       this.particles.length = 0;
       this.rings.length = 0;
       this.labels.length = 0;
+      this.wallSplats.length = 0;
+      this.debris.length = 0;
     }
 
     _pushParticle(p) {
@@ -91,7 +97,46 @@
       );
     }
 
-    spawnStickBurst(x, y, normalX, impactSpeed) {
+    spawnWallSplat(x, y, side, color = COLORS.jellyPrimary, intensity = 0.7) {
+      if (this.wallSplats.length >= MAX_SPLATS) {
+        this.wallSplats.shift();
+      }
+      const wallEdgeX = side < 0 ? 18 : 450 - 18;
+      this.wallSplats.push({
+        x: x != null ? x : wallEdgeX,
+        y,
+        side,
+        color,
+        height: 16 + intensity * 14,
+        width: 4.5 + intensity * 3.5,
+        dripLen: 2,
+        dripSpeed: 6 + intensity * 14,
+        life: 0,
+        maxLife: 2.2 + intensity * 0.9
+      });
+    }
+
+    spawnDebris(x, y, outDir = 1, color = '#9c6b3b', count = 8) {
+      for (let i = 0; i < count; i++) {
+        if (this.debris.length >= MAX_DEBRIS) {
+          this.debris.shift();
+        }
+        this.debris.push({
+          x: x + (Math.random() - 0.5) * 8,
+          y: y + (Math.random() - 0.5) * 28,
+          vx: outDir * (45 + Math.random() * 145) + (Math.random() - 0.5) * 50,
+          vy: -110 + Math.random() * 160,
+          size: 3.2 + Math.random() * 4.2,
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 14,
+          color: i % 3 === 0 ? '#ffd166' : i % 2 === 0 ? color : '#5c4028',
+          life: 0,
+          maxLife: 0.75 + Math.random() * 0.45
+        });
+      }
+    }
+
+    spawnStickBurst(x, y, normalX, impactSpeed, color = COLORS.jellyPrimary) {
       const count = impactSpeed > 750 ? 10 : 6;
       const spreadAngle = normalX > 0 ? 0 : Math.PI;
 
@@ -108,7 +153,7 @@
           life: 0,
           maxLife: 0.28 + Math.random() * 0.22,
           gravity: isJellyDrop ? 520 : 120,
-          color: isJellyDrop ? COLORS.jellyPrimary : 'rgba(200, 225, 255, 0.75)'
+          color: isJellyDrop ? color : 'rgba(200, 225, 255, 0.75)'
         });
       }
 
@@ -119,11 +164,11 @@
         maxRadius: 34,
         life: 0,
         maxLife: 0.26,
-        color: COLORS.jellyPrimary
+        color
       });
     }
 
-    spawnLaunchBurst(x, y, dirX, dirY, strength, tempo = 1) {
+    spawnLaunchBurst(x, y, dirX, dirY, strength, tempo = 1, colorPrimary = COLORS.jellyPrimary) {
       const count = 6 + Math.floor(strength * 5) + (tempo >= 3 ? 3 : 0);
       const backAngle = Math.atan2(-dirY, -dirX);
 
@@ -135,7 +180,7 @@
             ? COLORS.tempoGold
             : i % 3 === 0
             ? '#ffffff'
-            : COLORS.jellyPrimary;
+            : colorPrimary;
         this._pushParticle({
           x,
           y,
@@ -149,6 +194,21 @@
         });
       }
 
+      // Snap-back suction tear droplets clinging near wall detachment point
+      for (let d = 0; d < 2; d++) {
+        this._pushParticle({
+          x: x - dirX * 8,
+          y: y - dirY * 8 + (d === 0 ? -4 : 4),
+          vx: -dirX * (25 + Math.random() * 35),
+          vy: -dirY * 15 + 15,
+          radius: 2.8 + strength * 1.4,
+          life: 0,
+          maxLife: 0.34,
+          gravity: 560,
+          color: colorPrimary
+        });
+      }
+
       this._pushRing({
         x,
         y,
@@ -156,7 +216,7 @@
         maxRadius: 30 + strength * 18 + (tempo >= 3 ? 8 : 0),
         life: 0,
         maxLife: 0.22,
-        color: tempo >= 3 ? COLORS.tempoGold : 'rgba(255, 255, 255, 0.8)'
+        color: tempo >= 3 ? COLORS.tempoGold : colorPrimary
       });
     }
 
@@ -239,9 +299,92 @@
         l.y += l.vy * dt;
         l.vy *= Math.exp(-3 * dt);
       }
+
+      for (let i = this.wallSplats.length - 1; i >= 0; i--) {
+        const s = this.wallSplats[i];
+        s.life += dt;
+        if (s.life >= s.maxLife) {
+          this.wallSplats.splice(i, 1);
+          continue;
+        }
+        const dripDecel = Math.exp(-1.1 * s.life);
+        s.dripLen += s.dripSpeed * dripDecel * dt;
+      }
+
+      for (let i = this.debris.length - 1; i >= 0; i--) {
+        const d = this.debris[i];
+        d.life += dt;
+        if (d.life >= d.maxLife) {
+          this.debris.splice(i, 1);
+          continue;
+        }
+        d.vy += 740 * dt;
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        d.rot += d.rotSpeed * dt;
+        if (d.x <= 22 && d.vx < 0) {
+          d.x = 22;
+          d.vx = Math.abs(d.vx) * 0.55;
+        } else if (d.x >= 428 && d.vx > 0) {
+          d.x = 428;
+          d.vx = -Math.abs(d.vx) * 0.55;
+        }
+      }
     }
 
     draw(ctx, cameraY) {
+      // Dripping slime splatters painted along wall edges behind shockwaves
+      for (let i = 0; i < this.wallSplats.length; i++) {
+        const s = this.wallSplats[i];
+        const sy = s.y - cameraY;
+        if (sy + s.height + s.dripLen < -20 || sy - s.height > 760) continue;
+        const alpha = (1 - Math.pow(s.life / s.maxLife, 1.8)) * 0.55;
+        const dir = s.side < 0 ? 1 : -1;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.fillStyle = s.color;
+        // Main flattened wall smear
+        ctx.beginPath();
+        ctx.ellipse(s.x, sy, s.width, s.height * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Slow gravity-fed vertical drip tail
+        ctx.beginPath();
+        ctx.moveTo(s.x, sy + s.height * 0.25);
+        ctx.quadraticCurveTo(
+          s.x + dir * s.width * 0.65,
+          sy + s.height * 0.5 + s.dripLen * 0.5,
+          s.x + dir * 1.4,
+          sy + s.height * 0.5 + s.dripLen
+        );
+        ctx.arc(s.x + dir * 1.4, sy + s.height * 0.5 + s.dripLen, 1.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Tumbling rock debris shards
+      for (let i = 0; i < this.debris.length; i++) {
+        const d = this.debris[i];
+        const sy = d.y - cameraY;
+        if (sy < -30 || sy > 760) continue;
+        const alpha = 1 - Math.pow(d.life / d.maxLife, 2);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.translate(d.x, sy);
+        ctx.rotate(d.rot);
+        ctx.fillStyle = d.color;
+        ctx.strokeStyle = '#18100a';
+        ctx.lineWidth = 1;
+        const hs = d.size * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-hs, -hs * 0.7);
+        ctx.lineTo(hs * 0.9, -hs * 0.9);
+        ctx.lineTo(hs, hs * 0.8);
+        ctx.lineTo(-hs * 0.8, hs * 0.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
       for (let i = 0; i < this.rings.length; i++) {
         const r = this.rings[i];
         const t = r.life / r.maxLife;

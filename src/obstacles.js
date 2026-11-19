@@ -724,6 +724,7 @@
       this.topY = y - height * 0.5;
       this.bottomY = y + height * 0.5;
       this.bounceAnim = 0;
+      this.hitRelY = 0;
     }
 
     update(dt) {
@@ -740,8 +741,12 @@
       return this.side === side && py >= this.topY - 8 && py <= this.bottomY + 8;
     }
 
-    triggerBounce() {
+    triggerBounce(hitWorldY) {
       this.bounceAnim = 1;
+      this.hitRelY =
+        typeof hitWorldY === 'number'
+          ? Math.max(-this.height * 0.34, Math.min(this.height * 0.34, hitWorldY - this.y))
+          : 0;
     }
 
     draw(ctx, cameraY) {
@@ -751,23 +756,35 @@
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const dir = this.side < 0 ? 1 : -1;
       const top = sy - this.height * 0.5;
-      const spring = Math.sin(this.bounceAnim * Math.PI * 2) * 6 * this.bounceAnim;
-      const padThick = 11 + spring;
+      const bot = sy + this.height * 0.5;
+      // Elastic concave-then-rebound displacement centered on actual impact Y
+      const wave = -Math.sin(this.bounceAnim * Math.PI * 2.5) * 9 * this.bounceAnim;
+      const padThick = 11 + wave * 0.45;
+      const flexX = wallEdgeX + dir * Math.max(5, 11 + wave * 1.1);
+      const hitY = sy + this.hitRelY * 0.7;
 
       ctx.save();
       // Base mount
       ctx.fillStyle = '#2d1b4e';
       ctx.fillRect(wallEdgeX - 4, top, 8, this.height);
 
-      // Elastic magenta-violet cushion
-      const cx = this.side < 0 ? wallEdgeX : wallEdgeX - padThick;
-      const grad = ctx.createLinearGradient(cx, top, cx + padThick, top);
-      grad.addColorStop(0, '#ff79c6');
-      grad.addColorStop(1, '#be2edd');
+      // Dynamic curved trampoline membrane flexing cleanly at hit point
+      const xBase = wallEdgeX;
+      const xFace = wallEdgeX + dir * Math.max(6, padThick);
+      const grad = ctx.createLinearGradient(xBase, top, xFace, top);
+      grad.addColorStop(0, '#be2edd');
+      grad.addColorStop(1, '#ff79c6');
       ctx.fillStyle = grad;
       ctx.strokeStyle = '#ffd6ff';
       ctx.lineWidth = 1.6;
-      fillStrokeRoundRect(ctx, cx, top + 3, padThick, this.height - 6, 6);
+      ctx.beginPath();
+      ctx.moveTo(xBase, top + 3);
+      ctx.lineTo(xFace, top + 6);
+      ctx.quadraticCurveTo(flexX, hitY, xFace, bot - 6);
+      ctx.lineTo(xBase, bot - 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
 
       // Outward chevron arrows
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';

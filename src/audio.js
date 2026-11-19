@@ -105,6 +105,8 @@
       this.musicState = 'menu'; // 'menu' | 'playing' | 'dead'
       this.musicMode = 'classic'; // 'tutorial' | 'classic' | 'rising'
       this.musicTempoTier = 1;
+      this.currentBpm = 104;
+      this.targetBpm = 104;
     }
 
     setEnabled(enabled) {
@@ -129,12 +131,28 @@
       this.musicState = state || 'menu';
       this.musicMode = gameMode || 'classic';
       this.musicTempoTier = tempoTier || 1;
+      this.targetBpm = this._computeTargetBpm();
+
       if (this.externalGain && this.ctx) {
-        const targetVol = this.musicState === 'dead' ? 0.12 : this.musicState === 'playing' ? 0.3 : 0.22;
+        const targetVol = this.musicState === 'dead' ? 0.12 : this.musicState === 'playing' ? 0.28 : 0.21;
         try {
-          this.externalGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.18);
+          this.externalGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.2);
         } catch (_) {}
       }
+      if (this.externalSource && this.ctx) {
+        const tierBoost = this.musicState === 'playing' ? Math.max(0, this.musicTempoTier - 1) * 0.025 : 0;
+        const rate = this.musicState === 'dead' ? 0.92 : Math.min(1.1, 0.98 + tierBoost);
+        try {
+          this.externalSource.playbackRate.setTargetAtTime(rate, this.ctx.currentTime, 0.35);
+        } catch (_) {}
+      }
+    }
+
+    _computeTargetBpm() {
+      if (this.musicState === 'dead') return 88;
+      if (this.musicState !== 'playing') return 104;
+      const base = this.musicMode === 'rising' ? 110 : this.musicMode === 'tutorial' ? 104 : 106;
+      return base + Math.min(34, Math.max(0, this.musicTempoTier - 1) * 8);
     }
 
     unlock() {
@@ -287,30 +305,22 @@
     }
 
     _getStepDuration() {
-      let bpm = 128;
-      if (this.musicState === 'playing') {
-        if (this.musicMode === 'rising') {
-          bpm = 142 + Math.min(10, (this.musicTempoTier - 1) * 2.5);
-        } else if (this.musicMode === 'tutorial') {
-          bpm = 126;
-        } else {
-          bpm = 136 + Math.min(10, (this.musicTempoTier - 1) * 2.5);
-        }
-      } else if (this.musicState === 'dead') {
-        bpm = 110;
-      }
-      // 16th-note arcade pulse step duration in seconds
-      return 60 / bpm / 4;
+      this.targetBpm = this._computeTargetBpm();
+      // Gradually glide BPM up when building Tempo and gently ease down when slowing down
+      const glideRate = this.targetBpm > this.currentBpm ? 0.18 : 0.08;
+      this.currentBpm += (this.targetBpm - this.currentBpm) * glideRate;
+      // 16th-note step duration in seconds
+      return 60 / this.currentBpm / 4;
     }
 
     _scheduleMusic() {
       if (!this.musicEnabled || !this.ctx || this.ctx.state !== 'running' || !this.musicBus) {
         return;
       }
-      const stepDur = this._getStepDuration();
       const lookahead = 0.12;
 
       while (this.nextNoteTime < this.ctx.currentTime + lookahead) {
+        const stepDur = this._getStepDuration();
         this._triggerMusicStep(this.musicStep, this.nextNoteTime, stepDur);
         this.nextNoteTime += stepDur;
         this.musicStep = (this.musicStep + 1) % 64;
@@ -321,6 +331,7 @@
       const isRising = this.musicState === 'playing' && this.musicMode === 'rising';
       const isPlaying = this.musicState === 'playing';
       const isDead = this.musicState === 'dead';
+      const tempo = isPlaying ? Math.max(1, this.musicTempoTier) : 1;
 
       const chords = isRising ? CHORDS_RISING : CHORDS_COZY;
       const bassNotes = isRising ? BASS_RISING : BASS_COZY;
@@ -329,43 +340,44 @@
       const barIdx = Math.floor(step / 16) % 4;
       const stepInBar = step % 16;
 
-      // 1. Arcade Chiptune Arpeggio Chord Pulse on 8th notes
-      if (stepInBar % 2 === 0 && !isDead) {
+      // 1. Calm quarter-note pads at slow pace -> brisk 8th-note arcade arpeggios as Tempo rises
+      const arpInterval = tempo >= 2 ? 2 : 4;
+      if (stepInBar % arpInterval === 0 && !isDead) {
         const chord = chords[barIdx];
-        const arpNote = chord[(stepInBar >> 1) % chord.length];
-        this._playMusicPadNote(arpNote, time, stepDur * 1.65, isPlaying ? 0.036 : 0.025);
+        const arpNote = chord[Math.floor(stepInBar / arpInterval) % chord.length];
+        this._playMusicPadNote(arpNote, time, stepDur * (arpInterval * 0.85), isPlaying ? 0.032 : 0.022);
       }
 
-      // 2. Driving Retro Synth Octave Bassline
+      // 2. Clean bass groove (syncopated octave pulse unlocks cleanly at Tempo x2+)
       const bassRoot = bassNotes[barIdx];
-      if (stepInBar % 4 === 0 || (isPlaying && stepInBar % 4 === 2)) {
+      if (stepInBar % 4 === 0 || (isPlaying && tempo >= 2 && stepInBar % 4 === 2)) {
         const isOffbeat = stepInBar % 4 === 2;
         this._playMusicBassNote(
           isOffbeat ? bassRoot * 2 : bassRoot,
           time,
-          stepDur * (isOffbeat ? 1.5 : 2.6),
-          isDead ? 0.055 : isOffbeat ? 0.068 : 0.098
+          stepDur * (isOffbeat ? 1.5 : 2.8),
+          isDead ? 0.055 : isOffbeat ? 0.062 : 0.095
         );
       }
 
-      // 3. Crisp Retro Chiptune Square/Triangle Lead Melody
+      // 3. Chiptune lead melody (sparser on idle/menu, brisk at Tempo x2+)
       const melFreq = melody[step];
-      if (melFreq && !isDead) {
-        const melVol = isPlaying ? 0.072 : 0.052;
+      if (melFreq && !isDead && (tempo >= 2 || step % 2 === 0)) {
+        const melVol = isPlaying ? 0.068 : 0.048;
         this._playKalimbaPluck(melFreq, time, stepDur * 1.9, melVol);
       } else if (melFreq && isDead && step % 4 === 0) {
-        this._playKalimbaPluck(melFreq * 0.5, time, stepDur * 2.6, 0.034);
+        this._playKalimbaPluck(melFreq * 0.5, time, stepDur * 2.6, 0.032);
       }
 
-      // 4. Snappy Arcade Drumbeat (Kick + Closed Hi-Hat + Crisp Noise Snare)
+      // 4. Adaptive percussion: calm beat at x1, snappy hi-hats scale in only at Tempo x2+
       if (isPlaying) {
-        if (stepInBar === 0 || stepInBar === 8 || (isRising && stepInBar === 10)) {
-          this._playSoftKick(time, isRising ? 0.115 : 0.09);
+        if (stepInBar === 0 || stepInBar === 8 || (isRising && tempo >= 3 && stepInBar === 10)) {
+          this._playSoftKick(time, isRising ? 0.11 : 0.088);
         }
         if (stepInBar === 4 || stepInBar === 12) {
-          this._playSoftShaker(time, 0.058, 2200, 0.075);
-        } else if (stepInBar % 2 === 1) {
-          this._playSoftShaker(time, 0.022, 6200, 0.035);
+          this._playSoftShaker(time, tempo >= 2 ? 0.056 : 0.038, 2200, 0.07);
+        } else if (tempo >= 2 && stepInBar % 2 === 1 && (tempo >= 3 || stepInBar % 4 === 3)) {
+          this._playSoftShaker(time, tempo >= 3 ? 0.022 : 0.014, 6200, 0.032);
         }
       }
     }
@@ -512,10 +524,14 @@
     }
 
     playStick(impactSpeed) {
-      const intensity = Math.min(1, Math.max(0.25, impactSpeed / 1000));
-      const base = 180 + intensity * 90;
-      this._playTone(base * 1.45, base * 0.72, 0.095, 'sine', 0.11 * intensity);
-      this._playTone(base * 0.85, base * 1.15, 0.08, 'triangle', 0.05 * intensity, 0.025);
+      const intensity = Math.min(1, Math.max(0.22, impactSpeed / 1000));
+      const base = 165 + intensity * 105;
+      // Weighty sub-thud on hard wall impacts + soft elastic squish chirp
+      this._playTone(base * 1.45, base * 0.68, 0.105, 'sine', 0.125 * intensity);
+      this._playTone(base * 0.85, base * 1.25, 0.085, 'triangle', 0.06 * intensity, 0.02);
+      if (intensity > 0.65) {
+        this._playTone(105, 44, 0.09, 'sine', 0.075 * intensity, 0);
+      }
     }
 
     playLaunch(strength, tempo = 1) {
