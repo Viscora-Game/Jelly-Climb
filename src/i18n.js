@@ -95,6 +95,7 @@
       shieldGain: 'SHIELD!',
       shieldSaved: 'SHIELD SAVED!',
       bounce: 'BOUNCE!',
+      windBoost: 'UPDRAFT!',
       bossCraggo: 'CRAGGO THE GOLEM',
       bossIgnis: 'IGNIS THE WYRM',
       bossAether: 'AETHER THE STORM',
@@ -193,9 +194,10 @@
       themes: {
         cavern: 'DEEP CAVERN',
         valley: 'VIOLET VALLEY',
-        clouds: 'AMBER CLOUDS',
         frost: 'FROST PEAKS',
-        cosmos: 'COSMIC SPACE'
+        foundry: 'MOLTEN FOUNDRY',
+        storm: 'STORM SPIRE',
+        cosmos: 'ASTRAL COSMOS'
       }
     },
     tr: {
@@ -289,6 +291,7 @@
       shieldGain: 'KALKAN!',
       shieldSaved: 'KALKAN KORUDU!',
       bounce: 'ZIP!',
+      windBoost: 'HAVA AKIMI!',
       bossCraggo: 'KAYA DEV CRAGGO',
       bossIgnis: 'LAV EJDERİ IGNIS',
       bossAether: 'FIRTINA AETHER',
@@ -387,9 +390,10 @@
       themes: {
         cavern: 'DERİN MAĞARA',
         valley: 'MOR VADİ',
-        clouds: 'KEHRİBAR BULUTLAR',
         frost: 'BUZUL ZİRVESİ',
-        cosmos: 'KOZMİK UZAY'
+        foundry: 'MAGMA DÖKÜMHANESİ',
+        storm: 'FIRTINA KULESİ',
+        cosmos: 'ASTRAL KOZMOS'
       }
     }
   });

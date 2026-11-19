@@ -142,11 +142,13 @@
       UI: '"Plus Jakarta Sans", "Fredoka", -apple-system, BlinkMacSystemFont, sans-serif'
     }),
 
-    // Altitude-driven visual themes (smoothly blended over transition span)
+    // Altitude-driven visual themes (colors, wall architecture & parallax sky style)
     THEMES: Object.freeze([
       {
         minMeters: 0,
         key: 'cavern',
+        wallStyle: 'stone',
+        bgStyle: 'cavern',
         bgTop: 0x0b1020,
         bgBottom: 0x17263f,
         parallaxFar: 0x111a2e,
@@ -159,8 +161,10 @@
         moteColor: 0xa6c8ff
       },
       {
-        minMeters: 35,
+        minMeters: 45,
         key: 'valley',
+        wallStyle: 'stone',
+        bgStyle: 'monolith',
         bgTop: 0x180f2c,
         bgBottom: 0x2b1a45,
         parallaxFar: 0x201438,
@@ -173,22 +177,10 @@
         moteColor: 0xd8b8ff
       },
       {
-        minMeters: 75,
-        key: 'clouds',
-        bgTop: 0x291224,
-        bgBottom: 0x47202d,
-        parallaxFar: 0x331627,
-        parallaxNear: 0x3d1b2b,
-        rayColor: 0xff9f68,
-        wallBase: 0x391c2b,
-        wallShadow: 0x26111c,
-        wallInnerEdge: 0x733849,
-        wallHighlight: 0xff9259,
-        moteColor: 0xffd29d
-      },
-      {
         minMeters: 120,
         key: 'frost',
+        wallStyle: 'frost',
+        bgStyle: 'frost',
         bgTop: 0x081e2b,
         bgBottom: 0x103b4a,
         parallaxFar: 0x0c2838,
@@ -197,21 +189,55 @@
         wallBase: 0x173847,
         wallShadow: 0x0f2630,
         wallInnerEdge: 0x2a667a,
-        wallHighlight: 0x4ef2e0,
+        wallHighlight: 0x74f2ff,
         moteColor: 0xb8fff8
       },
       {
-        minMeters: 175,
+        minMeters: 250,
+        key: 'foundry',
+        wallStyle: 'obsidianLava',
+        bgStyle: 'foundry',
+        bgTop: 0x1a090d,
+        bgBottom: 0x381512,
+        parallaxFar: 0x240e12,
+        parallaxNear: 0x301214,
+        rayColor: 0xff793f,
+        wallBase: 0x2b1518,
+        wallShadow: 0x190b0d,
+        wallInnerEdge: 0x732920,
+        wallHighlight: 0xff9f43,
+        moteColor: 0xffbe76
+      },
+      {
+        minMeters: 500,
+        key: 'storm',
+        wallStyle: 'stormCoil',
+        bgStyle: 'storm',
+        bgTop: 0x091628,
+        bgBottom: 0x152d4a,
+        parallaxFar: 0x0e2036,
+        parallaxNear: 0x132b45,
+        rayColor: 0x48dbfb,
+        wallBase: 0x182b42,
+        wallShadow: 0x0d1929,
+        wallInnerEdge: 0x2d5e8a,
+        wallHighlight: 0x48dbfb,
+        moteColor: 0x99ecff
+      },
+      {
+        minMeters: 1000,
         key: 'cosmos',
+        wallStyle: 'astralRune',
+        bgStyle: 'cosmos',
         bgTop: 0x060612,
-        bgBottom: 0x120d2d,
+        bgBottom: 0x140d33,
         parallaxFar: 0x0b0920,
-        parallaxNear: 0x110e2b,
-        rayColor: 0x74a5ff,
-        wallBase: 0x181633,
-        wallShadow: 0x0e0d21,
-        wallInnerEdge: 0x3a3775,
-        wallHighlight: 0x74a5ff,
+        parallaxNear: 0x120e30,
+        rayColor: 0xa78bfa,
+        wallBase: 0x181536,
+        wallShadow: 0x0d0b21,
+        wallInnerEdge: 0x453b8a,
+        wallHighlight: 0xc56cf0,
         moteColor: 0xffffff
       }
     ]),

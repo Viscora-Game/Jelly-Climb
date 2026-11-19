@@ -1097,6 +1097,57 @@
           this.hudGemPulse = 1;
           return;
         }
+        if (isLocalQa && e.code === 'KeyT') {
+          e.preventDefault();
+          const showcaseMeters = [120, 250, 500, 1000];
+          this._qaThemeIdx =
+            this._qaThemeIdx === undefined ? 0 : (this._qaThemeIdx + 1) % showcaseMeters.length;
+          const m = showcaseMeters[this._qaThemeIdx];
+          if (this.state !== 'playing') {
+            this.gameMode = 'classic';
+            this.resetRun();
+          }
+          this.isQaWarpRun = true;
+          this.activeBoss = null;
+          this.hasLaunchedOnce = true;
+          const py = C.START_PLAYER_Y - m * C.PIXELS_PER_METER;
+          this.highestY = py;
+          this.currentMeters = m;
+          this.cameraY = py - C.HEIGHT * 0.56;
+          this.player.wallAttached = -1;
+          this.player.floorAttached = false;
+          this.player.cancelAim();
+          this.player.velocityX = 0;
+          this.player.velocityY = 0;
+          this.player.positionX = C.WALL_WIDTH + this.player.radius;
+          this.player.positionY = py;
+          this.projectiles.length = 0;
+          this.generator.obstacles = [];
+          this.generator.surfaces = [];
+          this.generator.collectibles = [];
+          this.generator.nextChunkBottomY = py - 340;
+          this.generator.highestObstacleTopY = py - 280;
+          if (JellyGame.Bosses) {
+            this.nextBossIndex = 0;
+            while (JellyGame.Bosses.getMilestoneMeters(this.nextBossIndex) <= m) {
+              this.nextBossIndex += 1;
+            }
+          }
+          const Obs = JellyGame.Obstacles;
+          if (Obs) {
+            if (Obs.PendulumSawObstacle) {
+              this.generator.obstacles.push(new Obs.PendulumSawObstacle(py - 220, 96, 1.85, 0.4));
+            }
+            if (Obs.LaserGateObstacle && m >= 500) {
+              this.generator.obstacles.push(new Obs.LaserGateObstacle(py - 125, 3.5, 2.55));
+            }
+            if (Obs.WindVortexSurface && m >= 250) {
+              this.generator.surfaces.push(new Obs.WindVortexSurface(C.WIDTH * 0.58, py - 45, 29));
+            }
+          }
+          this._checkThemeMilestone();
+          return;
+        }
         if (isLocalQa && (e.code === 'KeyB' || e.code === 'KeyV')) {
           e.preventDefault();
           if (this.state !== 'playing') {
@@ -1786,6 +1837,7 @@
         }
 
         this._updateAndCheckCollectibles(step);
+        this._checkWindVortexBoost();
 
         if (this.activeBoss && !this.activeBoss.defeated) {
           this._handleBossCombatStep();
@@ -2764,6 +2816,36 @@
       }
     }
 
+    _checkWindVortexBoost() {
+      const surfaces = this.generator.surfaces;
+      if (!surfaces || !this.player.alive || this.player.isAttached()) return;
+
+      for (let i = 0; i < surfaces.length; i++) {
+        const s = surfaces[i];
+        if (s.type === 'windVortex' && s.checkPlayerTrigger && s.checkPlayerTrigger(this.player)) {
+          this.player.velocityY = Math.min(this.player.velocityY - 260, -760);
+          if (Math.abs(this.player.velocityX) < 150) {
+            this.player.velocityX = (this.player.positionX < C.WIDTH * 0.5 ? 1 : -1) * 260;
+          }
+          this.player.stretchAmount = 0.4;
+          this.hasLaunchedOnce = true;
+          this.tempoTimer = C.TEMPO.WINDOW_SEC;
+          if (this.audio.playWindBoost) this.audio.playWindBoost();
+          else this.audio.playBouncePad();
+          this._spawnShockwaveRing(s.x, s.y, 56, '#74f2ff', 2.6);
+          this.particles.spawnSparkBurst(s.x, s.y, 0, '#36f5b0', 10);
+          this.particles.spawnFloatingLabel(
+            s.x,
+            s.y - 24,
+            this.t().windBoost || 'UPDRAFT!',
+            '#74f2ff',
+            14
+          );
+          break;
+        }
+      }
+    }
+
     _checkThemeMilestone() {
       const themes = C.THEMES;
       const tr = this.t();
@@ -3002,6 +3084,8 @@
       const next = themes[idx + 1];
       if (!next) {
         return {
+          wallStyle: curr.wallStyle || 'stone',
+          bgStyle: curr.bgStyle || 'cavern',
           bgTop: lerpColor(curr.bgTop, curr.bgTop, 0),
           bgBottom: lerpColor(curr.bgBottom, curr.bgBottom, 0),
           parallaxFar: lerpColor(curr.parallaxFar || curr.bgTop, curr.parallaxFar || curr.bgTop, 0),
@@ -3018,8 +3102,11 @@
       const transitionSpan = 10;
       const startBlend = next.minMeters - transitionSpan;
       const t = clamp((camMeters - startBlend) / transitionSpan, 0, 1);
+      const domTheme = t >= 0.5 ? next : curr;
 
       return {
+        wallStyle: domTheme.wallStyle || 'stone',
+        bgStyle: domTheme.bgStyle || 'cavern',
         bgTop: lerpColor(curr.bgTop, next.bgTop, t),
         bgBottom: lerpColor(curr.bgBottom, next.bgBottom, t),
         parallaxFar: lerpColor(curr.parallaxFar || curr.bgTop, next.parallaxFar || next.bgTop, t),
@@ -3775,43 +3862,105 @@
       }
       ctx.restore();
 
-      // Far parallax architectural monoliths & cavern arches (Monument Valley inspired)
+      // Far parallax architectural silhouettes varying cleanly by biome (Monument Valley inspired)
       const farSpan = 340;
       const farOffset = ((-this.cameraY * 0.12) % farSpan + farSpan) % farSpan;
+      const bgStyle = theme.bgStyle || 'cavern';
       ctx.save();
-      ctx.fillStyle = theme.parallaxFar;
       for (let y = farOffset - farSpan; y < C.HEIGHT + farSpan; y += farSpan) {
-        // Left stepped buttress silhouette
-        ctx.beginPath();
-        ctx.moveTo(C.WALL_WIDTH, y + 20);
-        ctx.lineTo(C.WALL_WIDTH + 68, y + 55);
-        ctx.lineTo(C.WALL_WIDTH + 68, y + 150);
-        ctx.lineTo(C.WALL_WIDTH + 38, y + 172);
-        ctx.lineTo(C.WALL_WIDTH + 38, y + 240);
-        ctx.lineTo(C.WALL_WIDTH, y + 265);
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillStyle = theme.parallaxFar;
+        if (bgStyle === 'frost') {
+          // Sharp jagged frost mountain spires & floating ice shards
+          ctx.beginPath();
+          ctx.moveTo(C.WALL_WIDTH, y + 30);
+          ctx.lineTo(C.WALL_WIDTH + 86, y + 115);
+          ctx.lineTo(C.WALL_WIDTH + 48, y + 165);
+          ctx.lineTo(C.WALL_WIDTH + 92, y + 235);
+          ctx.lineTo(C.WALL_WIDTH, y + 310);
+          ctx.closePath();
+          ctx.fill();
 
-        // Right geometric monolith silhouette
-        ctx.beginPath();
-        ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 110);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 76, y + 152);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 76, y + 255);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 42, y + 280);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 310);
-        ctx.closePath();
-        ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 60);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 92, y + 145);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 52, y + 195);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 290);
+          ctx.closePath();
+          ctx.fill();
+        } else if (bgStyle === 'foundry') {
+          // Ancient forge monolith pillars with molten vertical slit
+          ctx.fillRect(C.WALL_WIDTH + 24, y + 20, 44, 240);
+          ctx.fillRect(C.WIDTH - C.WALL_WIDTH - 68, y + 90, 44, 240);
+          ctx.fillStyle = 'rgba(255, 110, 45, 0.18)';
+          ctx.fillRect(C.WALL_WIDTH + 43, y + 44, 6, 180);
+          ctx.fillRect(C.WIDTH - C.WALL_WIDTH - 49, y + 114, 6, 180);
+        } else if (bgStyle === 'storm') {
+          // Sweeping wind layers & angled conductor towers
+          ctx.beginPath();
+          ctx.moveTo(C.WALL_WIDTH, y + 70);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 35);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 75);
+          ctx.lineTo(C.WALL_WIDTH, y + 110);
+          ctx.closePath();
+          ctx.fill();
 
-        // Subtle distant floating diamond shrine in center-ish background
-        const cx = C.WIDTH * 0.5 + ((Math.round(y) % 2 === 0 ? -1 : 1) * 44);
-        const cy = y + 95;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - 26);
-        ctx.lineTo(cx + 15, cy);
-        ctx.lineTo(cx, cy + 26);
-        ctx.lineTo(cx - 15, cy);
-        ctx.closePath();
-        ctx.fill();
+          ctx.fillRect(C.WIDTH * 0.5 - 10, y + 140, 20, 140);
+        } else if (bgStyle === 'cosmos') {
+          // Connected star constellation lines & astral octahedrons
+          const sx1 = C.WIDTH * 0.34;
+          const sy1 = y + 90;
+          const sx2 = C.WIDTH * 0.66;
+          const sy2 = y + 175;
+          const sx3 = C.WIDTH * 0.48;
+          const sy3 = y + 265;
+          ctx.strokeStyle = 'rgba(167, 139, 250, 0.22)';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(sx1, sy1);
+          ctx.lineTo(sx2, sy2);
+          ctx.lineTo(sx3, sy3);
+          ctx.stroke();
+
+          for (const [nx, ny] of [
+            [sx1, sy1],
+            [sx2, sy2],
+            [sx3, sy3]
+          ]) {
+            ctx.beginPath();
+            ctx.arc(nx, ny, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          // Default cavern / valley stepped monolith buttresses
+          ctx.beginPath();
+          ctx.moveTo(C.WALL_WIDTH, y + 20);
+          ctx.lineTo(C.WALL_WIDTH + 68, y + 55);
+          ctx.lineTo(C.WALL_WIDTH + 68, y + 150);
+          ctx.lineTo(C.WALL_WIDTH + 38, y + 172);
+          ctx.lineTo(C.WALL_WIDTH + 38, y + 240);
+          ctx.lineTo(C.WALL_WIDTH, y + 265);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 110);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 76, y + 152);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 76, y + 255);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 42, y + 280);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 310);
+          ctx.closePath();
+          ctx.fill();
+
+          const cx = C.WIDTH * 0.5 + (Math.round(y) % 2 === 0 ? -1 : 1) * 44;
+          const cy = y + 95;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - 26);
+          ctx.lineTo(cx + 15, cy);
+          ctx.lineTo(cx, cy + 26);
+          ctx.lineTo(cx - 15, cy);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
       ctx.restore();
 
@@ -3911,21 +4060,77 @@
       ctx.fillRect(0, 0, w * 0.44, C.HEIGHT);
       ctx.fillRect(C.WIDTH - w * 0.44, 0, w * 0.44, C.HEIGHT);
 
-      // Chiseled stone block joints scrolling with camera
+      // Biome-specific architectural wall detailing scrolling with camera
+      const wallStyle = theme.wallStyle || 'stone';
       const grooveSpacing = 56;
       const offset = ((-this.cameraY % grooveSpacing) + grooveSpacing) % grooveSpacing;
 
       ctx.save();
       for (let y = offset - grooveSpacing; y < C.HEIGHT + grooveSpacing; y += grooveSpacing) {
-        // Dark mortar seam
-        ctx.fillStyle = 'rgba(6, 10, 20, 0.32)';
-        ctx.fillRect(0, y, w - 4, 2.5);
-        ctx.fillRect(C.WIDTH - w + 4, y, w - 4, 2.5);
+        if (wallStyle === 'frost') {
+          // Crystalline diagonal ice fracture veins + frosty sheen
+          ctx.strokeStyle = 'rgba(184, 242, 255, 0.24)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(4, y);
+          ctx.lineTo(w - 6, y + 18);
+          ctx.moveTo(C.WIDTH - w + 6, y + 18);
+          ctx.lineTo(C.WIDTH - 4, y);
+          ctx.stroke();
 
-        // Upper stone bevel highlight
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
-        ctx.fillRect(6, y + 2.5, w - 12, 2);
-        ctx.fillRect(C.WIDTH - w + 6, y + 2.5, w - 12, 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.fillRect(w - 9, y + 6, 3, 22);
+          ctx.fillRect(C.WIDTH - w + 6, y + 28, 3, 22);
+        } else if (wallStyle === 'obsidianLava') {
+          // Dark basalt mortar with warm pulsing magma veins
+          const pulse = 0.25 + 0.18 * Math.sin(this.hintTime * 3.2 + y * 0.04);
+          ctx.fillStyle = `rgba(255, 115, 45, ${pulse})`;
+          ctx.fillRect(4, y, w - 7, 3);
+          ctx.fillRect(C.WIDTH - w + 3, y, w - 7, 3);
+
+          ctx.fillStyle = 'rgba(255, 210, 102, 0.16)';
+          ctx.fillRect(6, y + 1, w - 12, 1);
+          ctx.fillRect(C.WIDTH - w + 6, y + 1, w - 12, 1);
+        } else if (wallStyle === 'stormCoil') {
+          // Riveted copper-steel plates & glowing cyan Tesla conductor rings
+          ctx.fillStyle = 'rgba(6, 12, 24, 0.45)';
+          ctx.fillRect(0, y, w - 3, 2);
+          ctx.fillRect(C.WIDTH - w + 3, y, w - 3, 2);
+
+          ctx.fillStyle = 'rgba(72, 219, 251, 0.45)';
+          ctx.fillRect(6, y + 24, w - 11, 3);
+          ctx.fillRect(C.WIDTH - w + 5, y + 24, w - 11, 3);
+
+          ctx.fillStyle = 'rgba(180, 220, 255, 0.28)';
+          ctx.beginPath();
+          ctx.arc(8, y + 12, 1.8, 0, Math.PI * 2);
+          ctx.arc(C.WIDTH - 8, y + 12, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (wallStyle === 'astralRune') {
+          // Glowing astral diamond rune carvings down dark cosmic rails
+          const runeGlow = 0.28 + 0.2 * Math.sin(this.hintTime * 2.5 + y * 0.05);
+          ctx.strokeStyle = `rgba(197, 108, 240, ${runeGlow})`;
+          ctx.lineWidth = 1.6;
+          for (const rx of [w * 0.5, C.WIDTH - w * 0.5]) {
+            const ry = y + 28;
+            ctx.beginPath();
+            ctx.moveTo(rx, ry - 8);
+            ctx.lineTo(rx + 6, ry);
+            ctx.lineTo(rx, ry + 8);
+            ctx.lineTo(rx - 6, ry);
+            ctx.closePath();
+            ctx.stroke();
+          }
+        } else {
+          // Chiseled stone block joints scrolling with camera
+          ctx.fillStyle = 'rgba(6, 10, 20, 0.32)';
+          ctx.fillRect(0, y, w - 4, 2.5);
+          ctx.fillRect(C.WIDTH - w + 4, y, w - 4, 2.5);
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
+          ctx.fillRect(6, y + 2.5, w - 12, 2);
+          ctx.fillRect(C.WIDTH - w + 6, y + 2.5, w - 12, 2);
+        }
       }
 
       ctx.fillStyle = theme.wallInnerEdge;

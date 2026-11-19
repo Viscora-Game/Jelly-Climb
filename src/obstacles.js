@@ -859,6 +859,389 @@
     }
   }
 
+  /**
+   * 7. Mid-Shaft Swinging Spiked Saw Pendulum (unlocks ~250m+): crosses center air channel on visible rail.
+   */
+  class PendulumSawObstacle {
+    constructor(y, amplitude = 98, speed = 1.85, phase = 0) {
+      this.type = 'pendulumSaw';
+      this.side = 0;
+      this.y = y;
+      this.height = 46;
+      this.topY = y - 23;
+      this.bottomY = y + 23;
+      this.amplitude = amplitude;
+      this.speed = speed;
+      this.phase = phase;
+      this.time = 0;
+      this.spin = 0;
+      this.radius = 17;
+      this.hurtRadius = 13.5;
+      this.x = C.WIDTH * 0.5 + Math.sin(phase) * amplitude;
+      this._wasInHalo = false;
+      this._nearMissDone = false;
+    }
+
+    update(dt) {
+      this.time += dt;
+      this.spin += dt * 4.6;
+      this.x = C.WIDTH * 0.5 + Math.sin(this.time * this.speed + this.phase) * this.amplitude;
+    }
+
+    getHitboxes() {
+      return [{ type: 'circle', x: this.x, y: this.y, r: this.hurtRadius }];
+    }
+
+    checkPointCollision(px, py, r) {
+      const dx = px - this.x;
+      const dy = py - this.y;
+      const sum = this.hurtRadius + r;
+      return dx * dx + dy * dy <= sum * sum;
+    }
+
+    checkPlayerCollision(player) {
+      return this.checkPointCollision(player.positionX, player.positionY, C.HITBOX.PLAYER_HURT_RADIUS);
+    }
+
+    checkNearMiss(player) {
+      if (this._nearMissDone || !player.alive) return false;
+      const haloR = C.HITBOX.PLAYER_HURT_RADIUS + (C.HITBOX.CLOSE_CALL_MARGIN_PX || 11);
+      const inHalo = !player.isAttached() && this.checkPointCollision(player.positionX, player.positionY, haloR);
+      if (inHalo) {
+        this._wasInHalo = true;
+        return false;
+      }
+      if (this._wasInHalo && player.alive) {
+        this._nearMissDone = true;
+        this._wasInHalo = false;
+        return true;
+      }
+      return false;
+    }
+
+    draw(ctx, cameraY) {
+      const sy = this.y - cameraY;
+      if (sy < -60 || sy > C.HEIGHT + 60) return;
+
+      const minRailX = C.WIDTH * 0.5 - this.amplitude;
+      const maxRailX = C.WIDTH * 0.5 + this.amplitude;
+
+      ctx.save();
+      // Dotted guide rail showing exact horizontal swing path
+      ctx.strokeStyle = 'rgba(255, 130, 90, 0.22)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 6]);
+      ctx.beginPath();
+      ctx.moveTo(minRailX, sy);
+      ctx.lineTo(maxRailX, sy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      for (const endX of [minRailX, maxRailX]) {
+        ctx.fillStyle = '#3d2838';
+        ctx.beginPath();
+        ctx.arc(endX, sy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Rotating spiked ember core
+      ctx.translate(this.x, sy);
+      ctx.rotate(this.spin);
+
+      const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, this.radius + 10);
+      glow.addColorStop(0, 'rgba(255, 94, 54, 0.45)');
+      glow.addColorStop(1, 'rgba(255, 94, 54, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      const teeth = 8;
+      ctx.fillStyle = '#e8eef7';
+      ctx.strokeStyle = '#18101c';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let i = 0; i < teeth * 2; i++) {
+        const a = (i / (teeth * 2)) * Math.PI * 2;
+        const rad = i % 2 === 0 ? this.radius + 3 : this.radius - 3.5;
+        const px = Math.cos(a) * rad;
+        const py = Math.sin(a) * rad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff4757';
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+
+  /**
+   * 8. Rhythmic Wall-to-Wall Plasma Laser Gate (unlocks ~500m+): clear warning pulse before firing.
+   */
+  class LaserGateObstacle {
+    constructor(y, cycleDuration = 3.5, phaseOffset = 0) {
+      this.type = 'laserGate';
+      this.side = 0;
+      this.y = y;
+      this.height = 30;
+      this.topY = y - 15;
+      this.bottomY = y + 15;
+      this.cycleDuration = cycleDuration;
+      this.warningStart = 1.25;
+      this.activeStart = 2.4;
+      this.timer = phaseOffset % cycleDuration;
+      this.beamHalfH = 6.5;
+      this._wasActive = false;
+      this._wasInHalo = false;
+      this._nearMissDone = false;
+    }
+
+    _getPhaseState() {
+      if (this.timer >= this.activeStart) return 'active';
+      if (this.timer >= this.warningStart) return 'warning';
+      return 'dormant';
+    }
+
+    _isInActiveView(cameraY) {
+      const sy = this.y - cameraY;
+      return sy >= -45 && sy <= C.HEIGHT + 45;
+    }
+
+    update(dt, context) {
+      if (!this._isInActiveView(context.cameraY)) {
+        if (this.timer > this.warningStart - 0.25) {
+          this.timer = 0.5;
+        }
+        this._wasActive = false;
+        return;
+      }
+
+      this.timer += dt;
+      if (this.timer >= this.cycleDuration) {
+        this.timer -= this.cycleDuration;
+        this._nearMissDone = false;
+      }
+
+      const nowActive = this._getPhaseState() === 'active';
+      if (nowActive && !this._wasActive) {
+        if (context && context.audio && context.audio.playLaserBeam) {
+          context.audio.playLaserBeam();
+        }
+      }
+      this._wasActive = nowActive;
+    }
+
+    getHitboxes() {
+      if (this._getPhaseState() !== 'active') return [];
+      return [
+        {
+          type: 'rect',
+          x: C.WALL_WIDTH,
+          y: this.y - this.beamHalfH,
+          w: C.WIDTH - C.WALL_WIDTH * 2,
+          h: this.beamHalfH * 2
+        }
+      ];
+    }
+
+    checkPointCollision(px, py, r) {
+      const st = this._getPhaseState();
+      const urgentWarn = st === 'warning' && this.timer >= this.activeStart - 0.45;
+      if (st !== 'active' && !urgentWarn) return false;
+      return circleRectOverlap(
+        px,
+        py,
+        r,
+        C.WALL_WIDTH,
+        this.y - this.beamHalfH,
+        C.WIDTH - C.WALL_WIDTH * 2,
+        this.beamHalfH * 2
+      );
+    }
+
+    checkPlayerCollision(player) {
+      if (this._getPhaseState() !== 'active') return false;
+      return circleRectOverlap(
+        player.positionX,
+        player.positionY,
+        C.HITBOX.PLAYER_HURT_RADIUS,
+        C.WALL_WIDTH,
+        this.y - this.beamHalfH,
+        C.WIDTH - C.WALL_WIDTH * 2,
+        this.beamHalfH * 2
+      );
+    }
+
+    checkNearMiss(player) {
+      if (this._nearMissDone || this._getPhaseState() !== 'active' || !player.alive) return false;
+      const haloR = C.HITBOX.PLAYER_HURT_RADIUS + (C.HITBOX.CLOSE_CALL_MARGIN_PX || 11);
+      const inHalo =
+        !player.isAttached() &&
+        circleRectOverlap(
+          player.positionX,
+          player.positionY,
+          haloR,
+          C.WALL_WIDTH,
+          this.y - this.beamHalfH,
+          C.WIDTH - C.WALL_WIDTH * 2,
+          this.beamHalfH * 2
+        );
+      if (inHalo) {
+        this._wasInHalo = true;
+        return false;
+      }
+      if (this._wasInHalo && player.alive) {
+        this._nearMissDone = true;
+        this._wasInHalo = false;
+        return true;
+      }
+      return false;
+    }
+
+    draw(ctx, cameraY) {
+      const sy = this.y - cameraY;
+      if (sy < -50 || sy > C.HEIGHT + 50) return;
+
+      const st = this._getPhaseState();
+      const leftX = C.WALL_WIDTH;
+      const rightX = C.WIDTH - C.WALL_WIDTH;
+
+      ctx.save();
+      if (st === 'warning') {
+        const prog = (this.timer - this.warningStart) / (this.activeStart - this.warningStart);
+        const pulse = 0.45 + 0.55 * Math.abs(Math.sin(prog * Math.PI * 6));
+        ctx.strokeStyle = `rgba(255, 165, 2, ${0.35 + 0.55 * pulse})`;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.moveTo(leftX, sy);
+        ctx.lineTo(rightX, sy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else if (st === 'active') {
+        const beamH = this.beamHalfH * 2 + Math.sin(this.timer * 38) * 1.8;
+        ctx.fillStyle = 'rgba(255, 71, 126, 0.32)';
+        ctx.fillRect(leftX, sy - beamH * 0.9, rightX - leftX, beamH * 1.8);
+
+        ctx.fillStyle = '#ff477e';
+        ctx.fillRect(leftX, sy - beamH * 0.45, rightX - leftX, beamH * 0.9);
+
+        ctx.fillStyle = '#fff5f8';
+        ctx.fillRect(leftX, sy - 2, rightX - leftX, 4);
+      }
+
+      // Left & right emitter caps
+      for (const side of [-1, 1]) {
+        const mx = side < 0 ? leftX - 6 : rightX - 4;
+        ctx.fillStyle = '#25324c';
+        ctx.strokeStyle = st === 'active' ? '#ff477e' : st === 'warning' ? '#ffa502' : '#4c6288';
+        ctx.lineWidth = 1.8;
+        fillStrokeRoundRect(ctx, mx, sy - 11, 10, 22, 4);
+
+        ctx.fillStyle = st === 'active' ? '#ff477e' : st === 'warning' ? '#ffd166' : '#48dbfb';
+        ctx.beginPath();
+        ctx.arc(side < 0 ? leftX + 2 : rightX - 2, sy, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /**
+   * 9. Beneficial Mid-Shaft Updraft Wind Vortex (unlocks ~500m+): launches airborne Jelly smoothly upward!
+   */
+  class WindVortexSurface {
+    constructor(x, y, radius = 29) {
+      this.type = 'windVortex';
+      this.isSurface = true;
+      this.side = 0;
+      this.x = x;
+      this.y = y;
+      this.radius = radius;
+      this.height = radius * 2;
+      this.topY = y - radius;
+      this.bottomY = y + radius;
+      this.spin = Math.random() * Math.PI * 2;
+      this.cooldown = 0;
+    }
+
+    update(dt) {
+      this.spin += dt * 4.2;
+      if (this.cooldown > 0) {
+        this.cooldown = Math.max(0, this.cooldown - dt);
+      }
+    }
+
+    getHitboxes() { return []; }
+    checkPlayerCollision() { return false; }
+    checkNearMiss() { return false; }
+    containsWallPoint() { return false; }
+
+    checkPlayerTrigger(player) {
+      if (this.cooldown > 0 || player.isAttached() || !player.alive) return false;
+      const dx = player.positionX - this.x;
+      const dy = player.positionY - this.y;
+      const reach = this.radius + player.radius * 0.75;
+      if (dx * dx + dy * dy <= reach * reach) {
+        this.cooldown = 0.55;
+        return true;
+      }
+      return false;
+    }
+
+    draw(ctx, cameraY) {
+      const sy = this.y - cameraY;
+      if (sy < -60 || sy > C.HEIGHT + 60) return;
+
+      ctx.save();
+      ctx.translate(this.x, sy);
+
+      const g = ctx.createRadialGradient(0, 0, 4, 0, 0, this.radius + 6);
+      g.addColorStop(0, 'rgba(116, 242, 255, 0.34)');
+      g.addColorStop(0.65, 'rgba(54, 245, 176, 0.16)');
+      g.addColorStop(1, 'rgba(54, 245, 176, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#74f2ff';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 2; i++) {
+        const ang = this.spin + i * Math.PI;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * 0.76, ang, ang + Math.PI * 0.68);
+        ctx.stroke();
+      }
+
+      // Upward wind chevron inside ring
+      const bob = Math.sin(this.spin * 1.5) * 3;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(-8, 4 + bob);
+      ctx.lineTo(0, -5 + bob);
+      ctx.lineTo(8, 4 + bob);
+      ctx.moveTo(-6, 10 + bob);
+      ctx.lineTo(0, 3 + bob);
+      ctx.lineTo(6, 10 + bob);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+
   JellyGame.Obstacles = {
     SpikeObstacle,
     FlameObstacle,
@@ -866,6 +1249,9 @@
     ArrowProjectile,
     IceWallSurface,
     BouncePadSurface,
-    CrackedWallSurface
+    CrackedWallSurface,
+    PendulumSawObstacle,
+    LaserGateObstacle,
+    WindVortexSurface
   };
 })(window);

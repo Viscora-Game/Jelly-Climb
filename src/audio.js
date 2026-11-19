@@ -579,6 +579,16 @@
       this._playTone(554.37, 659.25, 0.09, 'triangle', 0.095, 0.07);
       this._playTone(659.25, 880, 0.18, 'sine', 0.1, 0.14);
     }
+
+    playLaserBeam() {
+      this._playTone(480, 170, 0.16, 'sawtooth', 0.07, 0);
+      this._playTone(880, 420, 0.14, 'triangle', 0.055, 0.02);
+    }
+
+    playWindBoost() {
+      this._playTone(320, 740, 0.18, 'sine', 0.085, 0);
+      this._playTone(480, 920, 0.14, 'triangle', 0.06, 0.04);
+    }
   }
 
   JellyGame.SoundFX = SoundFX;
