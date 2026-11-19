@@ -4712,148 +4712,118 @@
       ctx.stroke();
 
       const t = this.hintTime || 0;
+      const jellyR = 11.4;
       if (modeType === 'classic') {
-        // Bioluminescent crystal horizon + aurora sky + soft comet arc + soaring Jelly
+        // Minimal dark abyss background + glowing Infinity (∞) unlimited emblem below + larger Jelly
         ctx.save();
         ctx.beginPath();
         ctx.arc(iconCx, iconCy, wellR - 1.4, 0, Math.PI * 2);
         ctx.clip();
 
         const skyGrad = ctx.createLinearGradient(iconCx, iconCy - wellR, iconCx, iconCy + wellR);
-        skyGrad.addColorStop(0, '#0a223b');
-        skyGrad.addColorStop(0.55, '#0e3c4c');
-        skyGrad.addColorStop(1, '#134e54');
+        skyGrad.addColorStop(0, '#081829');
+        skyGrad.addColorStop(1, '#0d293b');
         ctx.fillStyle = skyGrad;
         ctx.fillRect(iconCx - wellR, iconCy - wellR, wellR * 2, wellR * 2);
 
-        // Soft mint aurora glow behind Jelly
-        const aurora = ctx.createRadialGradient(iconCx - 2, iconCy - 6, 2, iconCx - 2, iconCy - 6, 24);
-        aurora.addColorStop(0, 'rgba(54, 245, 176, 0.32)');
-        aurora.addColorStop(1, 'rgba(54, 245, 176, 0)');
-        ctx.fillStyle = aurora;
+        // Soft mint glow around bottom Infinity ribbon
+        const infY = iconCy + 15.5;
+        const infGlow = ctx.createRadialGradient(iconCx, infY, 2, iconCx, infY, 22);
+        infGlow.addColorStop(0, 'rgba(54, 245, 176, 0.28)');
+        infGlow.addColorStop(1, 'rgba(54, 245, 176, 0)');
+        ctx.fillStyle = infGlow;
         ctx.fillRect(iconCx - wellR, iconCy - wellR, wellR * 2, wellR * 2);
 
-        // Twinkling stars in upper twilight sky
-        ctx.fillStyle = 'rgba(210, 252, 245, 0.72)';
-        ctx.beginPath();
-        ctx.arc(iconCx - 16, iconCy - 17, 1.15, 0, Math.PI * 2);
-        ctx.arc(iconCx - 20, iconCy - 6, 0.9, 0, Math.PI * 2);
-        ctx.arc(iconCx + 19, iconCy - 5, 1.0, 0, Math.PI * 2);
-        ctx.fill();
+        // Crisp continuous Infinity (∞) loop symbolizing Endless / Unlimited climb
+        const traceInfinity = () => {
+          ctx.beginPath();
+          ctx.moveTo(iconCx, infY);
+          ctx.bezierCurveTo(
+            iconCx - 6.5,
+            infY - 8.2,
+            iconCx - 19,
+            infY - 8.2,
+            iconCx - 19,
+            infY
+          );
+          ctx.bezierCurveTo(
+            iconCx - 19,
+            infY + 8.2,
+            iconCx - 6.5,
+            infY + 8.2,
+            iconCx,
+            infY
+          );
+          ctx.bezierCurveTo(
+            iconCx + 6.5,
+            infY - 8.2,
+            iconCx + 19,
+            infY - 8.2,
+            iconCx + 19,
+            infY
+          );
+          ctx.bezierCurveTo(
+            iconCx + 19,
+            infY + 8.2,
+            iconCx + 6.5,
+            infY + 8.2,
+            iconCx,
+            infY
+          );
+          ctx.closePath();
+        };
 
-        // Sweeping bioluminescent comet flight arc from lower-left crystal ridge to Jelly
-        const arcGrad = ctx.createLinearGradient(iconCx - 20, iconCy + 18, iconCx, iconCy - 4);
-        arcGrad.addColorStop(0, 'rgba(54, 245, 176, 0)');
-        arcGrad.addColorStop(0.55, 'rgba(54, 245, 176, 0.38)');
-        arcGrad.addColorStop(1, 'rgba(138, 255, 219, 0.78)');
-        ctx.strokeStyle = arcGrad;
-        ctx.lineWidth = 4.2;
         ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(iconCx - 18, iconCy + 16);
-        ctx.quadraticCurveTo(iconCx - 10, iconCy + 6, iconCx - 2, iconCy - 3);
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#051520';
+        ctx.lineWidth = 6.2;
+        traceInfinity();
         ctx.stroke();
 
-        // Faceted glowing emerald crystal spire shards along lower horizon
-        const drawCrystal = (cx, baseY, cw, ch, cTop, cBot) => {
-          const cg = ctx.createLinearGradient(cx, baseY - ch, cx, baseY);
-          cg.addColorStop(0, cTop);
-          cg.addColorStop(1, cBot);
-          ctx.fillStyle = cg;
-          ctx.beginPath();
-          ctx.moveTo(cx, baseY - ch);
-          ctx.lineTo(cx + cw * 0.55, baseY - ch * 0.35);
-          ctx.lineTo(cx + cw * 0.35, baseY);
-          ctx.lineTo(cx - cw * 0.35, baseY);
-          ctx.lineTo(cx - cw * 0.55, baseY - ch * 0.35);
-          ctx.closePath();
-          ctx.fill();
-        };
-        drawCrystal(iconCx - 18, iconCy + 26, 10, 17, '#74f2ff', '#0f766e');
-        drawCrystal(iconCx + 17, iconCy + 27, 11, 19, '#6effd2', '#0d5e4d');
-        drawCrystal(iconCx + 10, iconCy + 28, 8, 12, '#36f5b0', '#0b443e');
-
-        // Smooth curved bioluminescent cavern ridge wave at bottom (mirrors lava horizon cleanly)
-        const ridgeShift = Math.sin(t * 2.8) * 0.9;
-        const rGrad = ctx.createLinearGradient(iconCx, iconCy + 6, iconCx, iconCy + 30);
-        rGrad.addColorStop(0, '#36f5b0');
-        rGrad.addColorStop(0.28, '#0f5c5e');
-        rGrad.addColorStop(1, '#082032');
-        ctx.fillStyle = rGrad;
-        ctx.beginPath();
-        ctx.moveTo(iconCx - 31, iconCy + 31);
-        ctx.lineTo(iconCx - 31, iconCy + 12 + ridgeShift);
-        ctx.quadraticCurveTo(iconCx - 9, iconCy + 5, iconCx + 2, iconCy + 13 - ridgeShift);
-        ctx.quadraticCurveTo(iconCx + 15, iconCy + 19, iconCx + 31, iconCy + 10);
-        ctx.lineTo(iconCx + 31, iconCy + 31);
-        ctx.closePath();
-        ctx.fill();
-
-        // Crisp glowing turquoise ridge crest highlight
-        ctx.strokeStyle = 'rgba(180, 255, 236, 0.72)';
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(iconCx - 30, iconCy + 12 + ridgeShift);
-        ctx.quadraticCurveTo(iconCx - 9, iconCy + 5, iconCx + 2, iconCy + 13 - ridgeShift);
-        ctx.quadraticCurveTo(iconCx + 15, iconCy + 19, iconCx + 30, iconCy + 10);
+        const infGrad = ctx.createLinearGradient(iconCx - 19, infY - 6, iconCx + 19, infY + 6);
+        infGrad.addColorStop(0, '#36f5b0');
+        infGrad.addColorStop(0.5, '#8affdb');
+        infGrad.addColorStop(1, '#12c48b');
+        ctx.strokeStyle = infGrad;
+        ctx.lineWidth = 3.4;
+        traceInfinity();
         ctx.stroke();
 
         ctx.restore();
 
-        // Floating golden drop upper-right + prominent joyful Jelly centered in starry sky
-        const bob = Math.sin(t * 3.2) * 1.2;
-        this._drawGemEmblem(ctx, iconCx + 16, iconCy - 15.5 - bob * 0.4, 3.8);
-        this._drawMiniJellyPreview(ctx, iconCx - 1, iconCy - 6.5 + bob, 9.2, this.equippedAccessory);
+        const bob = Math.sin(t * 3.2) * 1.1;
+        this._drawMiniJellyPreview(ctx, iconCx, iconCy - 6.0 + bob, jellyR, this.equippedAccessory);
       } else {
-        // Illustrated rising magma wave + glowing ember sparks + Jelly escaping upward
+        // Clean dark backdrop + smooth vibrant magma wave below + larger Jelly (no clutter behind character)
         ctx.save();
         ctx.beginPath();
         ctx.arc(iconCx, iconCy, wellR - 1.4, 0, Math.PI * 2);
         ctx.clip();
 
         const skyLava = ctx.createLinearGradient(iconCx, iconCy - wellR, iconCx, iconCy + wellR);
-        skyLava.addColorStop(0, '#1c0c18');
-        skyLava.addColorStop(0.65, '#3b121b');
-        skyLava.addColorStop(1, '#5e1717');
+        skyLava.addColorStop(0, '#190a13');
+        skyLava.addColorStop(1, '#2b0f18');
         ctx.fillStyle = skyLava;
         ctx.fillRect(iconCx - wellR, iconCy - wellR, wellR * 2, wellR * 2);
 
-        const waveShift = Math.sin(t * 3.8) * 1.4;
-        // Darker background molten crest for depth
-        ctx.fillStyle = '#991b1b';
-        ctx.beginPath();
-        ctx.moveTo(iconCx - 31, iconCy + 31);
-        ctx.lineTo(iconCx - 31, iconCy + 6 - waveShift * 0.5);
-        ctx.quadraticCurveTo(iconCx - 4, iconCy + 13, iconCx + 31, iconCy + 5 + waveShift * 0.5);
-        ctx.lineTo(iconCx + 31, iconCy + 31);
-        ctx.closePath();
-        ctx.fill();
-
-        const lGrad = ctx.createLinearGradient(iconCx, iconCy + 2, iconCx, iconCy + 28);
+        const waveShift = Math.sin(t * 3.8) * 1.2;
+        const lGrad = ctx.createLinearGradient(iconCx, iconCy + 6, iconCx, iconCy + 30);
         lGrad.addColorStop(0, '#ffd32a');
         lGrad.addColorStop(0.35, '#ff5e36');
         lGrad.addColorStop(1, '#b31b1b');
         ctx.fillStyle = lGrad;
         ctx.beginPath();
         ctx.moveTo(iconCx - 31, iconCy + 31);
-        ctx.lineTo(iconCx - 31, iconCy + 9 + waveShift * 0.4);
-        ctx.quadraticCurveTo(iconCx - 10, iconCy + 2 - waveShift, iconCx, iconCy + 9);
-        ctx.quadraticCurveTo(iconCx + 12, iconCy + 15 + waveShift, iconCx + 31, iconCy + 7 - waveShift * 0.4);
+        ctx.lineTo(iconCx - 31, iconCy + 11 + waveShift * 0.4);
+        ctx.quadraticCurveTo(iconCx - 10, iconCy + 4 - waveShift, iconCx, iconCy + 11);
+        ctx.quadraticCurveTo(iconCx + 12, iconCy + 17 + waveShift, iconCx + 31, iconCy + 9 - waveShift * 0.4);
         ctx.lineTo(iconCx + 31, iconCy + 31);
         ctx.closePath();
         ctx.fill();
 
-        // Warm ember motes rising above magma wave
-        ctx.fillStyle = 'rgba(255, 211, 42, 0.8)';
-        ctx.beginPath();
-        ctx.arc(iconCx - 16, iconCy - 4, 1.3, 0, Math.PI * 2);
-        ctx.arc(iconCx + 16, iconCy - 9, 1.1, 0, Math.PI * 2);
-        ctx.arc(iconCx - 12, iconCy - 17, 0.95, 0, Math.PI * 2);
-        ctx.fill();
-
         ctx.restore();
-        const escapeBob = Math.sin(t * 4.0 + 1.2) * 1.2;
-        this._drawMiniJellyPreview(ctx, iconCx, iconCy - 7.5 + escapeBob, 9.2, this.equippedAccessory);
+        const escapeBob = Math.sin(t * 4.0 + 1.2) * 1.1;
+        this._drawMiniJellyPreview(ctx, iconCx, iconCy - 6.0 + escapeBob, jellyR, this.equippedAccessory);
       }
 
       // Title, Description & Best Score
