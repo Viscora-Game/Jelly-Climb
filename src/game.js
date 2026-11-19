@@ -2073,8 +2073,8 @@
     _updateShockwaveRings(dt) {
       for (let i = this.shockwaveRings.length - 1; i >= 0; i--) {
         const ring = this.shockwaveRings[i];
-        ring.r += (ring.maxR - ring.r) * Math.min(1, dt * 10);
-        ring.alpha -= dt * 2.5;
+        ring.r += (ring.maxR - ring.r) * Math.min(1, dt * 6.5);
+        ring.alpha -= dt * 1.45;
         if (ring.alpha <= 0) {
           this.shockwaveRings.splice(i, 1);
         }
@@ -2136,8 +2136,9 @@
         this.abilityMaxCooldown = cd;
         p.hasShield = true;
         this.audio.playShieldGain();
-        this._spawnShockwaveRing(p.positionX, p.positionY, 72, '#36f5b0', 3.5);
-        this.particles.spawnSparkBurst(p.positionX, p.positionY, 0, '#74f2ff', 14);
+        this._spawnShockwaveRing(p.positionX, p.positionY, 88, '#36f5b0', 4.0);
+        this._spawnShockwaveRing(p.positionX, p.positionY, 60, '#74f2ff', 2.4);
+        this.particles.spawnSparkBurst(p.positionX, p.positionY, 0, '#74f2ff', 18);
         this.particles.spawnFloatingLabel(
           p.positionX,
           p.positionY - 26,
@@ -2173,9 +2174,10 @@
         if (this.audio.playAirDash) this.audio.playAirDash();
         else this.audio.playLaunch(0.8);
 
-        this._spawnShockwaveRing(p.positionX, p.positionY, 64, '#48dbfb', 3);
-        this._spawnShockwaveRing(p.positionX - dirX * 14, p.positionY + 12, 46, '#ffeaa7', 2);
-        this.particles.spawnSparkBurst(p.positionX, p.positionY, -dirX, '#48dbfb', 12);
+        this._spawnShockwaveRing(p.positionX, p.positionY, 78, '#48dbfb', 3.4);
+        this._spawnShockwaveRing(p.positionX - dirX * 14, p.positionY + 12, 58, '#ffeaa7', 2.4);
+        this._spawnShockwaveRing(p.positionX - dirX * 26, p.positionY + 22, 38, '#ffffff', 1.8);
+        this.particles.spawnSparkBurst(p.positionX, p.positionY, -dirX, '#48dbfb', 16);
         this.particles.spawnFloatingLabel(
           p.positionX,
           p.positionY - 24,
@@ -2232,7 +2234,8 @@
       this.player.hp = Math.max(1, this.player.hp);
       this.player.invulnTimer = 0.95;
 
-      this._spawnShockwaveRing(this.player.positionX, this.player.positionY, 85, '#74f2ff', 3.5);
+      this._spawnShockwaveRing(this.player.positionX, this.player.positionY, 96, '#74f2ff', 4.0);
+      this._spawnShockwaveRing(this.player.positionX, this.player.positionY, 64, '#a78bfa', 2.6);
       if (this.audio.playChronoRewind) this.audio.playChronoRewind();
       else this.audio.playShieldGain();
 
@@ -2246,7 +2249,7 @@
 
       this.chronoRewindAnim = {
         elapsed: 0,
-        duration: 0.42,
+        duration: 0.9,
         startX: this.player.positionX,
         startY: this.player.positionY,
         startCamY: this.cameraY,
@@ -2262,8 +2265,10 @@
       if (!anim) return;
 
       anim.elapsed += dt;
-      const t = clamp(anim.elapsed / anim.duration, 0, 1);
-      const idxFloat = t * Math.max(0, anim.path.length - 1);
+      const rawT = clamp(anim.elapsed / anim.duration, 0, 1);
+      const ease =
+        rawT < 0.5 ? 4 * rawT * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 3) * 0.5;
+      const idxFloat = ease * Math.max(0, anim.path.length - 1);
       const i0 = Math.floor(idxFloat);
       const i1 = Math.min(anim.path.length - 1, i0 + 1);
       const frac = idxFloat - i0;
@@ -2274,20 +2279,20 @@
       this.player.positionY = a.y + (b.y - a.y) * frac;
       this.player.velocityX = 0;
       this.player.velocityY = 0;
-      this.cameraY = anim.startCamY + (anim.target.cameraY - anim.startCamY) * t;
-      this.risingFloorY = anim.startRisingY + (anim.target.risingFloorY - anim.startRisingY) * t;
+      this.cameraY = anim.startCamY + (anim.target.cameraY - anim.startCamY) * ease;
+      this.risingFloorY = anim.startRisingY + (anim.target.risingFloorY - anim.startRisingY) * ease;
 
-      if (Math.random() < 0.6) {
+      if (Math.random() < 0.55) {
         this.particles.spawnSparkBurst(
           this.player.positionX,
           this.player.positionY,
           0,
-          '#a78bfa',
+          Math.random() < 0.5 ? '#74f2ff' : '#a78bfa',
           2
         );
       }
 
-      if (t >= 1) {
+      if (rawT >= 1) {
         const tg = anim.target;
         this.player.positionX = tg.x;
         this.player.positionY = tg.y;
@@ -2302,7 +2307,8 @@
         this.projectiles.length = 0;
         this.chronoBuffer = [tg];
         this.chronoRewindAnim = null;
-        this._spawnShockwaveRing(tg.x, tg.y, 62, '#a78bfa', 2.8);
+        this._spawnShockwaveRing(tg.x, tg.y, 82, '#74f2ff', 3.4);
+        this._spawnShockwaveRing(tg.x, tg.y, 52, '#a78bfa', 2.2);
       }
     }
 
@@ -2373,8 +2379,9 @@
       if (this.audio.playAngelRevive) this.audio.playAngelRevive();
       else this.audio.playUnlock();
 
-      this._spawnShockwaveRing(p.positionX, p.positionY, 90, '#ffd166', 4);
-      this.particles.spawnCollectBurst(p.positionX, p.positionY, 3);
+      this._spawnShockwaveRing(p.positionX, p.positionY, 100, '#ffd166', 4.2);
+      this._spawnShockwaveRing(p.positionX, p.positionY, 64, '#fff5bd', 2.5);
+      this.particles.spawnCollectBurst(p.positionX, p.positionY, 4);
       this.particles.spawnFloatingLabel(
         p.positionX,
         p.positionY - 28,
@@ -2385,7 +2392,7 @@
 
       this.angelReviveAnim = {
         elapsed: 0,
-        duration: 0.62,
+        duration: 1.15,
         startX: p.positionX,
         startY: p.positionY,
         endX: safeSpot.x,
@@ -2401,19 +2408,20 @@
 
       anim.elapsed += dt;
       const rawT = clamp(anim.elapsed / anim.duration, 0, 1);
-      const ease = 1 - Math.pow(1 - rawT, 3);
-      const arcLift = Math.sin(rawT * Math.PI) * -42;
+      const ease =
+        rawT < 0.5 ? 4 * rawT * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 3) * 0.5;
+      const arcLift = Math.sin(rawT * Math.PI) * -58;
 
       this.player.positionX = anim.startX + (anim.endX - anim.startX) * ease;
       this.player.positionY = anim.startY + (anim.endY - anim.startY) * ease + arcLift;
-      this.player.invulnTimer = 1.4;
+      this.player.invulnTimer = 1.5;
 
-      if (Math.random() < 0.5) {
+      if (Math.random() < 0.55) {
         this.particles.spawnSparkBurst(
           this.player.positionX,
           this.player.positionY,
           0,
-          '#ffd166',
+          Math.random() < 0.5 ? '#ffd166' : '#fff5bd',
           2
         );
       }
@@ -2425,11 +2433,12 @@
         this.player.floorAttached = false;
         this.player.velocityX = 0;
         this.player.velocityY = 0;
-        this.player.invulnTimer = 1.45;
+        this.player.invulnTimer = 1.5;
         this.player.hp = Math.max(1, this.player.hp);
         this.tempoTimer = C.TEMPO.WINDOW_SEC;
         this.angelReviveAnim = null;
-        this._spawnShockwaveRing(anim.endX, anim.endY, 64, '#fff5bd', 3);
+        this._spawnShockwaveRing(anim.endX, anim.endY, 84, '#ffd166', 3.4);
+        this._spawnShockwaveRing(anim.endX, anim.endY, 52, '#fff5bd', 2.2);
       }
     }
 
@@ -5370,22 +5379,55 @@
 
     _drawChronoRewindGhost(ctx) {
       const anim = this.chronoRewindAnim;
-      if (!anim || !anim.path) return;
+      if (!anim || !anim.path || anim.path.length === 0) return;
       ctx.save();
+
+      // Glowing time-thread ribbon across recorded path
+      ctx.strokeStyle = 'rgba(116, 242, 255, 0.48)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < anim.path.length; i++) {
+        const pt = anim.path[i];
+        if (i === 0) ctx.moveTo(pt.x, pt.y - this.cameraY);
+        else ctx.lineTo(pt.x, pt.y - this.cameraY);
+      }
+      ctx.stroke();
+
+      // Afterimage echoes along path
       const total = anim.path.length;
-      const stride = Math.max(1, Math.floor(total / 8));
+      const stride = Math.max(1, Math.floor(total / 10));
       for (let i = 0; i < total; i += stride) {
         const pt = anim.path[i];
-        const alpha = 0.14 + (i / total) * 0.28;
+        const alpha = 0.16 + (i / total) * 0.34;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = '#74f2ff';
         ctx.strokeStyle = '#a78bfa';
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y - this.cameraY, this.player.radius * 0.78, 0, Math.PI * 2);
+        ctx.arc(pt.x, pt.y - this.cameraY, this.player.radius * 0.84, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
+
+      // Rotating counter-clockwise Chronos dial ring around rewinding Jelly
+      const px = this.player.positionX;
+      const py = this.player.positionY - this.cameraY;
+      const dialR = this.player.radius + 13;
+      const spin = -this.hintTime * 11;
+      ctx.globalAlpha = 0.92;
+      ctx.strokeStyle = '#74f2ff';
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(px, py, dialR, spin, spin + Math.PI * 1.45);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#a78bfa';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, dialR + 5, -spin, -spin + Math.PI * 0.9);
+      ctx.stroke();
+
       ctx.restore();
     }
 
@@ -5394,30 +5436,59 @@
       if (!anim) return;
       const sx = this.player.positionX;
       const sy = this.player.positionY - this.cameraY;
-      const flap = Math.sin(this.hintTime * 22) * 0.22;
+      const flap = Math.sin(this.hintTime * 16) * 0.28;
 
       ctx.save();
       ctx.translate(sx, sy);
+
+      // Soft warm radiance behind Angel Jelly
+      const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 56);
+      glow.addColorStop(0, 'rgba(255, 245, 189, 0.55)');
+      glow.addColorStop(1, 'rgba(255, 209, 102, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, 56, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Double-layered golden-ivory Seraph Wings
       for (const side of [-1, 1]) {
         ctx.save();
         ctx.scale(side, 1);
-        ctx.rotate(-0.25 + flap);
-        const wingGrad = ctx.createLinearGradient(0, -18, 34, 14);
-        wingGrad.addColorStop(0, '#fff7cc');
+        ctx.rotate(-0.22 + flap);
+        const wingGrad = ctx.createLinearGradient(0, -24, 44, 18);
+        wingGrad.addColorStop(0, '#fffbe6');
         wingGrad.addColorStop(1, '#ffd166');
         ctx.fillStyle = wingGrad;
         ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.moveTo(6, -2);
-        ctx.quadraticCurveTo(28, -28, 38, -8);
-        ctx.quadraticCurveTo(32, 8, 22, 12);
-        ctx.quadraticCurveTo(24, 19, 12, 16);
+        ctx.moveTo(6, -3);
+        ctx.quadraticCurveTo(32, -36, 46, -10);
+        ctx.quadraticCurveTo(38, 9, 27, 14);
+        ctx.quadraticCurveTo(30, 23, 14, 19);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
+
+        // Inner cream wing feather detail
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        ctx.beginPath();
+        ctx.moveTo(9, 1);
+        ctx.quadraticCurveTo(25, -16, 33, -4);
+        ctx.quadraticCurveTo(25, 8, 13, 10);
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
       }
+
+      // Floating golden halo hovering right above Jelly during glide
+      const haloBob = Math.sin(this.hintTime * 10) * 2;
+      ctx.strokeStyle = '#ffd166';
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.ellipse(0, -this.player.radius - 13 + haloBob, 14, 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
       ctx.restore();
     }
 

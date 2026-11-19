@@ -30,7 +30,7 @@
     },
     {
       id: 'horns',
-      name: 'Lav Boynuzu',
+      name: 'Cehennem Boynuzu',
       slot: 'head',
       unlockType: 'milestone',
       cost: 0,
@@ -757,34 +757,105 @@
       drawStar(ctx, sx, sy, 3.6, 1.2);
       ctx.fill();
     } else if (id === 'horns') {
+      // Cute sculpted chibi Inferno Horns with molten gold cuffs, horn ridges & dancing ember flamelet
+      const centerX = eyeOffsetX * 0.25;
+      const topY = -r + 1;
+
+      // Soft warm infernal ambient glow behind the crown area
+      ctx.save();
+      const emberAura = ctx.createRadialGradient(centerX, topY - 6, 2, centerX, topY - 6, 22);
+      emberAura.addColorStop(0, 'rgba(255, 110, 54, 0.34)');
+      emberAura.addColorStop(1, 'rgba(255, 60, 20, 0)');
+      ctx.fillStyle = emberAura;
+      ctx.beginPath();
+      ctx.arc(centerX, topY - 6, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
       for (const side of [-1, 1]) {
         ctx.save();
-        ctx.translate(side * (r * 0.62) + eyeOffsetX * 0.25, -r * 0.7);
+        ctx.translate(side * (r * 0.56) + centerX, -r * 0.72);
         ctx.scale(side, 1);
 
-        const hGrad = ctx.createLinearGradient(0, 2, 8, -14);
-        hGrad.addColorStop(0, '#2a1219');
-        hGrad.addColorStop(0.55, '#ff5e36');
-        hGrad.addColorStop(1, '#ffd32a');
+        // Chubby S-curved imp horn arching outward then hooking inward upward
+        const hGrad = ctx.createLinearGradient(-2, 4, 8, -16);
+        hGrad.addColorStop(0, '#4a0c17');
+        hGrad.addColorStop(0.45, '#e63946');
+        hGrad.addColorStop(0.78, '#ff7b29');
+        hGrad.addColorStop(1, '#ffe066');
 
         ctx.fillStyle = hGrad;
-        ctx.strokeStyle = '#180910';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#1d050c';
+        ctx.lineWidth = 1.6;
         ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
         ctx.beginPath();
-        ctx.moveTo(-3.5, 2.5);
-        ctx.quadraticCurveTo(1, -7.5, 8.5, -13.5);
-        ctx.quadraticCurveTo(6.5, -5.5, 3.8, 2.8);
+        ctx.moveTo(-4.2, 2.2);
+        ctx.bezierCurveTo(-5.5, -5.0, 2.5, -9.5, 4.8, -14.8);
+        ctx.quadraticCurveTo(8.2, -11.5, 7.6, -5.2);
+        ctx.bezierCurveTo(7.2, -0.8, 5.2, 1.8, 3.6, 3.2);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 245, 190, 0.68)';
+        // Carved crescent ridge grooves across middle of horn for sculpted depth
+        ctx.strokeStyle = 'rgba(42, 6, 14, 0.55)';
+        ctx.lineWidth = 1.25;
         ctx.beginPath();
-        ctx.arc(6.6, -10.5, 1.2, 0, Math.PI * 2);
+        ctx.arc(1.2, -2.5, 4.2, -0.5, 0.85);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(2.6, -6.4, 3.4, -0.4, 0.9);
+        ctx.stroke();
+
+        // Molten gold horn base cuff ring
+        ctx.fillStyle = '#ffd166';
+        ctx.strokeStyle = '#78350f';
+        ctx.lineWidth = 1.1;
+        roundRectPath(ctx, -4.6, 0.5, 8.8, 3.2, 1.6);
         ctx.fill();
+        ctx.stroke();
+
+        // Specular glossy gleam near glowing ember tip
+        ctx.strokeStyle = 'rgba(255, 250, 210, 0.82)';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(4.0, -12.6);
+        ctx.quadraticCurveTo(5.8, -9.0, 5.2, -4.5);
+        ctx.stroke();
+
         ctx.restore();
       }
+
+      // Cute tiny dancing Hellfire Ember Flame hovering playfully between the horns
+      const fBob = Math.sin(time * 7.5) * 1.1;
+      const fSway = Math.cos(time * 6.2) * 0.9;
+      ctx.save();
+      ctx.translate(centerX + fSway * 0.4, topY - 4.5 + fBob);
+
+      const fGrad = ctx.createLinearGradient(0, -8, 0, 3);
+      fGrad.addColorStop(0, '#fff3b0');
+      fGrad.addColorStop(0.5, '#ff9f43');
+      fGrad.addColorStop(1, '#ff4757');
+
+      ctx.fillStyle = fGrad;
+      ctx.strokeStyle = '#4a0c17';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, -7.8);
+      ctx.bezierCurveTo(4.2, -3.5, 4.4, 1.5, 0, 2.8);
+      ctx.bezierCurveTo(-4.4, 1.5, -4.2, -3.5, 0, -7.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Tiny bright cream inner core teardrop
+      ctx.fillStyle = '#fff9d6';
+      ctx.beginPath();
+      ctx.arc(0, -0.8, 1.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     ctx.restore();

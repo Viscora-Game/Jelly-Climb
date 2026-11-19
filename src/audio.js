@@ -562,16 +562,16 @@
     }
 
     playChronoRewind() {
-      this._playTone(760, 290, 0.16, 'sine', 0.085, 0);
-      this._playTone(290, 880, 0.2, 'triangle', 0.09, 0.14);
-      this._playTone(1174.66, 1567.98, 0.16, 'sine', 0.075, 0.28);
+      this._playTone(760, 290, 0.24, 'sine', 0.085, 0);
+      this._playTone(290, 740, 0.3, 'triangle', 0.09, 0.22);
+      this._playTone(1046.5, 1567.98, 0.26, 'sine', 0.08, 0.5);
     }
 
     playAngelRevive() {
-      this._playTone(523.25, 659.25, 0.18, 'sine', 0.09, 0);
-      this._playTone(659.25, 783.99, 0.18, 'triangle', 0.085, 0.09);
-      this._playTone(783.99, 1046.5, 0.26, 'sine', 0.1, 0.18);
-      this._playTone(1046.5, 1318.5, 0.28, 'triangle', 0.08, 0.28);
+      this._playTone(523.25, 659.25, 0.22, 'sine', 0.09, 0);
+      this._playTone(659.25, 783.99, 0.24, 'triangle', 0.085, 0.14);
+      this._playTone(783.99, 1046.5, 0.3, 'sine', 0.1, 0.3);
+      this._playTone(1046.5, 1318.5, 0.36, 'triangle', 0.09, 0.5);
     }
 
     playRelicUpgrade() {
