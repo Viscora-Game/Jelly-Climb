@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.JellyClimb.Launcher" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/twa_window_bg</item>
+        <item name="android:colorBackground">@color/twa_window_bg</item>
+        <item name="android:statusBarColor">@color/twa_status_bar</item>
+        <item name="android:navigationBarColor">@color/twa_window_bg</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/twa_window_bg</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/twa_window_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash</item>
+    </style>
+</resources>

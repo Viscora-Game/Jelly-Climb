@@ -20,13 +20,13 @@
   "startUrl": "/index.html",
   "iconUrl": "https://jelly-climb.netlify.app/assets/icons/icon-512.png",
   "maskableIconUrl": "https://jelly-climb.netlify.app/assets/icons/icon-512-maskable.png",
-  "splashScreenFadeOutDuration": 300,
+  "splashScreenFadeOutDuration": 450,
   "signingKey": {
     "path": "./jelly-climb-release.keystore",
     "alias": "jellyclimb"
   },
-  "appVersionCode": 2,
-  "appVersion": "1.2.1",
+  "appVersionCode": 3,
+  "appVersion": "1.2.2",
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://jelly-climb.netlify.app/manifest.json",
@@ -40,7 +40,7 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://jelly-climb.netlify.app/",
   "minSdkVersion": 24,
-  "orientation": "portrait",
+  "orientation": "default",
   "fingerprints": [
     {
       "name": "Play App Signing Classic",

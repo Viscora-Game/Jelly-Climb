@@ -82,6 +82,8 @@
       this.dpr = 1;
       this.viewW = C.WIDTH;
       this.viewH = C.HEIGHT;
+      this.padLeft = 0;
+      this.padRight = 0;
       this.padTop = 0;
       this.padBottom = 0;
 
@@ -677,10 +679,18 @@
       const updateSize = () => {
         this.dpr = Math.min(global.devicePixelRatio || 1, 2);
         const rect = this.canvas.getBoundingClientRect();
-        const aspect =
+        const ratioHOverW =
           rect.width > 10 && rect.height > 10 ? rect.height / rect.width : C.HEIGHT / C.WIDTH;
-        this.viewW = C.WIDTH;
-        this.viewH = Math.max(C.HEIGHT, C.WIDTH * aspect);
+        const targetRatio = C.HEIGHT / C.WIDTH;
+        if (ratioHOverW >= targetRatio) {
+          this.viewW = C.WIDTH;
+          this.viewH = C.WIDTH * ratioHOverW;
+        } else {
+          this.viewH = C.HEIGHT;
+          this.viewW = Math.max(C.WIDTH, C.HEIGHT / ratioHOverW);
+        }
+        this.padLeft = (this.viewW - C.WIDTH) * 0.5;
+        this.padRight = this.viewW - C.WIDTH - this.padLeft;
         this.padTop = (this.viewH - C.HEIGHT) * 0.5;
         this.padBottom = this.viewH - C.HEIGHT - this.padTop;
         JellyGame.VIEW_PAD_Y = Math.ceil(Math.max(this.padTop, this.padBottom)) + 60;
@@ -698,13 +708,13 @@
     _toLogicalPoint(clientX, clientY) {
       const rect = this.canvas.getBoundingClientRect();
       return {
-        x: ((clientX - rect.left) / rect.width) * this.viewW,
+        x: ((clientX - rect.left) / rect.width) * this.viewW - this.padLeft,
         y: ((clientY - rect.top) / rect.height) * this.viewH - this.padTop
       };
     }
 
     _fillViewportRect(ctx) {
-      ctx.fillRect(-20, -this.padTop - 20, this.viewW + 40, this.viewH + 40);
+      ctx.fillRect(-this.padLeft - 20, -this.padTop - 20, this.viewW + 40, this.viewH + 40);
     }
 
     _setupNicknameDomOverlay() {
@@ -3360,7 +3370,7 @@
 
       ctx.save();
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-      ctx.translate(0, this.padTop);
+      ctx.translate(this.padLeft, this.padTop);
 
       let shakeX = 0;
       let shakeY = 0;
@@ -3942,7 +3952,7 @@
         vig.addColorStop(0, 'rgba(255, 56, 56, 0)');
         vig.addColorStop(1, `rgba(255, 65, 45, ${0.12 + urgency * 0.35})`);
         ctx.fillStyle = vig;
-        ctx.fillRect(-10, botY - 120, C.WIDTH + 20, 140);
+        ctx.fillRect(-this.padLeft - 10, botY - 120, this.viewW + 20, 140);
       }
 
       // Bottom-center proximity pill
@@ -4241,20 +4251,28 @@
       const viewTop = -this.padTop;
       const viewBottom = C.HEIGHT + this.padBottom;
       const fullH = Math.max(C.HEIGHT, this.viewH);
+      const leftOuter = -this.padLeft - 28;
+      const rightOuter = C.WIDTH + this.padRight + 28;
 
       ctx.fillStyle = theme.wallBase;
-      ctx.fillRect(-28, viewTop - 28, w + 28, fullH + 56);
-      ctx.fillRect(C.WIDTH - w, viewTop - 28, w + 28, fullH + 56);
+      ctx.fillRect(leftOuter, viewTop - 28, w - leftOuter, fullH + 56);
+      ctx.fillRect(C.WIDTH - w, viewTop - 28, rightOuter - (C.WIDTH - w), fullH + 56);
 
       ctx.fillStyle = theme.wallShadow;
-      ctx.fillRect(-28, viewTop - 28, w * 0.44 + 28, fullH + 56);
-      ctx.fillRect(C.WIDTH - w * 0.44, viewTop - 28, w * 0.44 + 28, fullH + 56);
+      ctx.fillRect(leftOuter, viewTop - 28, w * 0.44 - leftOuter, fullH + 56);
+      ctx.fillRect(
+        C.WIDTH - w * 0.44,
+        viewTop - 28,
+        rightOuter - (C.WIDTH - w * 0.44),
+        fullH + 56
+      );
 
       // Biome-specific architectural wall detailing scrolling with camera
       const wallStyle = theme.wallStyle || 'stone';
       const grooveSpacing = 56;
       const offset = ((-this.cameraY % grooveSpacing) + grooveSpacing) % grooveSpacing;
       const grooveStart = offset - grooveSpacing * Math.ceil(this.padTop / grooveSpacing + 1);
+      const railSpan = rightOuter - (C.WIDTH - w);
 
       ctx.save();
       for (let y = grooveStart; y < viewBottom + grooveSpacing; y += grooveSpacing) {
@@ -4263,10 +4281,10 @@
           ctx.strokeStyle = 'rgba(184, 242, 255, 0.24)';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(4, y);
+          ctx.moveTo(-this.padLeft, y);
           ctx.lineTo(w - 6, y + 18);
           ctx.moveTo(C.WIDTH - w + 6, y + 18);
-          ctx.lineTo(C.WIDTH - 4, y);
+          ctx.lineTo(C.WIDTH + this.padRight, y);
           ctx.stroke();
 
           ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
@@ -4276,21 +4294,21 @@
           // Dark basalt mortar with warm pulsing magma veins
           const pulse = 0.25 + 0.18 * Math.sin(this.hintTime * 3.2 + y * 0.04);
           ctx.fillStyle = `rgba(255, 115, 45, ${pulse})`;
-          ctx.fillRect(4, y, w - 7, 3);
-          ctx.fillRect(C.WIDTH - w + 3, y, w - 7, 3);
+          ctx.fillRect(-this.padLeft + 4, y, w + this.padLeft - 7, 3);
+          ctx.fillRect(C.WIDTH - w + 3, y, w + this.padRight - 7, 3);
 
           ctx.fillStyle = 'rgba(255, 210, 102, 0.16)';
-          ctx.fillRect(6, y + 1, w - 12, 1);
-          ctx.fillRect(C.WIDTH - w + 6, y + 1, w - 12, 1);
+          ctx.fillRect(-this.padLeft + 6, y + 1, w + this.padLeft - 12, 1);
+          ctx.fillRect(C.WIDTH - w + 6, y + 1, w + this.padRight - 12, 1);
         } else if (wallStyle === 'stormCoil') {
           // Riveted copper-steel plates & glowing cyan Tesla conductor rings
           ctx.fillStyle = 'rgba(6, 12, 24, 0.45)';
-          ctx.fillRect(0, y, w - 3, 2);
-          ctx.fillRect(C.WIDTH - w + 3, y, w - 3, 2);
+          ctx.fillRect(leftOuter, y, w - 3 - leftOuter, 2);
+          ctx.fillRect(C.WIDTH - w + 3, y, railSpan - 3, 2);
 
           ctx.fillStyle = 'rgba(72, 219, 251, 0.45)';
-          ctx.fillRect(6, y + 24, w - 11, 3);
-          ctx.fillRect(C.WIDTH - w + 5, y + 24, w - 11, 3);
+          ctx.fillRect(-this.padLeft + 6, y + 24, w + this.padLeft - 11, 3);
+          ctx.fillRect(C.WIDTH - w + 5, y + 24, w + this.padRight - 11, 3);
 
           ctx.fillStyle = 'rgba(180, 220, 255, 0.28)';
           ctx.beginPath();
@@ -4315,12 +4333,12 @@
         } else {
           // Chiseled stone block joints scrolling with camera
           ctx.fillStyle = 'rgba(6, 10, 20, 0.32)';
-          ctx.fillRect(0, y, w - 4, 2.5);
-          ctx.fillRect(C.WIDTH - w + 4, y, w - 4, 2.5);
+          ctx.fillRect(leftOuter, y, w - 4 - leftOuter, 2.5);
+          ctx.fillRect(C.WIDTH - w + 4, y, railSpan - 4, 2.5);
 
           ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
-          ctx.fillRect(6, y + 2.5, w - 12, 2);
-          ctx.fillRect(C.WIDTH - w + 6, y + 2.5, w - 12, 2);
+          ctx.fillRect(-this.padLeft + 6, y + 2.5, w + this.padLeft - 12, 2);
+          ctx.fillRect(C.WIDTH - w + 6, y + 2.5, w + this.padRight - 12, 2);
         }
       }
 
