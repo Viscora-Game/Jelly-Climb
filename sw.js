@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'jelly-climb-twa-v35';
+const CACHE_NAME = 'jelly-climb-twa-v36';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -78,7 +78,9 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => caches.match('/index.html', { ignoreSearch: true }))
+        .catch(() =>
+          caches.match('/index.html', { ignoreSearch: true }).then((hit) => hit || Response.error())
+        )
     );
     return;
   }
@@ -93,6 +95,6 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(req, { ignoreSearch: true }))
+      .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || Response.error()))
   );
 });

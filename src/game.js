@@ -1180,6 +1180,13 @@
       global.addEventListener('blur', () => {
         this._cancelActiveInput();
       });
+      global.addEventListener('focus', () => {
+        if (!(global.document && global.document.hidden)) {
+          this._isAppHidden = false;
+          this._lastTime = performance.now();
+          this.audio.resumeFromBackground();
+        }
+      });
 
       const handleAppHide = () => {
         this._isAppHidden = true;
@@ -1967,10 +1974,18 @@
 
     start() {
       this._lastTime = performance.now();
+      // Always paint an immediate frame so canvas never remains blank if visibility events lag
+      this.render();
       this._rafId = global.requestAnimationFrame(this._boundLoop);
     }
 
     _loop(now) {
+      const isHiddenNow = Boolean(global.document && global.document.hidden);
+      if (this._isAppHidden && !isHiddenNow) {
+        this._isAppHidden = false;
+        this._lastTime = now;
+      }
+
       const rawDt = (now - this._lastTime) / 1000;
       this._lastTime = now;
       const dt = Math.min(Math.max(rawDt, 0), C.MAX_FRAME_DT);
@@ -8974,11 +8989,18 @@
     }
   }
 
-  window.addEventListener('DOMContentLoaded', () => {
+  function bootGame() {
+    if (JellyGame.instance) return;
     const canvas = document.getElementById('game-canvas');
     if (!canvas) return;
     const game = new Game(canvas);
     JellyGame.instance = game;
     game.start();
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', bootGame);
+  } else {
+    bootGame();
+  }
 })(window);
