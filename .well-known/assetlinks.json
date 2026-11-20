@@ -1,0 +1,17 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.jellyclimb.arcade",
+      "sha256_cert_fingerprints": [
+        "B1:25:4C:C2:80:5E:BA:FA:F6:12:E7:77:D4:86:DA:DF:B7:EC:CA:DA:30:90:DB:5A:58:9F:66:CA:28:69:2A:88",
+        "A6:47:92:5E:DB:D3:06:80:A5:19:67:F6:F4:37:A1:8E:91:2A:9F:9A:66:D8:3B:07:42:AC:F1:74:BD:AF:3F:A8",
+        "84:53:B8:8E:E7:75:EC:3F:41:89:B7:86:88:FB:38:27:11:69:7F:C7:CF:A7:2D:79:B9:44:D0:1A:2A:E5:00:ED",
+        "1C:57:FF:E4:90:DA:35:40:A1:B9:5D:5D:3A:4B:EB:3E:61:EC:23:FD:04:DD:73:93:BB:18:99:F8:65:02:44:41"
+      ]
+    }
+  }
+]

@@ -22,11 +22,16 @@ function copyDir(src, dest) {
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
 
-for (const file of ['index.html', 'manifest.json', 'privacy-policy.html']) {
+for (const file of ['index.html', 'manifest.json', 'privacy-policy.html', 'sw.js']) {
   const srcPath = path.join(ROOT, file);
   if (fs.existsSync(srcPath)) {
     fs.copyFileSync(srcPath, path.join(DIST, file));
   }
+}
+
+const wellKnownDir = path.join(ROOT, '.well-known');
+if (fs.existsSync(wellKnownDir)) {
+  copyDir(wellKnownDir, path.join(DIST, '.well-known'));
 }
 
 const srcDir = path.join(ROOT, 'src');

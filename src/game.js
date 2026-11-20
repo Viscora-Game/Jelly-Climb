@@ -1118,13 +1118,21 @@
       });
 
       global.addEventListener('keydown', (e) => {
-        if (e.code === 'KeyH') {
-          this.showHitboxes = !this.showHitboxes;
+        const targetTag = e.target && e.target.tagName;
+        if (
+          targetTag === 'INPUT' ||
+          targetTag === 'TEXTAREA' ||
+          (e.target && e.target.isContentEditable)
+        ) {
           return;
         }
         const isLocalQa =
           global.location &&
           (global.location.hostname === '127.0.0.1' || global.location.hostname === 'localhost');
+        if (isLocalQa && e.code === 'KeyH') {
+          this.showHitboxes = !this.showHitboxes;
+          return;
+        }
         if (isLocalQa && e.code === 'KeyJ') {
           e.preventDefault();
           this.gems += 1000;
