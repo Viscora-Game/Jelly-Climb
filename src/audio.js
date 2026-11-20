@@ -189,19 +189,16 @@
         } catch (_) {}
       }
       if (this.externalSource && this.ctx) {
-        const tierBoost = this.musicState === 'playing' ? Math.max(0, this.musicTempoTier - 1) * 0.015 : 0;
-        const rate = this.musicState === 'dead' ? 0.94 : Math.min(1.07, 1.0 + tierBoost);
         try {
-          this.externalSource.playbackRate.setTargetAtTime(rate, this.ctx.currentTime, 0.35);
+          this.externalSource.playbackRate.setTargetAtTime(1.0, this.ctx.currentTime, 0.25);
         } catch (_) {}
       }
     }
 
     _computeTargetBpm() {
-      if (this.musicState === 'dead') return 88;
+      if (this.musicState === 'dead') return 96;
       if (this.musicState !== 'playing') return 104;
-      const base = this.musicMode === 'rising' ? 110 : this.musicMode === 'tutorial' ? 104 : 106;
-      return base + Math.min(34, Math.max(0, this.musicTempoTier - 1) * 8);
+      return this.musicMode === 'rising' ? 110 : this.musicMode === 'tutorial' ? 104 : 106;
     }
 
     _syncMusicPlayback() {
@@ -650,7 +647,7 @@
 
     playLaunch(strength, tempo = 1) {
       const s = Math.min(1, Math.max(0.2, strength));
-      const tempoBoost = Math.pow(1.09, Math.max(0, tempo - 1));
+      const tempoBoost = Math.min(1.16, 1 + Math.max(0, tempo - 1) * 0.035);
       this._playTone((175 + s * 105) * tempoBoost, (440 + s * 270) * tempoBoost, 0.13, 'sine', 0.1);
       this._playTone((265 + s * 135) * tempoBoost, (530 + s * 210) * tempoBoost, 0.08, 'triangle', 0.045, 0.015);
     }

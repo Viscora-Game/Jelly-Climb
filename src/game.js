@@ -7031,26 +7031,22 @@
         ctx.fillText(`${tr.best || 'BEST'}: ${activeBest} m`, C.WIDTH * 0.5, cardY + 86);
       }
 
-      // Run stats badge inside score well
+      // Run stats badge inside score well (Gems earned + Bosses defeated)
       ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-      const runStatParts = [
-        { text: `+${this.runGemsEarned}`, gap: 4 },
-        { icon: 'gem', r: 4.4, gap: 7 },
-        { text: '•', gap: 7 },
-        { icon: 'bolt', r: 4.4, color: '#ffd166', gap: 4 },
-        {
-          text:
-            this.runBossesDefeated > 0
-              ? `x${this.runMaxTempo}`
-              : `${tr.tempo || 'TEMPO'} x${this.runMaxTempo}`,
-          gap: this.runBossesDefeated > 0 ? 7 : 0
-        }
-      ];
-      if (this.runBossesDefeated > 0) {
-        runStatParts.push({ text: '•', gap: 7 });
-        runStatParts.push({ icon: 'crown', r: 4.5, color: '#ffd166', gap: 4 });
-        runStatParts.push({ text: `${this.runBossesDefeated}` });
-      }
+      const runStatParts =
+        this.runBossesDefeated > 0
+          ? [
+              { text: `+${this.runGemsEarned}`, gap: 4 },
+              { icon: 'gem', r: 4.4, gap: 7 },
+              { text: '•', gap: 7 },
+              { icon: 'crown', r: 4.5, color: '#ffd166', gap: 4 },
+              { text: `${this.runBossesDefeated}` }
+            ]
+          : [
+              { text: `+${this.runGemsEarned}`, gap: 4 },
+              { icon: 'gem', r: 4.4, gap: 5 },
+              { text: tr.dropsUnit || 'Drops' }
+            ];
       this._drawUiRow(ctx, runStatParts, C.WIDTH * 0.5, cardY + 109, 'center', '#ffd166', 250);
 
       // Primary Tactile PLAY AGAIN Cushion Button
