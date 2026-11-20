@@ -4378,129 +4378,157 @@
       }
       ctx.restore();
 
+      // Ground-to-canopy vertical ascent story (hills -> giant world tree -> cloud decks -> sky)
+      const climbPx = Math.max(0, C.START_CAMERA_Y - this.cameraY);
+      const camMeters = Math.max(
+        0,
+        (C.START_PLAYER_Y - (this.cameraY + C.HEIGHT * 0.5)) / C.PIXELS_PER_METER
+      );
+      if (Art && Art.drawAscentVistaBackdrop) {
+        const floorScreenY = C.FLOOR_Y - this.cameraY;
+        Art.drawAscentVistaBackdrop(
+          ctx,
+          C.WIDTH,
+          C.HEIGHT,
+          this.padLeft,
+          this.padBottom,
+          floorScreenY,
+          climbPx,
+          camMeters,
+          this.hintTime
+        );
+      }
+
       // Far parallax cartoon silhouettes (arches, cliffs, glaciers, clouds, constellations)
+      const bgStyle = theme.bgStyle || 'canopy';
+      const monolithFade = bgStyle === 'canopy' ? 0 : bgStyle === 'monolith' ? clamp((camMeters - 36) / 14, 0, 1) : 1;
       const farSpan = 340;
       const farOffset = ((-this.cameraY * 0.12) % farSpan + farSpan) % farSpan;
       const farStart = farOffset - farSpan * Math.ceil(this.padTop / farSpan + 1);
-      const bgStyle = theme.bgStyle || 'cavern';
-      ctx.save();
-      for (let y = farStart; y < viewBottom + farSpan; y += farSpan) {
-        ctx.fillStyle = theme.parallaxFar;
-        if (bgStyle === 'frost') {
-          // Layered cartoon ice spires & drifting frost cloud
-          ctx.beginPath();
-          ctx.moveTo(C.WALL_WIDTH, y + 35);
-          ctx.quadraticCurveTo(C.WALL_WIDTH + 60, y + 70, C.WALL_WIDTH + 90, y + 125);
-          ctx.lineTo(C.WALL_WIDTH + 54, y + 170);
-          ctx.lineTo(C.WALL_WIDTH + 92, y + 235);
-          ctx.lineTo(C.WALL_WIDTH, y + 305);
-          ctx.closePath();
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 65);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 92, y + 145);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 52, y + 195);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 290);
-          ctx.closePath();
-          ctx.fill();
-        } else if (bgStyle === 'foundry') {
-          // Ancient rounded forge arches + warm molten slits
-          roundRectPath(ctx, C.WALL_WIDTH + 22, y + 22, 46, 240, 22);
-          ctx.fill();
-          roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 68, y + 88, 46, 240, 22);
-          ctx.fill();
-          ctx.fillStyle = 'rgba(255, 138, 60, 0.24)';
-          roundRectPath(ctx, C.WALL_WIDTH + 41, y + 46, 8, 175, 4);
-          ctx.fill();
-          roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 49, y + 112, 8, 175, 4);
-          ctx.fill();
-        } else if (bgStyle === 'storm') {
-          // Billowing cartoon storm cloud banks + spire bridge
-          ctx.beginPath();
-          ctx.arc(C.WIDTH * 0.34, y + 96, 36, 0, Math.PI * 2);
-          ctx.arc(C.WIDTH * 0.48, y + 86, 44, 0, Math.PI * 2);
-          ctx.arc(C.WIDTH * 0.64, y + 98, 34, 0, Math.PI * 2);
-          ctx.fill();
-
-          roundRectPath(ctx, C.WIDTH * 0.5 - 12, y + 165, 24, 130, 10);
-          ctx.fill();
-        } else if (bgStyle === 'cosmos') {
-          // Star constellation & cartoon crescent moon / planetoid
-          const sx1 = C.WIDTH * 0.34;
-          const sy1 = y + 90;
-          const sx2 = C.WIDTH * 0.66;
-          const sy2 = y + 175;
-          const sx3 = C.WIDTH * 0.48;
-          const sy3 = y + 265;
-          ctx.strokeStyle = 'rgba(232, 180, 255, 0.26)';
-          ctx.lineWidth = 1.8;
-          ctx.setLineDash([4, 5]);
-          ctx.beginPath();
-          ctx.moveTo(sx1, sy1);
-          ctx.lineTo(sx2, sy2);
-          ctx.lineTo(sx3, sy3);
-          ctx.stroke();
-          ctx.setLineDash([]);
-
-          for (const [nx, ny, nr] of [
-            [sx1, sy1, 7],
-            [sx2, sy2, 11],
-            [sx3, sy3, 6]
-          ]) {
+      if (monolithFade > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = monolithFade;
+        for (let y = farStart; y < viewBottom + farSpan; y += farSpan) {
+          ctx.fillStyle = theme.parallaxFar;
+          if (bgStyle === 'frost') {
+            // Layered cartoon ice spires & drifting frost cloud
             ctx.beginPath();
-            ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+            ctx.moveTo(C.WALL_WIDTH, y + 35);
+            ctx.quadraticCurveTo(C.WALL_WIDTH + 60, y + 70, C.WALL_WIDTH + 90, y + 125);
+            ctx.lineTo(C.WALL_WIDTH + 54, y + 170);
+            ctx.lineTo(C.WALL_WIDTH + 92, y + 235);
+            ctx.lineTo(C.WALL_WIDTH, y + 305);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 65);
+            ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 92, y + 145);
+            ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 52, y + 195);
+            ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 290);
+            ctx.closePath();
+            ctx.fill();
+          } else if (bgStyle === 'foundry') {
+            // Ancient rounded forge arches + warm molten slits
+            roundRectPath(ctx, C.WALL_WIDTH + 22, y + 22, 46, 240, 22);
+            ctx.fill();
+            roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 68, y + 88, 46, 240, 22);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255, 138, 60, 0.24)';
+            roundRectPath(ctx, C.WALL_WIDTH + 41, y + 46, 8, 175, 4);
+            ctx.fill();
+            roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 49, y + 112, 8, 175, 4);
+            ctx.fill();
+          } else if (bgStyle === 'storm') {
+            // Billowing cartoon storm cloud banks + spire bridge
+            ctx.beginPath();
+            ctx.arc(C.WIDTH * 0.34, y + 96, 36, 0, Math.PI * 2);
+            ctx.arc(C.WIDTH * 0.48, y + 86, 44, 0, Math.PI * 2);
+            ctx.arc(C.WIDTH * 0.64, y + 98, 34, 0, Math.PI * 2);
+            ctx.fill();
+
+            roundRectPath(ctx, C.WIDTH * 0.5 - 12, y + 165, 24, 130, 10);
+            ctx.fill();
+          } else if (bgStyle === 'cosmos') {
+            // Star constellation & cartoon crescent moon / planetoid
+            const sx1 = C.WIDTH * 0.34;
+            const sy1 = y + 90;
+            const sx2 = C.WIDTH * 0.66;
+            const sy2 = y + 175;
+            const sx3 = C.WIDTH * 0.48;
+            const sy3 = y + 265;
+            ctx.strokeStyle = 'rgba(232, 180, 255, 0.26)';
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([4, 5]);
+            ctx.beginPath();
+            ctx.moveTo(sx1, sy1);
+            ctx.lineTo(sx2, sy2);
+            ctx.lineTo(sx3, sy3);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            for (const [nx, ny, nr] of [
+              [sx1, sy1, 7],
+              [sx2, sy2, 11],
+              [sx3, sy3, 6]
+            ]) {
+              ctx.beginPath();
+              ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else {
+            // Cartoon twilight monolith arches & rounded cliff silhouettes
+            ctx.beginPath();
+            ctx.moveTo(C.WALL_WIDTH, y + 20);
+            ctx.quadraticCurveTo(C.WALL_WIDTH + 76, y + 48, C.WALL_WIDTH + 72, y + 146);
+            ctx.quadraticCurveTo(C.WALL_WIDTH + 34, y + 185, C.WALL_WIDTH + 44, y + 245);
+            ctx.lineTo(C.WALL_WIDTH, y + 272);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 108);
+            ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 84, y + 148, C.WIDTH - C.WALL_WIDTH - 78, y + 248);
+            ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 40, y + 286);
+            ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 312);
+            ctx.closePath();
+            ctx.fill();
+
+            // Distant floating ruin arch block
+            const ax = C.WIDTH * 0.5 + (Math.round(y) % 2 === 0 ? -1 : 1) * 44;
+            const ay = y + 96;
+            roundRectPath(ctx, ax - 16, ay - 26, 32, 48, 14);
             ctx.fill();
           }
-        } else {
-          // Cartoon mossy ruin archways & rounded cliff silhouettes
-          ctx.beginPath();
-          ctx.moveTo(C.WALL_WIDTH, y + 20);
-          ctx.quadraticCurveTo(C.WALL_WIDTH + 76, y + 48, C.WALL_WIDTH + 72, y + 146);
-          ctx.quadraticCurveTo(C.WALL_WIDTH + 34, y + 185, C.WALL_WIDTH + 44, y + 245);
-          ctx.lineTo(C.WALL_WIDTH, y + 272);
-          ctx.closePath();
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 108);
-          ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 84, y + 148, C.WIDTH - C.WALL_WIDTH - 78, y + 248);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 40, y + 286);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 312);
-          ctx.closePath();
-          ctx.fill();
-
-          // Distant floating ruin arch block
-          const ax = C.WIDTH * 0.5 + (Math.round(y) % 2 === 0 ? -1 : 1) * 44;
-          const ay = y + 96;
-          roundRectPath(ctx, ax - 16, ay - 26, 32, 48, 14);
-          ctx.fill();
         }
+        ctx.restore();
       }
-      ctx.restore();
 
-      // Near parallax rounded cartoon cliff buttresses
+      // Near parallax rounded cliff buttresses (faded in cleanly above canopy)
       const nearSpan = 240;
       const nearOffset = ((-this.cameraY * 0.25) % nearSpan + nearSpan) % nearSpan;
       const nearStart = nearOffset - nearSpan * Math.ceil(this.padTop / nearSpan + 1);
-      ctx.save();
-      ctx.fillStyle = theme.parallaxNear;
-      for (let y = nearStart; y < C.HEIGHT + this.padBottom + nearSpan; y += nearSpan) {
-        ctx.beginPath();
-        ctx.moveTo(C.WALL_WIDTH, y + 40);
-        ctx.quadraticCurveTo(C.WALL_WIDTH + 28, y + 58, C.WALL_WIDTH + 24, y + 108);
-        ctx.quadraticCurveTo(C.WALL_WIDTH + 16, y + 124, C.WALL_WIDTH, y + 132);
-        ctx.closePath();
-        ctx.fill();
+      if (monolithFade > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = monolithFade;
+        ctx.fillStyle = theme.parallaxNear;
+        for (let y = nearStart; y < C.HEIGHT + this.padBottom + nearSpan; y += nearSpan) {
+          ctx.beginPath();
+          ctx.moveTo(C.WALL_WIDTH, y + 40);
+          ctx.quadraticCurveTo(C.WALL_WIDTH + 28, y + 58, C.WALL_WIDTH + 24, y + 108);
+          ctx.quadraticCurveTo(C.WALL_WIDTH + 16, y + 124, C.WALL_WIDTH, y + 132);
+          ctx.closePath();
+          ctx.fill();
 
-        ctx.beginPath();
-        ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 150);
-        ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 28, y + 168, C.WIDTH - C.WALL_WIDTH - 24, y + 218);
-        ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 16, y + 234, C.WIDTH - C.WALL_WIDTH, y + 242);
-        ctx.closePath();
-        ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 150);
+          ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 28, y + 168, C.WIDTH - C.WALL_WIDTH - 24, y + 218);
+          ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 16, y + 234, C.WIDTH - C.WALL_WIDTH, y + 242);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
       }
-      ctx.restore();
 
       // Ambient drifting biome weather: spores (0-120m) -> snow (frost) -> embers (foundry) -> rain (storm) -> stars (cosmos)
       const moteTop = -this.padTop;

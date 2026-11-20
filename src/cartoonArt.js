@@ -1460,6 +1460,467 @@
     ctx.restore();
   }
 
+  let _giantTreeCanvas = null;
+
+  function _getGiantTreeSprite() {
+    if (_giantTreeCanvas) return _giantTreeCanvas;
+    if (typeof document === 'undefined') return null;
+
+    const w = 440;
+    const h = 760;
+    const off = document.createElement('canvas');
+    off.width = w;
+    off.height = h;
+    const tctx = off.getContext('2d');
+    if (!tctx) return null;
+
+    const baseX = w * 0.5;
+    const baseY = h - 22;
+    tctx.lineJoin = 'round';
+    tctx.lineCap = 'round';
+
+    const barkInk = 'rgba(27, 17, 54, 0.48)';
+    const leafInk = 'rgba(20, 22, 58, 0.42)';
+
+    // Helper: paints a scalloped multi-puff organic foliage cloud (never a plain oval!)
+    const paintFoliageBunch = (cx, cy, puffs, paletteMode = 'mid') => {
+      const palettes = {
+        deep: { c0: '#358062', c1: '#235952', c2: '#183f45', hi: 'rgba(138, 224, 130, 0.16)' },
+        mid: { c0: '#6ed453', c1: '#3a9c59', c2: '#236353', hi: 'rgba(218, 255, 135, 0.34)' },
+        sun: { c0: '#9ef252', c1: '#56ba4e', c2: '#2e7d53', hi: 'rgba(242, 255, 175, 0.46)' }
+      };
+      const pal = palettes[paletteMode] || palettes.mid;
+
+      // Compute bounding box for natural vertical gradient
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const [px, py, pr] of puffs) {
+        if (py - pr < minY) minY = py - pr;
+        if (py + pr > maxY) maxY = py + pr;
+      }
+
+      const traceUnionFill = () => {
+        tctx.beginPath();
+        for (const [px, py, pr] of puffs) {
+          tctx.moveTo(cx + px + pr, cy + py);
+          tctx.arc(cx + px, cy + py, pr, 0, Math.PI * 2);
+        }
+      };
+
+      // Subtle outer shadow contour around entire scalloped cluster silhouette
+      tctx.fillStyle = leafInk;
+      tctx.beginPath();
+      for (const [px, py, pr] of puffs) {
+        tctx.moveTo(cx + px + pr + 2.4, cy + py);
+        tctx.arc(cx + px, cy + py, pr + 2.4, 0, Math.PI * 2);
+      }
+      tctx.fill();
+
+      // Main leafy gradient body across scalloped lobes
+      const grad = tctx.createLinearGradient(0, cy + minY, 0, cy + maxY);
+      grad.addColorStop(0, pal.c0);
+      grad.addColorStop(0.55, pal.c1);
+      grad.addColorStop(1, pal.c2);
+      tctx.fillStyle = grad;
+      traceUnionFill();
+      tctx.fill();
+
+      // Merged sunlit upper foliage highlight pass (single path so alpha never stacks in circles)
+      tctx.fillStyle = pal.hi;
+      tctx.beginPath();
+      for (const [px, py, pr] of puffs) {
+        if (py < 4) {
+          const hx = cx + px - pr * 0.14;
+          const hy = cy + py - pr * 0.22;
+          const hr = pr * 0.72;
+          tctx.moveTo(hx + hr, hy);
+          tctx.arc(hx, hy, hr, 0, Math.PI * 2);
+        }
+      }
+      tctx.fill();
+
+      // Subtle scalloped inner shadow arcs suggesting layered leaf depth
+      tctx.strokeStyle = 'rgba(20, 48, 52, 0.16)';
+      tctx.lineWidth = 2.0;
+      for (const [px, py, pr] of puffs) {
+        if (py >= -6) {
+          tctx.beginPath();
+          tctx.arc(cx + px, cy + py, pr * 0.72, 0.35, Math.PI - 0.35);
+          tctx.stroke();
+        }
+      }
+    };
+
+    // Helper: hanging storybook moss vine with pairs of tiny teardrop leaves
+    const paintHangingVine = (vx, vy, len, curveX) => {
+      tctx.save();
+      tctx.strokeStyle = '#2d7a51';
+      tctx.lineWidth = 2.2;
+      tctx.beginPath();
+      tctx.moveTo(vx, vy);
+      tctx.quadraticCurveTo(vx + curveX, vy + len * 0.55, vx + curveX * 0.6, vy + len);
+      tctx.stroke();
+
+      const steps = Math.max(2, Math.floor(len / 22));
+      for (let i = 1; i <= steps; i++) {
+        const u = i / (steps + 0.4);
+        const lx = (1 - u) * (1 - u) * vx + 2 * (1 - u) * u * (vx + curveX) + u * u * (vx + curveX * 0.6);
+        const ly = (1 - u) * (1 - u) * vy + 2 * (1 - u) * u * (vy + len * 0.55) + u * u * (vy + len);
+        const side = i % 2 === 0 ? 1 : -1;
+        tctx.fillStyle = i % 2 === 0 ? '#7ae053' : '#4ab558';
+        tctx.strokeStyle = leafInk;
+        tctx.lineWidth = 1.4;
+        tctx.beginPath();
+        tctx.ellipse(lx + side * 4.5, ly + 2, 4.6, 2.3, side * 0.55, 0, Math.PI * 2);
+        tctx.fill();
+        tctx.stroke();
+      }
+      tctx.restore();
+    };
+
+    // Helper: delicate pointed accent leaf cluster tucked along edges
+    const paintEdgeLeaves = (lx, ly, ang, sc = 1) => {
+      tctx.save();
+      tctx.translate(lx, ly);
+      tctx.rotate(ang);
+      tctx.scale(sc, sc);
+      tctx.fillStyle = '#8ae655';
+      tctx.strokeStyle = leafInk;
+      tctx.lineWidth = 1.8;
+      tctx.beginPath();
+      tctx.moveTo(0, 0);
+      tctx.quadraticCurveTo(8, -6, 17, 0);
+      tctx.quadraticCurveTo(8, 6, 0, 0);
+      tctx.closePath();
+      tctx.fill();
+      tctx.stroke();
+      tctx.restore();
+    };
+
+    // 1. Deep shadowy back foliage layer giving depth behind trunk & main boughs
+    paintFoliageBunch(
+      baseX - 8,
+      baseY - 548,
+      [
+        [-115, 22, 46],
+        [-58, -16, 56],
+        [10, -34, 62],
+        [76, -12, 54],
+        [124, 24, 42],
+        [0, 32, 68]
+      ],
+      'deep'
+    );
+    paintFoliageBunch(
+      baseX - 110,
+      baseY - 266,
+      [
+        [-42, 16, 30],
+        [0, 12, 34],
+        [44, 18, 28]
+      ],
+      'deep'
+    );
+    paintFoliageBunch(
+      baseX + 108,
+      baseY - 376,
+      [
+        [-38, 16, 28],
+        [6, 12, 34],
+        [44, 16, 28]
+      ],
+      'deep'
+    );
+
+    // 2. Hanging moss vines draping naturally below limbs before front canopy edges overlap roots
+    paintHangingVine(baseX - 146, baseY - 248, 66, -6);
+    paintHangingVine(baseX - 78, baseY - 242, 52, 5);
+    paintHangingVine(baseX + 94, baseY - 352, 68, -5);
+    paintHangingVine(baseX + 142, baseY - 360, 48, 7);
+    paintHangingVine(baseX - 95, baseY - 486, 58, -4);
+    paintHangingVine(baseX + 86, baseY - 490, 62, 6);
+
+    // 3. Gnarled twisting World Tree trunk, spreading roots & upper canopy skeleton branches
+    const trunkGrad = tctx.createLinearGradient(baseX - 72, baseY, baseX + 68, baseY - 520);
+    trunkGrad.addColorStop(0, '#875c65');
+    trunkGrad.addColorStop(0.5, '#614052');
+    trunkGrad.addColorStop(1, '#3d253c');
+    tctx.fillStyle = trunkGrad;
+    tctx.strokeStyle = barkInk;
+    tctx.lineWidth = 2.8;
+
+    tctx.beginPath();
+    // Wide flared asymmetrical left root curling into ground meadow
+    tctx.moveTo(baseX - 118, baseY + 18);
+    tctx.quadraticCurveTo(baseX - 72, baseY - 14, baseX - 54, baseY - 92);
+    tctx.quadraticCurveTo(baseX - 42, baseY - 165, baseX - 50, baseY - 216);
+    // Gnarled lower-left sweeping bough splitting into two sub-forks
+    tctx.quadraticCurveTo(baseX - 78, baseY - 252, baseX - 152, baseY - 278);
+    tctx.lineTo(baseX - 140, baseY - 296);
+    tctx.quadraticCurveTo(baseX - 96, baseY - 280, baseX - 74, baseY - 288);
+    tctx.lineTo(baseX - 104, baseY - 332);
+    tctx.lineTo(baseX - 82, baseY - 338);
+    tctx.quadraticCurveTo(baseX - 50, baseY - 304, baseX - 38, baseY - 338);
+    // Upper trunk rising into crooked crown forks
+    tctx.quadraticCurveTo(baseX - 24, baseY - 442, baseX - 42, baseY - 538);
+    tctx.lineTo(baseX - 16, baseY - 552);
+    tctx.lineTo(baseX - 8, baseY - 516);
+    tctx.quadraticCurveTo(baseX + 4, baseY - 558, baseX + 24, baseY - 556);
+    tctx.lineTo(baseX + 34, baseY - 512);
+    // Gnarled mid-right sweeping bough with upward twig
+    tctx.quadraticCurveTo(baseX + 36, baseY - 444, baseX + 144, baseY - 398);
+    tctx.lineTo(baseX + 130, baseY - 372);
+    tctx.quadraticCurveTo(baseX + 62, baseY - 394, baseX + 36, baseY - 334);
+    tctx.quadraticCurveTo(baseX + 32, baseY - 210, baseX + 54, baseY - 96);
+    // Right flared root buttress
+    tctx.quadraticCurveTo(baseX + 68, baseY - 22, baseX + 114, baseY + 18);
+    tctx.closePath();
+    tctx.fill();
+    tctx.stroke();
+
+    // Rich cel-shaded shaded right side along trunk curves
+    tctx.fillStyle = 'rgba(26, 14, 42, 0.28)';
+    tctx.beginPath();
+    tctx.moveTo(baseX + 6, baseY + 18);
+    tctx.quadraticCurveTo(baseX + 12, baseY - 120, baseX + 2, baseY - 330);
+    tctx.quadraticCurveTo(baseX + 18, baseY - 430, baseX + 20, baseY - 520);
+    tctx.lineTo(baseX + 34, baseY - 512);
+    tctx.quadraticCurveTo(baseX + 36, baseY - 330, baseX + 54, baseY - 96);
+    tctx.quadraticCurveTo(baseX + 68, baseY - 22, baseX + 114, baseY + 18);
+    tctx.closePath();
+    tctx.fill();
+
+    // Sculpted bark fissure ridges + central flared root ridge + cozy mossy hollow
+    tctx.strokeStyle = 'rgba(27, 17, 54, 0.32)';
+    tctx.lineWidth = 2.4;
+    tctx.beginPath();
+    tctx.moveTo(baseX - 38, baseY + 12);
+    tctx.quadraticCurveTo(baseX - 20, baseY - 72, baseX - 26, baseY - 178);
+    tctx.moveTo(baseX + 28, baseY + 8);
+    tctx.quadraticCurveTo(baseX + 20, baseY - 62, baseX + 18, baseY - 126);
+    tctx.moveTo(baseX - 10, baseY - 252);
+    tctx.quadraticCurveTo(baseX + 4, baseY - 344, baseX - 6, baseY - 442);
+    tctx.stroke();
+
+    tctx.strokeStyle = 'rgba(255, 224, 200, 0.24)';
+    tctx.lineWidth = 2.4;
+    tctx.beginPath();
+    tctx.moveTo(baseX - 42, baseY - 110);
+    tctx.quadraticCurveTo(baseX - 38, baseY - 180, baseX - 42, baseY - 235);
+    tctx.moveTo(baseX - 24, baseY - 348);
+    tctx.quadraticCurveTo(baseX - 18, baseY - 420, baseX - 24, baseY - 485);
+    tctx.stroke();
+
+    // Storybook tree hollow with dark rim & soft moss pad at root base
+    tctx.fillStyle = '#2b1933';
+    tctx.strokeStyle = barkInk;
+    tctx.lineWidth = 2.2;
+    tctx.beginPath();
+    tctx.ellipse(baseX + 4, baseY - 156, 11, 18, 0.08, 0, Math.PI * 2);
+    tctx.fill();
+    tctx.stroke();
+
+    paintFoliageBunch(
+      baseX - 66,
+      baseY - 10,
+      [
+        [-22, 6, 14],
+        [0, 0, 16],
+        [20, 8, 12]
+      ],
+      'mid'
+    );
+    paintFoliageBunch(
+      baseX + 64,
+      baseY - 6,
+      [
+        [-16, 8, 12],
+        [4, 2, 15],
+        [22, 8, 11]
+      ],
+      'mid'
+    );
+
+    // 4. Layered foreground lush storybook canopy clusters hiding branch tips naturally
+    paintFoliageBunch(
+      baseX - 118,
+      baseY - 294,
+      [
+        [-48, 12, 26],
+        [-22, -10, 32],
+        [14, -14, 34],
+        [44, 4, 28],
+        [18, 20, 26],
+        [-20, 18, 28]
+      ],
+      'sun'
+    );
+    paintFoliageBunch(
+      baseX + 114,
+      baseY - 406,
+      [
+        [-42, 8, 26],
+        [-14, -12, 32],
+        [22, -10, 32],
+        [46, 10, 25],
+        [14, 20, 26],
+        [-20, 18, 24]
+      ],
+      'sun'
+    );
+
+    // Upper grand multi-tiered sunlit canopy crown
+    paintFoliageBunch(
+      baseX - 84,
+      baseY - 524,
+      [
+        [-54, 14, 30],
+        [-26, -12, 38],
+        [18, -18, 42],
+        [48, 6, 34],
+        [10, 24, 34],
+        [-30, 22, 32]
+      ],
+      'mid'
+    );
+    paintFoliageBunch(
+      baseX + 86,
+      baseY - 532,
+      [
+        [-46, 10, 32],
+        [-14, -16, 40],
+        [28, -12, 36],
+        [52, 12, 28],
+        [18, 24, 32],
+        [-20, 22, 30]
+      ],
+      'mid'
+    );
+    paintFoliageBunch(
+      baseX,
+      baseY - 602,
+      [
+        [-72, 16, 34],
+        [-40, -14, 42],
+        [2, -28, 48],
+        [46, -12, 42],
+        [74, 16, 32],
+        [36, 32, 38],
+        [-10, 36, 42],
+        [-48, 28, 36]
+      ],
+      'sun'
+    );
+
+    // 5. Crisp stray leaves peeking organically along the outer crown & boughs
+    paintEdgeLeaves(baseX - 166, baseY - 294, -2.85, 0.9);
+    paintEdgeLeaves(baseX + 162, baseY - 404, -0.35, 0.9);
+    paintEdgeLeaves(baseX - 96, baseY - 612, -2.4, 0.95);
+    paintEdgeLeaves(baseX + 94, baseY - 622, -0.7, 0.95);
+    paintEdgeLeaves(baseX + 4, baseY - 678, -1.52, 1.05);
+
+    _giantTreeCanvas = off;
+    return _giantTreeCanvas;
+  }
+
+  /**
+   * Draws a towering atmospheric storybook World Tree in the background shaft so
+   * players feel themselves climbing past roots, boughs, and out above the treetop canopy.
+   */
+  function drawGiantWorldTree(ctx, baseX, baseY, time = 0) {
+    const sprite = _getGiantTreeSprite();
+    const sway = Math.sin(time * 1.1) * 2.2;
+    if (sprite) {
+      ctx.save();
+      ctx.globalAlpha = 0.78;
+      ctx.drawImage(sprite, baseX - sprite.width * 0.5 + sway * 0.4, baseY - (sprite.height - 24));
+      ctx.restore();
+      return;
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = '#49ad5b';
+    ctx.beginPath();
+    ctx.arc(baseX, baseY - 560, 120, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Renders altitude-anchored morning meadow hills, the Giant World Tree, and tiered
+   * non-looping sky clouds across 0m -> ~115m so ascending feels grounded and vertical.
+   */
+  function drawAscentVistaBackdrop(ctx, width, height, padLeft, padBottom, floorY, climbPx, camMeters, time) {
+    if (climbPx > 5600) return;
+
+    const fadeHigh = camMeters > 92 ? Math.max(0, 1 - (camMeters - 92) / 26) : 1;
+    if (fadeHigh <= 0.01) return;
+
+    ctx.save();
+    ctx.globalAlpha = fadeHigh;
+
+    const leftX = -padLeft - 8;
+    const spanW = width + padLeft * 2 + 16;
+
+    // 1. Distant rolling horizon hills sinking smoothly below as you climb (0.20x parallax)
+    const hillBaseY = floorY + 12 - climbPx * 0.8;
+    if (hillBaseY - 260 < height + padBottom) {
+      ctx.save();
+      ctx.globalAlpha = fadeHigh * 0.62;
+      ctx.fillStyle = '#3368c9';
+      ctx.beginPath();
+      ctx.moveTo(leftX, hillBaseY + 120);
+      ctx.lineTo(leftX, hillBaseY - 128);
+      ctx.quadraticCurveTo(width * 0.22, hillBaseY - 210, width * 0.48, hillBaseY - 140);
+      ctx.quadraticCurveTo(width * 0.78, hillBaseY - 220, leftX + spanW, hillBaseY - 132);
+      ctx.lineTo(leftX + spanW, hillBaseY + 120);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#48a374';
+      ctx.beginPath();
+      ctx.moveTo(leftX, hillBaseY + 120);
+      ctx.lineTo(leftX, hillBaseY - 64);
+      ctx.quadraticCurveTo(width * 0.3, hillBaseY - 118, width * 0.58, hillBaseY - 72);
+      ctx.quadraticCurveTo(width * 0.82, hillBaseY - 108, leftX + spanW, hillBaseY - 62);
+      ctx.lineTo(leftX + spanW, hillBaseY + 120);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 2. Non-repeating tiered cartoon clouds floating at staggered climbing altitudes
+    const cloudDefs = [
+      { x: 108, above: 455, p: 0.28, sc: 0.72, a: 0.62, spd: 5 },
+      { x: 332, above: 615, p: 0.25, sc: 0.68, a: 0.58, spd: -4 },
+      { x: 226, above: 760, p: 0.3, sc: 0.76, a: 0.56, spd: 4.5 },
+      { x: 132, above: 925, p: 0.31, sc: 0.82, a: 0.64, spd: 6 },
+      { x: 318, above: 1105, p: 0.29, sc: 0.76, a: 0.6, spd: -5 },
+      { x: 195, above: 1300, p: 0.32, sc: 0.88, a: 0.62, spd: 4.5 },
+      { x: 96, above: 1500, p: 0.29, sc: 0.72, a: 0.52, spd: -3.5 },
+      { x: 325, above: 1690, p: 0.3, sc: 0.84, a: 0.54, spd: 5 },
+      { x: 215, above: 1920, p: 0.27, sc: 0.76, a: 0.46, spd: -4 },
+      { x: 118, above: 2180, p: 0.25, sc: 0.68, a: 0.38, spd: 4 },
+      { x: 315, above: 2450, p: 0.24, sc: 0.72, a: 0.32, spd: -3.5 },
+      { x: 208, above: 2740, p: 0.23, sc: 0.65, a: 0.26, spd: 3 }
+    ];
+    for (let i = 0; i < cloudDefs.length; i++) {
+      const c = cloudDefs[i];
+      const cy = 736 - c.above + climbPx * c.p;
+      if (cy < -90 || cy > height + padBottom + 90) continue;
+      const cx = c.x + Math.sin(time * 0.24 + i * 1.4) * (c.spd * 2.2);
+      drawCartoonCloud(ctx, cx, cy, c.sc, c.a * fadeHigh);
+    }
+
+    // 3. Towering World Tree anchored to ground floor (climbed past across 0m -> ~40m at 0.42x parallax)
+    const treeBaseY = floorY + 8 - climbPx * 0.58;
+    if (treeBaseY - 720 < height + padBottom && treeBaseY + 60 > -320) {
+      drawGiantWorldTree(ctx, width * 0.54, treeBaseY, time);
+    }
+
+    ctx.restore();
+  }
+
   JellyGame.Art = Object.freeze({
     PALETTE,
     roundRectPath,
@@ -1474,6 +1935,8 @@
     drawCartoonMossIsland,
     drawCartoonLogo,
     drawMenuVista,
+    drawGiantWorldTree,
+    drawAscentVistaBackdrop,
     drawGemEmblem,
     drawTrophyIcon,
     drawGearIcon,
