@@ -758,9 +758,15 @@
 
       form.addEventListener('submit', (e) => {
         e.preventDefault();
+        const cleaned = input.value.replace(/[<>&"'`]/g, '').replace(/\s+/g, ' ').trim();
+        if (cleaned.length < 2) {
+          input.value = cleaned;
+          try { input.focus(); } catch (_) {}
+          return;
+        }
         if (this.leaderboard) {
           this.leaderboard
-            .setNickname(input.value, {
+            .setNickname(cleaned, {
               color: this.equippedColor,
               accessory: this.equippedAccessory
             })
@@ -772,6 +778,13 @@
         }
         this.audio.playUnlock();
         closeOverlay();
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          closeOverlay();
+        }
       });
 
       if (cancelBtn) {
@@ -1881,6 +1894,9 @@
     }
 
     resetRun() {
+      if (this.state === 'playing') {
+        this._submitCurrentRunScore();
+      }
       this.player.reset();
       this.player.equippedAccessory = this.equippedAccessory;
       this.player.equippedColor = this.equippedColor;
@@ -5839,7 +5855,7 @@
       } else {
         ctx.fillStyle = 'rgba(180, 202, 235, 0.45)';
         ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
-        ctx.fillText('Jelly Climb v1.2', C.WIDTH * 0.5, panelY + 346);
+        ctx.fillText('Jelly Climb v1.2.2', C.WIDTH * 0.5, panelY + 346);
       }
 
       ctx.restore();

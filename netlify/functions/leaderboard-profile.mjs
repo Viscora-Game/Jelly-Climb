@@ -17,7 +17,7 @@ export default async (req) => {
     return jsonResponse(out.body, out.status);
   } catch (err) {
     console.error('[netlify/api/leaderboard/profile] Error:', err);
-    return jsonResponse({ ok: false, error: err.message || 'Internal Server Error' }, 500);
+    return jsonResponse({ ok: false, error: err.message || 'Internal Server Error' }, err.statusCode || 500);
   }
 };
 

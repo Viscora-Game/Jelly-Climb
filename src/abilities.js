@@ -45,7 +45,7 @@
       primaryColor: '#ffd166',
       accentColor: '#fff3b0',
       unlockCost: 350,
-      upgradeCosts: Object.freeze([220, 300, 400, 650, 550, 700, 900, 1150, 1600]),
+      upgradeCosts: Object.freeze([220, 300, 400, 550, 650, 700, 900, 1150, 1600]),
       chargesByLevel: Object.freeze([1, 1, 1, 1, 2, 2, 2, 2, 2, 3])
     }
   ]);

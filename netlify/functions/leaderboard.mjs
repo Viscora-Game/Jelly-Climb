@@ -32,7 +32,7 @@ export default async (req) => {
     return jsonResponse({ ok: false, error: 'Method Not Allowed' }, 405);
   } catch (err) {
     console.error('[netlify/api/leaderboard] Error:', err);
-    return jsonResponse({ ok: false, error: err.message || 'Internal Server Error' }, 500);
+    return jsonResponse({ ok: false, error: err.message || 'Internal Server Error' }, err.statusCode || 500);
   }
 };
 

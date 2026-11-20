@@ -39,13 +39,17 @@ export function jsonResponse(payload, status = 200) {
 export async function parseRequestJson(req) {
   const raw = await req.text();
   if (Buffer.byteLength(raw, 'utf8') > MAX_JSON_BODY_BYTES) {
-    throw new Error('Request body too large');
+    const err = new Error('Request body too large');
+    err.statusCode = 413;
+    throw err;
   }
   if (!raw) return {};
   try {
     return JSON.parse(raw);
   } catch (_) {
-    throw new Error('Invalid JSON payload');
+    const err = new Error('Invalid JSON payload');
+    err.statusCode = 400;
+    throw err;
   }
 }
 
