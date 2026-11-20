@@ -213,8 +213,8 @@
       cGrad.addColorStop(1, '#9b1126');
 
       ctx.fillStyle = cGrad;
-      ctx.strokeStyle = '#4f0815';
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = '#1b1136';
+      ctx.lineWidth = 2.0;
       ctx.lineJoin = 'round';
       ctx.beginPath();
       ctx.moveTo(-r * 0.72, -3);
@@ -710,8 +710,9 @@
       grad.addColorStop(1, '#f39c12');
 
       ctx.fillStyle = grad;
-      ctx.strokeStyle = '#a86407';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#1b1136';
+      ctx.lineWidth = 1.9;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
       ctx.moveTo(-10.5, 0);
       ctx.lineTo(-12, -10.5);
@@ -884,6 +885,50 @@
     }
   }
 
+  const CARD_ICON_FIT = Object.freeze({
+    // Head items calibrated for a 22px display medallion when passed base r=14.5
+    leaf: { rScale: 1, scale: 1.24, ox: -1.4, oy: 19.0 },
+    headband: { rScale: 0.78, scale: 0.92, ox: 6.2, oy: 5.0 },
+    cap: { rScale: 1, scale: 1.02, ox: -3.2, oy: 16.4 },
+    beanie: { rScale: 1, scale: 1.04, ox: 0, oy: 19.2 },
+    wizard: { rScale: 1, scale: 0.96, ox: 0, oy: 18.5 },
+    crown: { rScale: 1, scale: 1.15, ox: 0, oy: 19.2 },
+    halo: { rScale: 1, scale: 1.06, ox: 0, oy: 22.0 },
+    horns: { rScale: 1, scale: 1.08, ox: 0, oy: 15.2 },
+
+    // Face / eyewear items
+    glasses: { rScale: 1, scale: 1.24, ox: 0, oy: 0.8 },
+    roundglasses: { rScale: 1, scale: 1.32, ox: 0, oy: -0.2 },
+    heartglasses: { rScale: 1, scale: 1.3, ox: 0, oy: 0.1 },
+    shades: { rScale: 1, scale: 1.04, ox: 0, oy: 1.6 },
+    goggles: { rScale: 0.9, scale: 1.2, ox: 0, oy: 0.3 },
+    monocle: { rScale: 1, scale: 1.22, ox: -6.2, oy: -3.8 },
+    visor: { rScale: 1, scale: 1.04, ox: 0, oy: 1.0 },
+
+    // Back items
+    cape: { rScale: 0.85, scale: 0.92, ox: 0, oy: -12.0 },
+    jetpack: { rScale: 0.46, scale: 1.14, ox: 0, oy: -4.2 },
+    wings: { rScale: 0.42, scale: 0.78, ox: 0, oy: 4.5 }
+  });
+
+  /**
+   * Renders a large, centered standalone showcase icon of an accessory for Wardrobe cards
+   * so every item fits cleanly inside its display medallion at a glance.
+   */
+  function drawStandaloneCardIcon(ctx, acc, cx, cy, r = 14.5, time = 0) {
+    if (!acc || acc.id === 'none') return;
+    const fit = CARD_ICON_FIT[acc.id] || { rScale: 1, scale: 1.15, ox: 0, oy: 0 };
+    const ratio = r / 14.5;
+    const cardR = r * fit.rScale;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(fit.scale, fit.scale);
+    ctx.translate(fit.ox * ratio, fit.oy * ratio);
+    drawSingleAccessory(ctx, acc.id, cardR, 0, 0, time, 0.08);
+    ctx.restore();
+  }
+
   JellyGame.Accessories = {
     LIST: ACCESSORIES,
     BY_SLOT,
@@ -892,6 +937,7 @@
     normalizeSlots,
     serializeSlots,
     drawAccessory,
+    drawStandaloneCardIcon,
     getMilestoneProgress,
     getById
   };

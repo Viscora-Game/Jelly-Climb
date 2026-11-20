@@ -157,20 +157,21 @@
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const dir = this.side < 0 ? 1 : -1;
       const top = sy - this.height * 0.5;
+      const ink = C.COLORS.ink || '#1b1136';
 
       ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
 
-      // Metal mounting strip along the wall edge
+      // Riveted cartoon iron mounting plate along the wall edge
       ctx.fillStyle = C.COLORS.spikeBase;
-      const mountW = 7;
-      ctx.fillRect(
-        this.side < 0 ? wallEdgeX - 2 : wallEdgeX - mountW + 2,
-        top - 2,
-        mountW,
-        this.height + 4
-      );
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      const mountW = 8;
+      const mx = this.side < 0 ? wallEdgeX - 2 : wallEdgeX - mountW + 2;
+      fillStrokeRoundRect(ctx, mx, top - 2, mountW, this.height + 4, 3);
 
-      // Individual sharp spikes
+      // Individual inked cartoon spikes with slight organic curve & hazard tip
       const segH = this.height / this.spikeCount;
       for (let i = 0; i < this.spikeCount; i++) {
         const y0 = top + i * segH + 2;
@@ -197,14 +198,24 @@
         ctx.closePath();
         ctx.fill();
 
-        // Crisp danger tip highlight
+        // Crisp danger crimson tip
         ctx.fillStyle = C.COLORS.spikeTip;
         ctx.beginPath();
-        ctx.moveTo(tipX - dir * 7, ym - 3.5);
+        ctx.moveTo(tipX - dir * 8, ym - 4.2);
         ctx.lineTo(tipX, ym);
-        ctx.lineTo(tipX - dir * 7, ym + 3.5);
+        ctx.lineTo(tipX - dir * 8, ym + 4.2);
         ctx.closePath();
         ctx.fill();
+
+        // Bold cartoon ink outline around entire tooth
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(baseX, y0);
+        ctx.lineTo(tipX, ym);
+        ctx.lineTo(baseX, y1);
+        ctx.closePath();
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -283,17 +294,20 @@
       const dir = this.side < 0 ? 1 : -1;
       const top = sy - this.height * 0.5;
       const t = this.animTime;
+      const ink = C.COLORS.ink || '#1b1136';
 
       ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
 
-      // Warm glow cast onto nearby air
+      // Subtle warm glow cast onto nearby air
       const glowGrad = ctx.createLinearGradient(
         wallEdgeX,
         sy,
         wallEdgeX + dir * (this.reach + 16),
         sy
       );
-      glowGrad.addColorStop(0, 'rgba(255, 90, 40, 0.35)');
+      glowGrad.addColorStop(0, 'rgba(255, 110, 48, 0.28)');
       glowGrad.addColorStop(1, 'rgba(255, 90, 40, 0)');
       ctx.fillStyle = glowGrad;
       ctx.fillRect(
@@ -303,11 +317,13 @@
         this.height + 16
       );
 
-      // Wall burner nozzle plate
+      // Chunky inked brass/iron burner nozzle plate
       ctx.fillStyle = C.COLORS.flameMount;
-      ctx.fillRect(wallEdgeX - 4, top - 2, 8, this.height + 4);
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      fillStrokeRoundRect(ctx, wallEdgeX - 4.5, top - 2, 9, this.height + 4, 3);
 
-      // Draw 4 overlapping animated flame tongues
+      // Draw 4 overlapping comic-inked cartoon flame tongues
       const tongues = 4;
       const segH = this.height / tongues;
       for (let i = 0; i < tongues; i++) {
@@ -318,8 +334,10 @@
         const halfBase = segH * 0.62;
         const tipShiftY = wave2 * 3.5 - 2.5;
 
-        // Outer red-orange tongue
+        // Outer inked crimson-orange flame
         ctx.fillStyle = C.COLORS.flameOuter;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.1;
         ctx.beginPath();
         ctx.moveTo(wallEdgeX, cy - halfBase);
         ctx.quadraticCurveTo(
@@ -336,6 +354,7 @@
         );
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
 
         // Mid vivid amber tongue
         ctx.fillStyle = C.COLORS.flameMid;
@@ -356,26 +375,29 @@
         ctx.closePath();
         ctx.fill();
 
-        // Bright white-gold core
+        // Bright cream-gold inner core
         ctx.fillStyle = C.COLORS.flameCore;
         ctx.beginPath();
         ctx.moveTo(wallEdgeX, cy - halfBase * 0.34);
-        ctx.lineTo(wallEdgeX + dir * len * 0.4, cy + tipShiftY * 0.35);
+        ctx.lineTo(wallEdgeX + dir * len * 0.42, cy + tipShiftY * 0.35);
         ctx.lineTo(wallEdgeX, cy + halfBase * 0.34);
         ctx.closePath();
         ctx.fill();
       }
 
-      // Floating tiny embers
+      // Inked cartoon ember puffs
       for (let i = 0; i < 3; i++) {
         const phase = (t * 1.4 + i * 0.37) % 1;
         const ex = wallEdgeX + dir * (8 + phase * (this.reach + 6));
         const ey = sy + (i - 1) * 18 - phase * 14 + Math.sin(t * 8 + i) * 3;
         ctx.globalAlpha = 1 - phase;
         ctx.fillStyle = C.COLORS.flameCore;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.arc(ex, ey, 1.8 * (1 - phase * 0.5), 0, Math.PI * 2);
+        ctx.arc(ex, ey, 2.3 * (1 - phase * 0.4), 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -469,13 +491,16 @@
 
       const tailX = this.x - this.dir * this.length;
       const headX = this.x;
+      const ink = C.COLORS.ink || '#1b1136';
 
       ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
 
-      // Faint speed streak
+      // Comic speed streak
       const streakGrad = ctx.createLinearGradient(tailX - this.dir * 26, sy, headX, sy);
-      streakGrad.addColorStop(0, 'rgba(255, 94, 87, 0)');
-      streakGrad.addColorStop(1, 'rgba(255, 220, 140, 0.5)');
+      streakGrad.addColorStop(0, 'rgba(255, 160, 64, 0)');
+      streakGrad.addColorStop(1, 'rgba(255, 232, 140, 0.65)');
       ctx.strokeStyle = streakGrad;
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -483,34 +508,44 @@
       ctx.lineTo(tailX, sy);
       ctx.stroke();
 
-      // Arrow shaft
-      ctx.strokeStyle = C.COLORS.arrowShaft;
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
+      // Thick-inked arrow shaft
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 5.6;
       ctx.beginPath();
       ctx.moveTo(tailX, sy);
       ctx.lineTo(headX - this.dir * 6, sy);
       ctx.stroke();
 
-      // Fletching feathers
-      ctx.strokeStyle = C.COLORS.arrowTip;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(tailX + this.dir * 4, sy);
-      ctx.lineTo(tailX - this.dir * 3, sy - 4.5);
-      ctx.moveTo(tailX + this.dir * 4, sy);
-      ctx.lineTo(tailX - this.dir * 3, sy + 4.5);
+      ctx.strokeStyle = C.COLORS.arrowShaft;
+      ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Sharp crimson tip
-      ctx.fillStyle = C.COLORS.arrowTip;
+      // Fletching feathers
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 4.2;
       ctx.beginPath();
-      ctx.moveTo(headX + this.dir * 3, sy);
-      ctx.lineTo(headX - this.dir * 8, sy - 5.5);
+      ctx.moveTo(tailX + this.dir * 4, sy);
+      ctx.lineTo(tailX - this.dir * 3.5, sy - 5);
+      ctx.moveTo(tailX + this.dir * 4, sy);
+      ctx.lineTo(tailX - this.dir * 3.5, sy + 5);
+      ctx.stroke();
+
+      ctx.strokeStyle = C.COLORS.arrowTip;
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+
+      // Bold crimson cartoon arrowhead
+      ctx.fillStyle = C.COLORS.arrowTip;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(headX + this.dir * 3.5, sy);
+      ctx.lineTo(headX - this.dir * 8.5, sy - 6);
       ctx.lineTo(headX - this.dir * 6, sy);
-      ctx.lineTo(headX - this.dir * 8, sy + 5.5);
+      ctx.lineTo(headX - this.dir * 8.5, sy + 6);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
 
       ctx.restore();
     }
@@ -614,22 +649,23 @@
         ctx.restore();
       }
 
-      const boxW = 18;
-      const boxH = 30;
-      const boxX = this.side < 0 ? wallEdgeX - 10 : wallEdgeX - 8;
+      const boxW = 20;
+      const boxH = 32;
+      const boxX = this.side < 0 ? wallEdgeX - 11 : wallEdgeX - 9;
       const boxY = sy - boxH * 0.5;
+      const ink = C.COLORS.ink || '#1b1136';
 
       ctx.fillStyle = C.COLORS.turretBody;
-      ctx.strokeStyle = isWarning ? C.COLORS.turretWarning : C.COLORS.turretBorder;
-      ctx.lineWidth = 2;
-      fillStrokeRoundRect(ctx, boxX, boxY, boxW, boxH, 5);
+      ctx.strokeStyle = isWarning ? '#ff5e57' : ink;
+      ctx.lineWidth = 2.5;
+      fillStrokeRoundRect(ctx, boxX, boxY, boxW, boxH, 6);
 
-      const ledColor = isWarning ? '#ff4757' : '#4ecdc4';
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      const ledColor = isWarning ? '#ff4757' : '#36f5b0';
+      ctx.fillStyle = '#140c29';
       ctx.fillRect(
         this.side < 0 ? wallEdgeX - 6 : wallEdgeX + 2,
         sy - 9,
-        4,
+        4.5,
         18
       );
       ctx.fillStyle = ledColor;
@@ -637,7 +673,7 @@
       ctx.fillRect(
         this.side < 0 ? wallEdgeX - 6 : wallEdgeX + 2,
         sy + 9 - fillH,
-        4,
+        4.5,
         fillH
       );
 
@@ -645,12 +681,15 @@
         const pullBack = Math.sin(warnProgress * Math.PI * 0.5) * 4;
         const tipX = wallEdgeX + dir * (11 - pullBack);
         ctx.fillStyle = C.COLORS.arrowTip;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(tipX + dir * 5, sy);
-        ctx.lineTo(tipX - dir * 4, sy - 4);
-        ctx.lineTo(tipX - dir * 4, sy + 4);
+        ctx.moveTo(tipX + dir * 5.5, sy);
+        ctx.lineTo(tipX - dir * 4.5, sy - 4.5);
+        ctx.lineTo(tipX - dir * 4.5, sy + 4.5);
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -693,18 +732,20 @@
       grad.addColorStop(0, '#b8f2ff');
       grad.addColorStop(0.5, '#48dbfb');
       grad.addColorStop(1, '#0abde3');
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.fillStyle = grad;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.4;
-      fillStrokeRoundRect(ctx, x, top, 10, this.height, 4);
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
+      fillStrokeRoundRect(ctx, x, top, 11, this.height, 5);
 
-      // Diagonal frost sheen lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.lineWidth = 1.5;
+      // Glossy cyan inner edge highlight + diagonal cartoon ice gleams
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
       ctx.beginPath();
       for (let i = 14; i < this.height - 10; i += 22) {
-        ctx.moveTo(x + 2, top + i);
-        ctx.lineTo(x + 8, top + i - 7);
+        ctx.moveTo(x + 2.5, top + i);
+        ctx.lineTo(x + 8.5, top + i - 7);
       }
       ctx.stroke();
       ctx.restore();
@@ -763,20 +804,25 @@
       const flexX = wallEdgeX + dir * Math.max(5, 11 + wave * 1.1);
       const hitY = sy + this.hitRelY * 0.7;
 
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
-      // Base mount
-      ctx.fillStyle = '#2d1b4e';
-      ctx.fillRect(wallEdgeX - 4, top, 8, this.height);
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      // Inked base mount
+      ctx.fillStyle = '#3c2263';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      fillStrokeRoundRect(ctx, wallEdgeX - 4.5, top, 9, this.height, 3);
 
-      // Dynamic curved trampoline membrane flexing cleanly at hit point
+      // Dynamic curved cartoon trampoline cushion flexing cleanly at hit point
       const xBase = wallEdgeX;
-      const xFace = wallEdgeX + dir * Math.max(6, padThick);
+      const xFace = wallEdgeX + dir * Math.max(7, padThick + 1);
       const grad = ctx.createLinearGradient(xBase, top, xFace, top);
-      grad.addColorStop(0, '#be2edd');
-      grad.addColorStop(1, '#ff79c6');
+      grad.addColorStop(0, '#c236e0');
+      grad.addColorStop(1, '#ff85d0');
       ctx.fillStyle = grad;
-      ctx.strokeStyle = '#ffd6ff';
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
       ctx.moveTo(xBase, top + 3);
       ctx.lineTo(xFace, top + 6);
@@ -786,16 +832,25 @@
       ctx.fill();
       ctx.stroke();
 
-      // Outward chevron arrows
+      // Glossy cushion highlight strip
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
       ctx.lineWidth = 2;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      const chevX = wallEdgeX + dir * (padThick + 7);
       ctx.beginPath();
-      ctx.moveTo(chevX - dir * 4, sy - 6);
+      ctx.moveTo(xFace - dir * 3, top + 12);
+      ctx.quadraticCurveTo(flexX - dir * 3, hitY, xFace - dir * 3, bot - 12);
+      ctx.stroke();
+
+      // Thick-inked outward chevron arrow
+      const chevX = wallEdgeX + dir * (padThick + 8);
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 4.6;
+      ctx.beginPath();
+      ctx.moveTo(chevX - dir * 4.5, sy - 6.5);
       ctx.lineTo(chevX, sy);
-      ctx.lineTo(chevX - dir * 4, sy + 6);
+      ctx.lineTo(chevX - dir * 4.5, sy + 6.5);
+      ctx.stroke();
+      ctx.strokeStyle = '#fff5d6';
+      ctx.lineWidth = 2.2;
       ctx.stroke();
       ctx.restore();
     }
@@ -856,14 +911,17 @@
       const shake = ratio > 0.15 ? (Math.random() - 0.5) * 3 * ratio : 0;
       const x = (this.side < 0 ? wallEdgeX - 8 : wallEdgeX - 2) + shake;
 
-      ctx.fillStyle = '#5c4028';
-      ctx.strokeStyle = ratio > 0.2 ? '#ffb703' : '#8c6239';
-      ctx.lineWidth = 1.5;
-      fillStrokeRoundRect(ctx, x, top, 10, this.height, 3);
+      const ink = C.COLORS.ink || '#1b1136';
+      ctx.fillStyle = '#8c6239';
+      ctx.strokeStyle = ratio > 0.2 ? '#ffbe3b' : ink;
+      ctx.lineWidth = 2.3;
+      fillStrokeRoundRect(ctx, x, top, 11, this.height, 4);
 
-      // Jagged crack lines
-      ctx.strokeStyle = ratio > 0.2 ? '#ffd166' : '#26170c';
-      ctx.lineWidth = 1.5 + ratio * 1.2;
+      // Jagged comic crack lines
+      ctx.strokeStyle = ratio > 0.2 ? '#ffe875' : ink;
+      ctx.lineWidth = 1.8 + ratio * 1.3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.beginPath();
       ctx.moveTo(x + 2, top + 16);
       ctx.lineTo(x + 7, top + 28);
@@ -974,9 +1032,11 @@
       ctx.fill();
 
       const teeth = 8;
-      ctx.fillStyle = '#e8eef7';
-      ctx.strokeStyle = '#18101c';
-      ctx.lineWidth = 1.4;
+      const ink = C.COLORS.ink || '#1b1136';
+      ctx.fillStyle = '#f2edf7';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
       for (let i = 0; i < teeth * 2; i++) {
         const a = (i / (teeth * 2)) * Math.PI * 2;
@@ -990,13 +1050,18 @@
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#ff4757';
-      ctx.strokeStyle = '#ffd166';
-      ctx.lineWidth = 1.6;
+      ctx.fillStyle = '#ff4d6d';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.restore();
     }
@@ -1157,18 +1222,22 @@
         ctx.fillRect(leftX, sy - 2, rightX - leftX, 4);
       }
 
-      // Left & right emitter caps
+      // Left & right inked cartoon emitter caps
+      const ink = C.COLORS.ink || '#1b1136';
       for (const side of [-1, 1]) {
-        const mx = side < 0 ? leftX - 6 : rightX - 4;
-        ctx.fillStyle = '#25324c';
-        ctx.strokeStyle = st === 'active' ? '#ff477e' : st === 'warning' ? '#ffa502' : '#4c6288';
-        ctx.lineWidth = 1.8;
-        fillStrokeRoundRect(ctx, mx, sy - 11, 10, 22, 4);
+        const mx = side < 0 ? leftX - 7 : rightX - 5;
+        ctx.fillStyle = '#3f2e66';
+        ctx.strokeStyle = st === 'active' ? '#ff477e' : st === 'warning' ? '#ffa502' : ink;
+        ctx.lineWidth = 2.4;
+        fillStrokeRoundRect(ctx, mx, sy - 12, 12, 24, 5);
 
-        ctx.fillStyle = st === 'active' ? '#ff477e' : st === 'warning' ? '#ffd166' : '#48dbfb';
+        ctx.fillStyle = st === 'active' ? '#ff477e' : st === 'warning' ? '#ffd166' : '#6ceeff';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(side < 0 ? leftX + 2 : rightX - 2, sy, 3.2, 0, Math.PI * 2);
+        ctx.arc(side < 0 ? leftX + 2 : rightX - 2, sy, 3.6, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
     }
@@ -1232,27 +1301,41 @@
       ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#74f2ff';
-      ctx.lineWidth = 2.2;
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       for (let i = 0; i < 2; i++) {
         const ang = this.spin + i * Math.PI;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.arc(0, 0, this.radius * 0.76, ang, ang + Math.PI * 0.68);
         ctx.stroke();
+
+        ctx.strokeStyle = '#74f2ff';
+        ctx.lineWidth = 2.6;
+        ctx.stroke();
       }
 
-      // Upward wind chevron inside ring
+      // Inked upward cartoon wind chevrons inside ring
       const bob = Math.sin(this.spin * 1.5) * 3;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.moveTo(-8, 4 + bob);
-      ctx.lineTo(0, -5 + bob);
-      ctx.lineTo(8, 4 + bob);
-      ctx.moveTo(-6, 10 + bob);
-      ctx.lineTo(0, 3 + bob);
-      ctx.lineTo(6, 10 + bob);
+      const drawChevs = () => {
+        ctx.beginPath();
+        ctx.moveTo(-8, 4 + bob);
+        ctx.lineTo(0, -5 + bob);
+        ctx.lineTo(8, 4 + bob);
+        ctx.moveTo(-6, 10 + bob);
+        ctx.lineTo(0, 3 + bob);
+        ctx.lineTo(6, 10 + bob);
+      };
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 5;
+      drawChevs();
+      ctx.stroke();
+
+      ctx.strokeStyle = '#fff9ea';
+      ctx.lineWidth = 2.5;
+      drawChevs();
       ctx.stroke();
 
       ctx.restore();

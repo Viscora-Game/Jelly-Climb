@@ -150,7 +150,7 @@
       UI: '"Plus Jakarta Sans", "Fredoka", -apple-system, BlinkMacSystemFont, sans-serif'
     }),
 
-    // Altitude-driven visual & atmosphere themes (colors, weather, wall grip & gravity)
+    // Altitude-driven cartoon biome themes (colors, weather, wall grip & gravity)
     THEMES: Object.freeze([
       {
         minMeters: 0,
@@ -160,16 +160,16 @@
         weather: 'spores',
         wallSlip: 0,
         gravityScale: 1.0,
-        bgTop: 0x0b1020,
-        bgBottom: 0x17263f,
-        parallaxFar: 0x111a2e,
-        parallaxNear: 0x152238,
-        rayColor: 0x36f5b0,
-        wallBase: 0x1e2b42,
-        wallShadow: 0x152033,
-        wallInnerEdge: 0x32486e,
-        wallHighlight: 0x4d6d9e,
-        moteColor: 0xa6c8ff
+        bgTop: 0x162b63,
+        bgBottom: 0x285194,
+        parallaxFar: 0x1e387a,
+        parallaxNear: 0x25458f,
+        rayColor: 0xfff3a8,
+        wallBase: 0x62436e,
+        wallShadow: 0x442b52,
+        wallInnerEdge: 0x8d6799,
+        wallHighlight: 0x9ce830,
+        moteColor: 0xfff0a8
       },
       {
         minMeters: 45,
@@ -179,16 +179,16 @@
         weather: 'spores',
         wallSlip: 0,
         gravityScale: 1.0,
-        bgTop: 0x180f2c,
-        bgBottom: 0x2b1a45,
-        parallaxFar: 0x201438,
-        parallaxNear: 0x261842,
-        rayColor: 0xb388ff,
-        wallBase: 0x291c40,
-        wallShadow: 0x1c122e,
-        wallInnerEdge: 0x523980,
-        wallHighlight: 0x9b6dff,
-        moteColor: 0xd8b8ff
+        bgTop: 0x281754,
+        bgBottom: 0x4b2980,
+        parallaxFar: 0x351e6b,
+        parallaxNear: 0x42267a,
+        rayColor: 0xffd185,
+        wallBase: 0x573a7a,
+        wallShadow: 0x3c2559,
+        wallInnerEdge: 0x855eb0,
+        wallHighlight: 0xc29eff,
+        moteColor: 0xffe6a6
       },
       {
         minMeters: 120,
@@ -198,16 +198,16 @@
         weather: 'snow',
         wallSlip: 18,
         gravityScale: 1.0,
-        bgTop: 0x081e2b,
-        bgBottom: 0x103b4a,
-        parallaxFar: 0x0c2838,
-        parallaxNear: 0x113344,
-        rayColor: 0x56f5e3,
-        wallBase: 0x173847,
-        wallShadow: 0x0f2630,
-        wallInnerEdge: 0x2a667a,
-        wallHighlight: 0x74f2ff,
-        moteColor: 0xb8fff8
+        bgTop: 0x113e6b,
+        bgBottom: 0x216e8f,
+        parallaxFar: 0x16517a,
+        parallaxNear: 0x1d628c,
+        rayColor: 0xc4f8ff,
+        wallBase: 0x2b6e91,
+        wallShadow: 0x1a4b69,
+        wallInnerEdge: 0x54b1d4,
+        wallHighlight: 0xbcf7ff,
+        moteColor: 0xffffff
       },
       {
         minMeters: 250,
@@ -217,16 +217,16 @@
         weather: 'embers',
         wallSlip: 0,
         gravityScale: 1.0,
-        bgTop: 0x1a090d,
-        bgBottom: 0x381512,
-        parallaxFar: 0x240e12,
-        parallaxNear: 0x301214,
-        rayColor: 0xff793f,
-        wallBase: 0x2b1518,
-        wallShadow: 0x190b0d,
-        wallInnerEdge: 0x732920,
-        wallHighlight: 0xff9f43,
-        moteColor: 0xffbe76
+        bgTop: 0x33121e,
+        bgBottom: 0x611e22,
+        parallaxFar: 0x451722,
+        parallaxNear: 0x541c24,
+        rayColor: 0xffbe55,
+        wallBase: 0x4f2429,
+        wallShadow: 0x331418,
+        wallInnerEdge: 0x8f3c33,
+        wallHighlight: 0xffa447,
+        moteColor: 0xffdb78
       },
       {
         minMeters: 500,
@@ -236,16 +236,16 @@
         weather: 'rain',
         wallSlip: 24,
         gravityScale: 1.0,
-        bgTop: 0x091628,
-        bgBottom: 0x152d4a,
-        parallaxFar: 0x0e2036,
-        parallaxNear: 0x132b45,
-        rayColor: 0x48dbfb,
-        wallBase: 0x182b42,
-        wallShadow: 0x0d1929,
-        wallInnerEdge: 0x2d5e8a,
-        wallHighlight: 0x48dbfb,
-        moteColor: 0x99ecff
+        bgTop: 0x132752,
+        bgBottom: 0x23477d,
+        parallaxFar: 0x183466,
+        parallaxNear: 0x204178,
+        rayColor: 0x8ae9ff,
+        wallBase: 0x2d486e,
+        wallShadow: 0x1d3150,
+        wallInnerEdge: 0x4e79a8,
+        wallHighlight: 0x7de6ff,
+        moteColor: 0xd4f6ff
       },
       {
         minMeters: 1000,
@@ -255,54 +255,55 @@
         weather: 'stars',
         wallSlip: 14,
         gravityScale: 0.92,
-        bgTop: 0x060612,
-        bgBottom: 0x140d33,
-        parallaxFar: 0x0b0920,
-        parallaxNear: 0x120e30,
-        rayColor: 0xa78bfa,
-        wallBase: 0x181536,
-        wallShadow: 0x0d0b21,
-        wallInnerEdge: 0x453b8a,
-        wallHighlight: 0xc56cf0,
-        moteColor: 0xffffff
+        bgTop: 0x130b36,
+        bgBottom: 0x2a1863,
+        parallaxFar: 0x1d114c,
+        parallaxNear: 0x26175e,
+        rayColor: 0xf0a6ff,
+        wallBase: 0x31236b,
+        wallShadow: 0x1f154a,
+        wallInnerEdge: 0x644eb8,
+        wallHighlight: 0xf4a2ff,
+        moteColor: 0xfff8d6
       }
     ]),
 
-    // Core entity & UI colors
+    // Core cartoon entity & UI colors
     COLORS: Object.freeze({
-      floorSurface: '#243552',
-      floorAccent: '#38f2af',
+      ink: '#1b1136',
+      floorSurface: '#62436e',
+      floorAccent: '#8ce827',
 
       jellyPrimary: '#36f5b0',
       jellySecondary: '#07b987',
-      jellyRim: '#047c5d',
-      jellyHighlight: 'rgba(255, 255, 255, 0.65)',
-      jellyEye: '#0e1b2a',
+      jellyRim: '#1b1136',
+      jellyHighlight: 'rgba(255, 255, 255, 0.85)',
+      jellyEye: '#1b1136',
 
-      aimLine: 'rgba(255, 255, 255, 0.85)',
-      aimLineGlow: 'rgba(54, 245, 176, 0.45)',
-      aimCancel: 'rgba(255, 110, 120, 0.55)',
+      aimLine: '#fff8e6',
+      aimLineGlow: 'rgba(54, 245, 176, 0.5)',
+      aimCancel: '#ff5e73',
 
-      spikeBase: '#2a3447',
-      spikeFill: '#e8eef7',
+      spikeBase: '#48345c',
+      spikeFill: '#f5f0e8',
       spikeTip: '#ff4d6d',
-      spikeShade: '#9aa8bf',
+      spikeShade: '#b7a9c9',
 
-      flameMount: '#2b2430',
+      flameMount: '#422c4a',
       flameOuter: '#ff4d3d',
       flameMid: '#ff9b26',
-      flameCore: '#fff3a1',
+      flameCore: '#fff6a8',
 
-      turretBody: '#2b384f',
-      turretBorder: '#4c6288',
+      turretBody: '#48376b',
+      turretBorder: '#1b1136',
       turretWarning: '#ff5e57',
       arrowShaft: '#fff1d0',
       arrowTip: '#ff4757',
 
-      collectOuter: '#ffb703',
-      collectCore: '#fff3b0',
-      tempoGold: '#ffd166',
-      tempoCyan: '#36f5b0'
+      collectOuter: '#ff9f1c',
+      collectCore: '#fff9c4',
+      tempoGold: '#ffd147',
+      tempoCyan: '#4bf2b5'
     })
   });
 

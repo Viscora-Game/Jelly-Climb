@@ -90,97 +90,127 @@
   }
 
   /**
-   * Handcrafted geometric vector artwork for each Jelly Power emblem.
+   * Hand-inked cel-shaded cartoon artwork for each Jelly Power emblem.
    */
   function drawIcon(ctx, id, cx, cy, size, time = 0) {
     const def = getById(id);
     if (!def) return;
 
+    const ink = '#1b1136';
     ctx.save();
     ctx.translate(cx, cy);
     const pulse = 1 + Math.sin(time * 3.4) * 0.04;
     ctx.scale(pulse, pulse);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
 
     if (id === 'shield') {
-      // Faceted Cryo-Crystal Hexagon Shield
-      const r = size * 0.88;
-      ctx.beginPath();
-      ctx.moveTo(0, -r);
-      ctx.lineTo(r * 0.86, -r * 0.42);
-      ctx.lineTo(r * 0.72, r * 0.42);
-      ctx.lineTo(0, r * 0.96);
-      ctx.lineTo(-r * 0.72, r * 0.42);
-      ctx.lineTo(-r * 0.86, -r * 0.42);
-      ctx.closePath();
+      // Chunky inked cartoon crystal shield with bright top facet
+      const r = size * 0.92;
+      const traceShield = () => {
+        ctx.beginPath();
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r * 0.88, -r * 0.44);
+        ctx.lineTo(r * 0.74, r * 0.42);
+        ctx.lineTo(0, r * 0.98);
+        ctx.lineTo(-r * 0.74, r * 0.42);
+        ctx.lineTo(-r * 0.88, -r * 0.44);
+        ctx.closePath();
+      };
 
       const g = ctx.createLinearGradient(0, -r, 0, r);
-      g.addColorStop(0, '#9bffdb');
-      g.addColorStop(0.55, '#36f5b0');
-      g.addColorStop(1, '#0abde3');
+      g.addColorStop(0, '#a6ffe2');
+      g.addColorStop(0.55, '#2ae8a4');
+      g.addColorStop(1, '#099672');
       ctx.fillStyle = g;
-      ctx.strokeStyle = '#e6fffb';
-      ctx.lineWidth = 1.7;
+      traceShield();
       ctx.fill();
-      ctx.stroke();
 
-      // Inner crystal facet reflection
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
-      ctx.lineWidth = 1.4;
+      // Right-half cel shade
+      ctx.fillStyle = 'rgba(13, 82, 68, 0.28)';
       ctx.beginPath();
-      ctx.moveTo(-r * 0.38, -r * 0.34);
-      ctx.lineTo(0, -r * 0.56);
-      ctx.lineTo(r * 0.38, -r * 0.34);
-      ctx.moveTo(0, -r * 0.56);
-      ctx.lineTo(0, r * 0.52);
-      ctx.stroke();
-    } else if (id === 'airDash') {
-      // Twin Hydro-Jet Boost Chevrons + Droplet Pearls
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      const s = size * 0.82;
+      ctx.moveTo(0, -r * 0.94);
+      ctx.lineTo(r * 0.84, -r * 0.42);
+      ctx.lineTo(r * 0.7, r * 0.4);
+      ctx.lineTo(0, r * 0.92);
+      ctx.closePath();
+      ctx.fill();
 
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = Math.max(2, size * 0.17);
+      traceShield();
+      ctx.stroke();
+
+      // Specular gleam
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.3, -r * 0.28, r * 0.18, r * 0.34, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (id === 'airDash') {
+      // Bold cartoon twin rocket chevrons with thick ink outlines
+      const s = size * 0.86;
       for (let i = 0; i < 2; i++) {
-        const yOff = i === 0 ? -s * 0.28 : s * 0.34;
-        ctx.strokeStyle = i === 0 ? '#ffeaa7' : '#48dbfb';
-        ctx.lineWidth = i === 0 ? 3.2 : 2.6;
-        ctx.beginPath();
-        ctx.moveTo(-s * 0.78, yOff + s * 0.44);
-        ctx.lineTo(0, yOff - s * 0.28);
-        ctx.lineTo(s * 0.78, yOff + s * 0.44);
+        const yOff = i === 0 ? -s * 0.24 : s * 0.36;
+        const traceChev = () => {
+          ctx.beginPath();
+          ctx.moveTo(-s * 0.8, yOff + s * 0.44);
+          ctx.lineTo(0, yOff - s * 0.32);
+          ctx.lineTo(s * 0.8, yOff + s * 0.44);
+        };
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = i === 0 ? 7.2 : 6.2;
+        traceChev();
+        ctx.stroke();
+
+        ctx.strokeStyle = i === 0 ? '#ffe875' : '#48dbfb';
+        ctx.lineWidth = i === 0 ? 3.8 : 3.1;
+        traceChev();
         ctx.stroke();
       }
 
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(-s * 0.55, s * 0.74, 1.8, 0, Math.PI * 2);
-      ctx.arc(s * 0.55, s * 0.74, 1.8, 0, Math.PI * 2);
-      ctx.fill();
+      // Comic speed puff dots
+      for (const sx of [-s * 0.56, s * 0.56]) {
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(sx, s * 0.76, 2.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     } else if (id === 'chrono') {
-      // Chronos Rewind Arc Ring + Inner Hourglass
-      const r = size * 0.86;
-      ctx.strokeStyle = '#74f2ff';
-      ctx.lineWidth = 2.4;
-      ctx.lineCap = 'round';
+      // Inked cartoon rewind clock badge + hourglass
+      const r = size * 0.88;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 5.4;
       ctx.beginPath();
       ctx.arc(0, 0, r, -Math.PI * 0.85, Math.PI * 0.65);
       ctx.stroke();
 
-      // Reverse counter-clockwise arrowhead at top-left
+      ctx.strokeStyle = '#6ceeff';
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, -Math.PI * 0.85, Math.PI * 0.65);
+      ctx.stroke();
+
       const ax = Math.cos(-Math.PI * 0.85) * r;
       const ay = Math.sin(-Math.PI * 0.85) * r;
-      ctx.fillStyle = '#a78bfa';
+      ctx.fillStyle = '#c49eff';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(ax - 3.5, ay + 4.5);
-      ctx.lineTo(ax - 2.5, ay - 3.5);
-      ctx.lineTo(ax + 4.5, ay + 0.5);
+      ctx.moveTo(ax - 4.2, ay + 4.8);
+      ctx.lineTo(ax - 2.6, ay - 4.2);
+      ctx.lineTo(ax + 5.2, ay + 0.6);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
 
-      // Stylized crystal hourglass core
+      // Chunky golden hourglass inside
       const hg = r * 0.48;
-      ctx.fillStyle = 'rgba(167, 139, 250, 0.35)';
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#ffe875';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(-hg, -hg);
       ctx.lineTo(hg, -hg);
@@ -192,28 +222,32 @@
       ctx.fill();
       ctx.stroke();
     } else if (id === 'angel') {
-      // Symmetrical Bioluminescent Seraph Wings + Floating Halo
-      const s = size * 0.88;
-      ctx.fillStyle = '#fff5bd';
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 1.4;
+      // Bold cartoon angel wings + golden halo
+      const s = size * 0.9;
       for (const side of [-1, 1]) {
+        ctx.fillStyle = '#fff9df';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(side * s * 0.14, s * 0.1);
-        ctx.quadraticCurveTo(side * s * 0.96, -s * 0.56, side * s * 1.06, -s * 0.08);
-        ctx.quadraticCurveTo(side * s * 0.88, s * 0.25, side * s * 0.66, s * 0.34);
-        ctx.quadraticCurveTo(side * s * 0.72, s * 0.54, side * s * 0.38, s * 0.56);
-        ctx.quadraticCurveTo(side * s * 0.22, s * 0.42, side * s * 0.14, s * 0.1);
+        ctx.moveTo(side * s * 0.14, s * 0.12);
+        ctx.quadraticCurveTo(side * s * 0.98, -s * 0.58, side * s * 1.06, -s * 0.08);
+        ctx.quadraticCurveTo(side * s * 0.88, s * 0.26, side * s * 0.66, s * 0.36);
+        ctx.quadraticCurveTo(side * s * 0.72, s * 0.56, side * s * 0.38, s * 0.58);
+        ctx.quadraticCurveTo(side * s * 0.22, s * 0.42, side * s * 0.14, s * 0.12);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
       }
 
-      // Halo ellipse above wings
-      ctx.strokeStyle = '#ffd166';
-      ctx.lineWidth = 2.4;
+      // Chunky inked golden halo above wings
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 5.4;
       ctx.beginPath();
-      ctx.ellipse(0, -s * 0.52, s * 0.44, s * 0.16, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, -s * 0.52, s * 0.46, s * 0.18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#ffd147';
+      ctx.lineWidth = 2.8;
       ctx.stroke();
     }
 

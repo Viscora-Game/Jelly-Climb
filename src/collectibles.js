@@ -63,44 +63,60 @@
       if (!JellyGame.isScreenYVisible(sy, 40)) return;
 
       const pulse = 1 + Math.sin(this.phase * 1.6) * 0.08;
-      const r = 10.5 * pulse;
+      const r = 11 * pulse;
+      const ink = C.COLORS.ink || '#1b1136';
 
       ctx.save();
       ctx.translate(this.x, sy);
 
-      // Soft golden halo
-      const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, r * 1.9);
-      halo.addColorStop(0, 'rgba(255, 210, 80, 0.42)');
+      // Subtle warm golden comic sparkle ring
+      const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, r * 1.7);
+      halo.addColorStop(0, 'rgba(255, 224, 96, 0.35)');
       halo.addColorStop(1, 'rgba(255, 183, 3, 0)');
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(0, 0, r * 1.9, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
       ctx.fill();
 
-      // Faceted star-drop diamond shape
+      // Faceted cartoon star-drop crystal with cel-shaded split & thick comic ink outline
       ctx.rotate(Math.sin(this.phase * 0.7) * 0.14);
+      const traceGem = () => {
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.18);
+        ctx.lineTo(r * 0.92, 0);
+        ctx.lineTo(0, r * 1.18);
+        ctx.lineTo(-r * 0.92, 0);
+        ctx.closePath();
+      };
+
       const bodyGrad = ctx.createLinearGradient(0, -r, 0, r);
-      bodyGrad.addColorStop(0, C.COLORS.collectCore);
-      bodyGrad.addColorStop(0.55, '#ffd166');
-      bodyGrad.addColorStop(1, C.COLORS.collectOuter);
+      bodyGrad.addColorStop(0, '#fff9bd');
+      bodyGrad.addColorStop(0.5, '#ffd147');
+      bodyGrad.addColorStop(1, '#f08c00');
 
       ctx.fillStyle = bodyGrad;
-      ctx.strokeStyle = '#d97706';
-      ctx.lineWidth = 1.6;
+      traceGem();
+      ctx.fill();
+
+      // Right-half amber cel-shade
+      ctx.fillStyle = 'rgba(214, 90, 0, 0.34)';
       ctx.beginPath();
-      ctx.moveTo(0, -r * 1.15);
-      ctx.quadraticCurveTo(r * 0.95, -r * 0.15, r * 0.8, r * 0.32);
-      ctx.quadraticCurveTo(0, r * 1.12, 0, r * 1.05);
-      ctx.quadraticCurveTo(0, r * 1.12, -r * 0.8, r * 0.32);
-      ctx.quadraticCurveTo(-r * 0.95, -r * 0.15, 0, -r * 1.15);
+      ctx.moveTo(0, -r * 1.14);
+      ctx.lineTo(r * 0.88, 0);
+      ctx.lineTo(0, r * 1.14);
       ctx.closePath();
       ctx.fill();
+
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      traceGem();
       ctx.stroke();
 
-      // Crisp specular facet
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      // Crisp specular comic gleam
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
       ctx.beginPath();
-      ctx.ellipse(-r * 0.25, -r * 0.28, r * 0.22, r * 0.36, -0.35, 0, Math.PI * 2);
+      ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.2, r * 0.34, 0.32, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
@@ -163,42 +179,45 @@
 
       const pulse = 1 + Math.sin(this.phase * 1.8) * 0.07;
       const r = 13.5 * pulse;
+      const ink = C.COLORS.ink || '#1b1136';
 
       ctx.save();
       ctx.translate(this.x, sy);
 
-      // Iridescent aqua halo
-      const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, r * 1.9);
-      halo.addColorStop(0, 'rgba(72, 219, 251, 0.38)');
-      halo.addColorStop(1, 'rgba(72, 219, 251, 0)');
-      ctx.fillStyle = halo;
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 1.9, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Soap-bubble sphere
-      const bubGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
-      bubGrad.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
-      bubGrad.addColorStop(0.55, 'rgba(72, 219, 251, 0.35)');
-      bubGrad.addColorStop(1, 'rgba(162, 155, 254, 0.65)');
-      ctx.fillStyle = bubGrad;
-      ctx.strokeStyle = '#74f2ff';
-      ctx.lineWidth = 2;
+      // Cartoon soap-bubble sphere with crisp ink rim & bright crescent shine
+      ctx.fillStyle = 'rgba(116, 242, 255, 0.28)';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Mini shield crest inside bubble
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.strokeStyle = '#8ef5ff';
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(0, -5.5);
-      ctx.lineTo(5, -3);
-      ctx.lineTo(4, 2.5);
-      ctx.lineTo(0, 6);
-      ctx.lineTo(-4, 2.5);
-      ctx.lineTo(-5, -3);
+      ctx.arc(0, 0, r - 2.2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Bold comic shield crest inside bubble
+      ctx.fillStyle = '#6affc9';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -6.5);
+      ctx.lineTo(6, -3.5);
+      ctx.lineTo(5, 3);
+      ctx.lineTo(0, 7);
+      ctx.lineTo(-5, 3);
+      ctx.lineTo(-6, -3.5);
       ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.38, -r * 0.42, r * 0.24, r * 0.12, -0.6, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();

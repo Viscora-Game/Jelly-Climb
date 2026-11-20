@@ -3649,7 +3649,21 @@
         shakeY = (Math.random() - 0.5) * 2 * this.shakeMag;
       }
 
-      this._drawBackground(ctx, theme);
+      const Art = JellyGame.Art;
+      if (this.state === 'menu' && Art) {
+        Art.drawMenuVista(
+          ctx,
+          C.WIDTH,
+          C.HEIGHT,
+          this.padLeft,
+          this.padTop,
+          this.padRight,
+          this.padBottom,
+          this.hintTime
+        );
+      } else {
+        this._drawBackground(ctx, theme);
+      }
 
       ctx.save();
       ctx.translate(shakeX + this.camPunchX, shakeY + this.camPunchY);
@@ -3665,8 +3679,8 @@
         if (this.gameMode === 'tutorial') {
           this._drawTutorialWorldElements(ctx);
         }
+        this._drawWallsAndFloor(ctx, theme);
       }
-      this._drawWallsAndFloor(ctx, theme);
 
       // Surfaces, obstacles, collectibles & projectiles (active gameplay / death view only)
       if (this.state !== 'menu') {
@@ -3719,7 +3733,9 @@
         this._drawAngelReviveWings(ctx);
       }
 
-      this.player.draw(ctx, this.cameraY, this._boundCheckLanding);
+      if (this.state !== 'menu') {
+        this.player.draw(ctx, this.cameraY, this._boundCheckLanding);
+      }
       this._drawShockwaveRings(ctx);
       this.particles.draw(ctx, this.cameraY);
 
@@ -4029,31 +4045,28 @@
       const cardX = (C.WIDTH - cardW) * 0.5;
       const cardY = 66;
 
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       ctx.save();
-      // 3D shadow lip
-      ctx.fillStyle = 'rgba(5, 10, 20, 0.88)';
-      roundRectPath(ctx, cardX, cardY + 3.5, cardW, cardH, 18);
-      ctx.fill();
-
-      // Card body
-      const grad = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH);
-      grad.addColorStop(0, 'rgba(20, 36, 58, 0.95)');
-      grad.addColorStop(1, 'rgba(12, 22, 38, 0.95)');
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = 'rgba(54, 245, 176, 0.52)';
-      ctx.lineWidth = 1.8;
-      roundRectPath(ctx, cardX, cardY, cardW, cardH, 18);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonPanel(ctx, cardX, cardY, cardW, cardH, 18);
+      } else {
+        ctx.fillStyle = '#221848';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.6;
+        roundRectPath(ctx, cardX, cardY, cardW, cardH, 18);
+        ctx.fill();
+        ctx.stroke();
+      }
 
       // Left Circular Portrait Well featuring Our Talking Jelly Character!
       const portCx = cardX + 30;
-      const portCy = cardY + cardH * 0.5 + 2;
-      ctx.fillStyle = 'rgba(8, 15, 28, 0.8)';
-      ctx.strokeStyle = this.player.getColorPalette().primary;
-      ctx.lineWidth = 1.6;
+      const portCy = cardY + cardH * 0.5 + 1;
+      ctx.fillStyle = '#1b1138';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
-      ctx.arc(portCx, portCy, 21, 0, Math.PI * 2);
+      ctx.arc(portCx, portCy, 21.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
@@ -4063,7 +4076,7 @@
 
       // Animated talking mouth overlay on portrait jelly
       if (Math.sin(this.hintTime * 11) > 0) {
-        ctx.fillStyle = '#0e1b2a';
+        ctx.fillStyle = ink;
         ctx.beginPath();
         ctx.ellipse(portCx, portCy + 5.2 + talkBob, 2.6, 1.9, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -4075,14 +4088,14 @@
       for (let i = 0; i < 5; i++) {
         const dx = textLeftX + 4 + i * 10;
         const dy = cardY + 14;
-        ctx.fillStyle = i <= this.tutorialStepIdx ? '#36f5b0' : 'rgba(180, 205, 240, 0.25)';
+        ctx.fillStyle = i <= this.tutorialStepIdx ? '#6affc9' : 'rgba(255, 248, 235, 0.25)';
         ctx.beginPath();
-        ctx.arc(dx, dy, 3, 0, Math.PI * 2);
+        ctx.arc(dx, dy, 3.2, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // Step title
-      ctx.fillStyle = '#6effd2';
+      ctx.fillStyle = '#ffe875';
       ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -4091,32 +4104,36 @@
       // Skip button in top-right of coach card
       const skipW = 58;
       const skipH = 22;
-      const skipX = cardX + cardW - skipW - 7;
+      const skipX = cardX + cardW - skipW - 8;
       const skipY = cardY + 6;
       this.uiRects.tutSkipBtn = { x: skipX, y: skipY, w: skipW, h: skipH };
 
-      ctx.fillStyle = 'rgba(38, 58, 90, 0.92)';
-      ctx.strokeStyle = 'rgba(180, 210, 255, 0.3)';
-      ctx.lineWidth = 1;
-      roundRectPath(ctx, skipX, skipY, skipW, skipH, 11);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonButton(ctx, skipX, skipY, skipW, skipH, 'slate', 11);
+      } else {
+        ctx.fillStyle = '#4d3e88';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.8;
+        roundRectPath(ctx, skipX, skipY, skipW, skipH, 11);
+        ctx.fill();
+        ctx.stroke();
+      }
 
       ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { text: tr.tutSkip || 'SKIP', color: '#dce8ff', gap: 4 },
-          { icon: 'skip', r: 3.8, color: '#dce8ff' }
+          { text: tr.tutSkip || 'SKIP', color: '#fff8eb', gap: 4 },
+          { icon: 'skip', r: 3.8, color: '#fff8eb' }
         ],
         skipX + skipW * 0.5,
         skipY + skipH * 0.5 + 0.5,
         'center',
-        '#dce8ff'
+        '#fff8eb'
       );
 
       // Word-wrapped first-person character dialogue (up to 2 lines)
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#fff8eb';
       ctx.font = `600 11px ${C.FONTS.UI}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
@@ -4181,30 +4198,43 @@
       ctx.fillStyle = lavaGrad;
       ctx.fill();
 
-      // Incandescent bright top crust line
-      ctx.strokeStyle = '#fff3a1';
-      ctx.lineWidth = 3.2;
-      ctx.beginPath();
-      for (let i = 0; i <= segs; i++) {
-        const u = i / segs;
-        const wx = leftX + u * spanW;
-        const wave =
-          Math.sin(u * Math.PI * 4 + this.hintTime * 5.2) * 4.5 +
-          Math.cos(u * Math.PI * 7 - this.hintTime * 3.6) * 2.5;
-        if (i === 0) ctx.moveTo(wx, clampTopY + wave);
-        else ctx.lineTo(wx, clampTopY + wave);
-      }
+      // Thick comic ink + incandescent top crust line
+      const traceCrest = () => {
+        ctx.beginPath();
+        for (let i = 0; i <= segs; i++) {
+          const u = i / segs;
+          const wx = leftX + u * spanW;
+          const wave =
+            Math.sin(u * Math.PI * 4 + this.hintTime * 5.2) * 4.5 +
+            Math.cos(u * Math.PI * 7 - this.hintTime * 3.6) * 2.5;
+          if (i === 0) ctx.moveTo(wx, clampTopY + wave);
+          else ctx.lineTo(wx, clampTopY + wave);
+        }
+      };
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = C.COLORS.ink || '#1b1136';
+      ctx.lineWidth = 6.5;
+      traceCrest();
       ctx.stroke();
 
-      // Bubbling magma blisters along the surface
+      ctx.strokeStyle = '#fff5a8';
+      ctx.lineWidth = 3;
+      traceCrest();
+      ctx.stroke();
+
+      // Bubbling cartoon magma blisters along the surface
       for (let b = 0; b < 5; b++) {
         const bx = leftX + 35 + ((b * 79 + Math.sin(this.hintTime * 1.7 + b) * 18) % (spanW - 70));
-        const by = clampTopY + 14 + Math.sin(this.hintTime * 4 + b * 2.1) * 5;
-        const br = 3.5 + 2 * Math.abs(Math.sin(this.hintTime * 3.2 + b));
-        ctx.fillStyle = '#fff3a1';
+        const by = clampTopY + 16 + Math.sin(this.hintTime * 4 + b * 2.1) * 5;
+        const br = 3.8 + 2 * Math.abs(Math.sin(this.hintTime * 3.2 + b));
+        ctx.fillStyle = '#fff5a8';
+        ctx.strokeStyle = C.COLORS.ink || '#1b1136';
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.arc(bx, by, br, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -4229,20 +4259,25 @@
 
       // Bottom-center proximity pill
       const tr = this.t();
-      const pillW = 132;
-      const pillH = 26;
+      const ink = C.COLORS.ink || '#1b1136';
+      const pillW = 138;
+      const pillH = 28;
       const pillX = (C.WIDTH - pillW) * 0.5;
-      const pillY = C.HEIGHT - 38;
+      const pillY = C.HEIGHT - 40;
       const pulse = urgency > 0.4 ? Math.sin(this.hintTime * 10) * 1.5 : 0;
 
-      ctx.fillStyle = 'rgba(24, 8, 12, 0.86)';
-      ctx.strokeStyle = urgency > 0.45 ? '#ff4d3d' : '#ff9b26';
-      ctx.lineWidth = 1.6;
-      roundRectPath(ctx, pillX, pillY + pulse, pillW, pillH, 13);
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, pillX, pillY + 2.5 + pulse, pillW, pillH, 14);
+      ctx.fill();
+
+      ctx.fillStyle = urgency > 0.45 ? '#8c1d2e' : '#4a1d28';
+      ctx.strokeStyle = urgency > 0.45 ? '#ff5e57' : '#ffbe3b';
+      ctx.lineWidth = 2.2;
+      roundRectPath(ctx, pillX, pillY + pulse, pillW, pillH, 14);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = urgency > 0.45 ? '#ffd2cc' : '#ffeaa7';
+      ctx.fillStyle = '#fff5d6';
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -4261,11 +4296,12 @@
       if (sy < -40 || sy > C.HEIGHT + 40) return;
 
       const tr = this.t();
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
 
-      // Shimmering golden laser ribbon across shaft
-      ctx.strokeStyle = 'rgba(255, 209, 102, 0.78)';
-      ctx.lineWidth = 2.4;
+      // Golden dashed cartoon finish ribbon across shaft
+      ctx.strokeStyle = 'rgba(255, 224, 102, 0.85)';
+      ctx.lineWidth = 2.6;
       ctx.setLineDash([8, 6]);
       ctx.beginPath();
       ctx.moveTo(C.WALL_WIDTH, sy);
@@ -4273,13 +4309,13 @@
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Golden center banner plaque
-      const badgeW = 128;
-      const badgeH = 22;
-      ctx.fillStyle = '#1b1408';
-      ctx.strokeStyle = '#ffd166';
-      ctx.lineWidth = 1.6;
-      roundRectPath(ctx, C.WIDTH * 0.5 - badgeW * 0.5, sy - badgeH * 0.5, badgeW, badgeH, 11);
+      // Warm inked cream-gold center banner plaque
+      const badgeW = 132;
+      const badgeH = 24;
+      ctx.fillStyle = '#ffeaa7';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      roundRectPath(ctx, C.WIDTH * 0.5 - badgeW * 0.5, sy - badgeH * 0.5, badgeW, badgeH, 12);
       ctx.fill();
       ctx.stroke();
 
@@ -4287,19 +4323,20 @@
       this._drawUiRow(
         ctx,
         [
-          { icon: 'star', r: 4.2, color: '#ffd166', gap: 5 },
-          { text: `${tr.best || 'BEST'}: ${this.runStartBestMeters} m`, color: '#ffeaa7', gap: 5 },
-          { icon: 'star', r: 4.2, color: '#ffd166' }
+          { icon: 'star', r: 4.3, color: '#ff9f1c', gap: 5 },
+          { text: `${tr.best || 'BEST'}: ${this.runStartBestMeters} m`, color: ink, gap: 5 },
+          { icon: 'star', r: 4.3, color: '#ff9f1c' }
         ],
         C.WIDTH * 0.5,
         sy + 0.5,
         'center',
-        '#ffeaa7'
+        ink
       );
       ctx.restore();
     }
 
     _drawBackground(ctx, theme) {
+      const Art = JellyGame.Art;
       const viewTop = -this.padTop;
       const viewBottom = C.HEIGHT + this.padBottom;
       const grad = ctx.createLinearGradient(0, viewTop, 0, viewBottom);
@@ -4308,7 +4345,19 @@
       ctx.fillStyle = grad;
       this._fillViewportRect(ctx);
 
-      // Soft diagonal atmospheric light shafts (Alto's Odyssey / Badland inspired)
+      // Subtle painterly grain over sky/backdrop so flat gradients feel hand-painted
+      if (Art) {
+        Art.overlayGrain(
+          ctx,
+          -this.padLeft - 4,
+          viewTop - 4,
+          this.viewW + 8,
+          Math.max(C.HEIGHT, this.viewH) + 8,
+          0.036
+        );
+      }
+
+      // Warm diagonal cartoon light shafts
       const stormFlash =
         theme.weather === 'rain'
           ? Math.pow(Math.max(0, Math.sin(this.hintTime * 1.15) * Math.sin(this.hintTime * 3.7)), 14) * 0.085
@@ -4316,20 +4365,20 @@
       ctx.save();
       ctx.fillStyle = theme.rayColor;
       for (let i = 0; i < 3; i++) {
-        const pulse = 0.032 + 0.018 * Math.sin(this.hintTime * 0.7 + i * 2.1) + stormFlash;
+        const pulse = 0.042 + 0.02 * Math.sin(this.hintTime * 0.7 + i * 2.1) + stormFlash;
         ctx.globalAlpha = pulse;
         const rx = 55 + i * 115 + Math.sin(this.hintTime * 0.35 + i) * 14;
         ctx.beginPath();
         ctx.moveTo(rx, viewTop - 10);
-        ctx.lineTo(rx + 64, viewTop - 10);
-        ctx.lineTo(rx - 40, viewBottom + 10);
-        ctx.lineTo(rx - 104, viewBottom + 10);
+        ctx.lineTo(rx + 68, viewTop - 10);
+        ctx.lineTo(rx - 44, viewBottom + 10);
+        ctx.lineTo(rx - 112, viewBottom + 10);
         ctx.closePath();
         ctx.fill();
       }
       ctx.restore();
 
-      // Far parallax architectural silhouettes varying cleanly by biome (Monument Valley inspired)
+      // Far parallax cartoon silhouettes (arches, cliffs, glaciers, clouds, constellations)
       const farSpan = 340;
       const farOffset = ((-this.cameraY * 0.12) % farSpan + farSpan) % farSpan;
       const farStart = farOffset - farSpan * Math.ceil(this.padTop / farSpan + 1);
@@ -4338,101 +4387,99 @@
       for (let y = farStart; y < viewBottom + farSpan; y += farSpan) {
         ctx.fillStyle = theme.parallaxFar;
         if (bgStyle === 'frost') {
-          // Sharp jagged frost mountain spires & floating ice shards
+          // Layered cartoon ice spires & drifting frost cloud
           ctx.beginPath();
-          ctx.moveTo(C.WALL_WIDTH, y + 30);
-          ctx.lineTo(C.WALL_WIDTH + 86, y + 115);
-          ctx.lineTo(C.WALL_WIDTH + 48, y + 165);
+          ctx.moveTo(C.WALL_WIDTH, y + 35);
+          ctx.quadraticCurveTo(C.WALL_WIDTH + 60, y + 70, C.WALL_WIDTH + 90, y + 125);
+          ctx.lineTo(C.WALL_WIDTH + 54, y + 170);
           ctx.lineTo(C.WALL_WIDTH + 92, y + 235);
-          ctx.lineTo(C.WALL_WIDTH, y + 310);
+          ctx.lineTo(C.WALL_WIDTH, y + 305);
           ctx.closePath();
           ctx.fill();
 
           ctx.beginPath();
-          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 60);
+          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 65);
           ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 92, y + 145);
           ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 52, y + 195);
           ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 290);
           ctx.closePath();
           ctx.fill();
         } else if (bgStyle === 'foundry') {
-          // Ancient forge monolith pillars with molten vertical slit
-          ctx.fillRect(C.WALL_WIDTH + 24, y + 20, 44, 240);
-          ctx.fillRect(C.WIDTH - C.WALL_WIDTH - 68, y + 90, 44, 240);
-          ctx.fillStyle = 'rgba(255, 110, 45, 0.18)';
-          ctx.fillRect(C.WALL_WIDTH + 43, y + 44, 6, 180);
-          ctx.fillRect(C.WIDTH - C.WALL_WIDTH - 49, y + 114, 6, 180);
+          // Ancient rounded forge arches + warm molten slits
+          roundRectPath(ctx, C.WALL_WIDTH + 22, y + 22, 46, 240, 22);
+          ctx.fill();
+          roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 68, y + 88, 46, 240, 22);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255, 138, 60, 0.24)';
+          roundRectPath(ctx, C.WALL_WIDTH + 41, y + 46, 8, 175, 4);
+          ctx.fill();
+          roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 49, y + 112, 8, 175, 4);
+          ctx.fill();
         } else if (bgStyle === 'storm') {
-          // Sweeping wind layers & angled conductor towers
+          // Billowing cartoon storm cloud banks + spire bridge
           ctx.beginPath();
-          ctx.moveTo(C.WALL_WIDTH, y + 70);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 35);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 75);
-          ctx.lineTo(C.WALL_WIDTH, y + 110);
-          ctx.closePath();
+          ctx.arc(C.WIDTH * 0.34, y + 96, 36, 0, Math.PI * 2);
+          ctx.arc(C.WIDTH * 0.48, y + 86, 44, 0, Math.PI * 2);
+          ctx.arc(C.WIDTH * 0.64, y + 98, 34, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.fillRect(C.WIDTH * 0.5 - 10, y + 140, 20, 140);
+          roundRectPath(ctx, C.WIDTH * 0.5 - 12, y + 165, 24, 130, 10);
+          ctx.fill();
         } else if (bgStyle === 'cosmos') {
-          // Connected star constellation lines & astral octahedrons
+          // Star constellation & cartoon crescent moon / planetoid
           const sx1 = C.WIDTH * 0.34;
           const sy1 = y + 90;
           const sx2 = C.WIDTH * 0.66;
           const sy2 = y + 175;
           const sx3 = C.WIDTH * 0.48;
           const sy3 = y + 265;
-          ctx.strokeStyle = 'rgba(167, 139, 250, 0.22)';
-          ctx.lineWidth = 1.4;
+          ctx.strokeStyle = 'rgba(232, 180, 255, 0.26)';
+          ctx.lineWidth = 1.8;
+          ctx.setLineDash([4, 5]);
           ctx.beginPath();
           ctx.moveTo(sx1, sy1);
           ctx.lineTo(sx2, sy2);
           ctx.lineTo(sx3, sy3);
           ctx.stroke();
+          ctx.setLineDash([]);
 
-          for (const [nx, ny] of [
-            [sx1, sy1],
-            [sx2, sy2],
-            [sx3, sy3]
+          for (const [nx, ny, nr] of [
+            [sx1, sy1, 7],
+            [sx2, sy2, 11],
+            [sx3, sy3, 6]
           ]) {
             ctx.beginPath();
-            ctx.arc(nx, ny, 4.5, 0, Math.PI * 2);
+            ctx.arc(nx, ny, nr, 0, Math.PI * 2);
             ctx.fill();
           }
         } else {
-          // Default cavern / valley stepped monolith buttresses
+          // Cartoon mossy ruin archways & rounded cliff silhouettes
           ctx.beginPath();
           ctx.moveTo(C.WALL_WIDTH, y + 20);
-          ctx.lineTo(C.WALL_WIDTH + 68, y + 55);
-          ctx.lineTo(C.WALL_WIDTH + 68, y + 150);
-          ctx.lineTo(C.WALL_WIDTH + 38, y + 172);
-          ctx.lineTo(C.WALL_WIDTH + 38, y + 240);
-          ctx.lineTo(C.WALL_WIDTH, y + 265);
+          ctx.quadraticCurveTo(C.WALL_WIDTH + 76, y + 48, C.WALL_WIDTH + 72, y + 146);
+          ctx.quadraticCurveTo(C.WALL_WIDTH + 34, y + 185, C.WALL_WIDTH + 44, y + 245);
+          ctx.lineTo(C.WALL_WIDTH, y + 272);
           ctx.closePath();
           ctx.fill();
 
           ctx.beginPath();
-          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 110);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 76, y + 152);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 76, y + 255);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 42, y + 280);
-          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 310);
+          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 108);
+          ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 84, y + 148, C.WIDTH - C.WALL_WIDTH - 78, y + 248);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 40, y + 286);
+          ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 312);
           ctx.closePath();
           ctx.fill();
 
-          const cx = C.WIDTH * 0.5 + (Math.round(y) % 2 === 0 ? -1 : 1) * 44;
-          const cy = y + 95;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy - 26);
-          ctx.lineTo(cx + 15, cy);
-          ctx.lineTo(cx, cy + 26);
-          ctx.lineTo(cx - 15, cy);
-          ctx.closePath();
+          // Distant floating ruin arch block
+          const ax = C.WIDTH * 0.5 + (Math.round(y) % 2 === 0 ? -1 : 1) * 44;
+          const ay = y + 96;
+          roundRectPath(ctx, ax - 16, ay - 26, 32, 48, 14);
           ctx.fill();
         }
       }
       ctx.restore();
 
-      // Near parallax framing ribs
+      // Near parallax rounded cartoon cliff buttresses
       const nearSpan = 240;
       const nearOffset = ((-this.cameraY * 0.25) % nearSpan + nearSpan) % nearSpan;
       const nearStart = nearOffset - nearSpan * Math.ceil(this.padTop / nearSpan + 1);
@@ -4441,17 +4488,15 @@
       for (let y = nearStart; y < C.HEIGHT + this.padBottom + nearSpan; y += nearSpan) {
         ctx.beginPath();
         ctx.moveTo(C.WALL_WIDTH, y + 40);
-        ctx.lineTo(C.WALL_WIDTH + 24, y + 56);
-        ctx.lineTo(C.WALL_WIDTH + 24, y + 112);
-        ctx.lineTo(C.WALL_WIDTH, y + 128);
+        ctx.quadraticCurveTo(C.WALL_WIDTH + 28, y + 58, C.WALL_WIDTH + 24, y + 108);
+        ctx.quadraticCurveTo(C.WALL_WIDTH + 16, y + 124, C.WALL_WIDTH, y + 132);
         ctx.closePath();
         ctx.fill();
 
         ctx.beginPath();
         ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 150);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 24, y + 166);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 24, y + 222);
-        ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 238);
+        ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 28, y + 168, C.WIDTH - C.WALL_WIDTH - 24, y + 218);
+        ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 16, y + 234, C.WIDTH - C.WALL_WIDTH, y + 242);
         ctx.closePath();
         ctx.fill();
       }
@@ -4568,29 +4613,34 @@
         const sy = wy - this.cameraY;
         if (sy < -this.padTop - 20 || sy > C.HEIGHT + this.padBottom + 20) continue;
 
-        // Diegetic architectural cross-wire + carved distance plaque
-        ctx.strokeStyle = 'rgba(200, 225, 255, 0.06)';
-        ctx.lineWidth = 1.2;
+        // Inked wooden/stone milestone plaque along shaft
+        ctx.strokeStyle = 'rgba(255, 245, 214, 0.14)';
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([4, 6]);
         ctx.beginPath();
         ctx.moveTo(C.WALL_WIDTH + 6, sy);
-        ctx.lineTo(C.WIDTH * 0.5 - 28, sy);
-        ctx.moveTo(C.WIDTH * 0.5 + 28, sy);
+        ctx.lineTo(C.WIDTH * 0.5 - 30, sy);
+        ctx.moveTo(C.WIDTH * 0.5 + 30, sy);
         ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 6, sy);
         ctx.stroke();
+        ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(14, 22, 38, 0.45)';
-        ctx.strokeStyle = 'rgba(200, 225, 255, 0.1)';
-        roundRectPath(ctx, C.WIDTH * 0.5 - 24, sy - 9, 48, 18, 9);
+        ctx.fillStyle = 'rgba(29, 19, 58, 0.72)';
+        ctx.strokeStyle = 'rgba(255, 244, 214, 0.28)';
+        ctx.lineWidth = 1.6;
+        roundRectPath(ctx, C.WIDTH * 0.5 - 26, sy - 10, 52, 20, 10);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(205, 228, 255, 0.34)';
+        ctx.fillStyle = 'rgba(255, 244, 214, 0.72)';
         ctx.fillText(`${idx * stepMeters} m`, C.WIDTH * 0.5, sy + 0.5);
       }
       ctx.restore();
     }
 
     _drawWallsAndFloor(ctx, theme) {
+      const Art = JellyGame.Art;
+      const ink = C.COLORS.ink || '#1b1136';
       const w = C.WALL_WIDTH;
       const viewTop = -this.padTop;
       const viewBottom = C.HEIGHT + this.padBottom;
@@ -4611,61 +4661,84 @@
         fullH + 56
       );
 
-      // Biome-specific architectural wall detailing scrolling with camera
+      // Staggered organic cartoon block pattern scrolling cleanly with world Y
       const wallStyle = theme.wallStyle || 'stone';
-      const grooveSpacing = 56;
-      const offset = ((-this.cameraY % grooveSpacing) + grooveSpacing) % grooveSpacing;
-      const grooveStart = offset - grooveSpacing * Math.ceil(this.padTop / grooveSpacing + 1);
-      const railSpan = rightOuter - (C.WIDTH - w);
+      const blockH = 64;
+      const firstIdx = Math.floor((this.cameraY + viewTop - 40) / blockH);
+      const lastIdx = Math.ceil((this.cameraY + viewBottom + 40) / blockH);
 
       ctx.save();
-      for (let y = grooveStart; y < viewBottom + grooveSpacing; y += grooveSpacing) {
+      for (let idx = firstIdx; idx <= lastIdx; idx++) {
+        const wy = idx * blockH;
+        const y = wy - this.cameraY;
+        const hashL = Math.abs((idx * 73 + 19) % 5);
+        const hashR = Math.abs((idx * 97 + 31) % 5);
+
         if (wallStyle === 'frost') {
-          // Crystalline diagonal ice fracture veins + frosty sheen
-          ctx.strokeStyle = 'rgba(184, 242, 255, 0.24)';
+          // Chiseled cartoon ice slabs with angled highlight facets
+          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(188, 247, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+          roundRectPath(ctx, leftOuter + 4, y + 3, w - leftOuter - 10, blockH - 6, 8);
+          ctx.fill();
+          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(188, 247, 255, 0.18)' : 'rgba(255, 255, 255, 0.08)';
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 3, rightOuter - (C.WIDTH - w) - 10, blockH - 6, 8);
+          ctx.fill();
+
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(-this.padLeft, y);
-          ctx.lineTo(w - 6, y + 18);
-          ctx.moveTo(C.WIDTH - w + 6, y + 18);
-          ctx.lineTo(C.WIDTH + this.padRight, y);
+          ctx.moveTo(4, y + 14);
+          ctx.lineTo(w - 9, y + 30);
+          ctx.moveTo(C.WIDTH - w + 9, y + 34);
+          ctx.lineTo(C.WIDTH - 4, y + 18);
           ctx.stroke();
-
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-          ctx.fillRect(w - 9, y + 6, 3, 22);
-          ctx.fillRect(C.WIDTH - w + 6, y + 28, 3, 22);
         } else if (wallStyle === 'obsidianLava') {
-          // Dark basalt mortar with warm pulsing magma veins
-          const pulse = 0.25 + 0.18 * Math.sin(this.hintTime * 3.2 + y * 0.04);
-          ctx.fillStyle = `rgba(255, 115, 45, ${pulse})`;
-          ctx.fillRect(-this.padLeft + 4, y, w + this.padLeft - 7, 3);
-          ctx.fillRect(C.WIDTH - w + 3, y, w + this.padRight - 7, 3);
-
-          ctx.fillStyle = 'rgba(255, 210, 102, 0.16)';
-          ctx.fillRect(-this.padLeft + 6, y + 1, w + this.padLeft - 12, 1);
-          ctx.fillRect(C.WIDTH - w + 6, y + 1, w + this.padRight - 12, 1);
-        } else if (wallStyle === 'stormCoil') {
-          // Riveted copper-steel plates & glowing cyan Tesla conductor rings
-          ctx.fillStyle = 'rgba(6, 12, 24, 0.45)';
-          ctx.fillRect(leftOuter, y, w - 3 - leftOuter, 2);
-          ctx.fillRect(C.WIDTH - w + 3, y, railSpan - 3, 2);
-
-          ctx.fillStyle = 'rgba(72, 219, 251, 0.45)';
-          ctx.fillRect(-this.padLeft + 6, y + 24, w + this.padLeft - 11, 3);
-          ctx.fillRect(C.WIDTH - w + 5, y + 24, w + this.padRight - 11, 3);
-
-          ctx.fillStyle = 'rgba(180, 220, 255, 0.28)';
-          ctx.beginPath();
-          ctx.arc(8, y + 12, 1.8, 0, Math.PI * 2);
-          ctx.arc(C.WIDTH - 8, y + 12, 1.8, 0, Math.PI * 2);
+          // Dark volcanic stones with warm glowing lava cracks
+          ctx.fillStyle = 'rgba(27, 12, 24, 0.48)';
+          roundRectPath(ctx, leftOuter + 4, y + 4, w - leftOuter - 10, blockH - 8, 9);
           ctx.fill();
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 4, rightOuter - (C.WIDTH - w) - 10, blockH - 8, 9);
+          ctx.fill();
+
+          const pulse = 0.45 + 0.25 * Math.sin(this.hintTime * 3.2 + idx * 0.9);
+          ctx.strokeStyle = `rgba(255, 148, 56, ${pulse})`;
+          ctx.lineWidth = 2.6;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(4, y + blockH * 0.5);
+          ctx.lineTo(w - 8, y + blockH * 0.5 + (hashL - 2) * 3);
+          ctx.moveTo(C.WIDTH - w + 8, y + blockH * 0.5 + (hashR - 2) * 3);
+          ctx.lineTo(C.WIDTH - 4, y + blockH * 0.5);
+          ctx.stroke();
+        } else if (wallStyle === 'stormCoil') {
+          // Riveted cartoon tower plates with glowing cyan trim
+          ctx.fillStyle = 'rgba(27, 17, 54, 0.34)';
+          roundRectPath(ctx, leftOuter + 4, y + 4, w - leftOuter - 10, blockH - 8, 7);
+          ctx.fill();
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 4, rightOuter - (C.WIDTH - w) - 10, blockH - 8, 7);
+          ctx.fill();
+
+          ctx.fillStyle = 'rgba(125, 230, 255, 0.55)';
+          ctx.fillRect(6, y + 30, w - 13, 3.5);
+          ctx.fillRect(C.WIDTH - w + 7, y + 30, w - 13, 3.5);
+          for (const rx of [10, C.WIDTH - 10]) {
+            ctx.fillStyle = '#ffeaa7';
+            ctx.beginPath();
+            ctx.arc(rx, y + 14, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
         } else if (wallStyle === 'astralRune') {
-          // Glowing astral diamond rune carvings down dark cosmic rails
-          const runeGlow = 0.28 + 0.2 * Math.sin(this.hintTime * 2.5 + y * 0.05);
-          ctx.strokeStyle = `rgba(197, 108, 240, ${runeGlow})`;
-          ctx.lineWidth = 1.6;
-          for (const rx of [w * 0.5, C.WIDTH - w * 0.5]) {
-            const ry = y + 28;
+          // Carved cartoon mystic blocks + twinkling diamond runes
+          ctx.fillStyle = 'rgba(20, 11, 52, 0.42)';
+          roundRectPath(ctx, leftOuter + 4, y + 4, w - leftOuter - 10, blockH - 8, 9);
+          ctx.fill();
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 4, rightOuter - (C.WIDTH - w) - 10, blockH - 8, 9);
+          ctx.fill();
+
+          const runeAlpha = 0.4 + 0.28 * Math.sin(this.hintTime * 2.4 + idx * 0.7);
+          ctx.strokeStyle = `rgba(244, 162, 255, ${runeAlpha})`;
+          ctx.lineWidth = 2;
+          for (const rx of [w * 0.46, C.WIDTH - w * 0.46]) {
+            const ry = y + blockH * 0.5;
             ctx.beginPath();
             ctx.moveTo(rx, ry - 8);
             ctx.lineTo(rx + 6, ry);
@@ -4675,24 +4748,70 @@
             ctx.stroke();
           }
         } else {
-          // Chiseled stone block joints scrolling with camera
-          ctx.fillStyle = 'rgba(6, 10, 20, 0.32)';
-          ctx.fillRect(leftOuter, y, w - 4 - leftOuter, 2.5);
-          ctx.fillRect(C.WIDTH - w + 4, y, railSpan - 4, 2.5);
+          // Hand-carved chunky cartoon stone blocks with mossy grass tufts (Cavern & Valley)
+          const offL = (hashL % 2) * 14;
+          const offR = (hashR % 2) * 14;
+          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(255, 255, 255, 0.08)' : 'rgba(27, 17, 54, 0.2)';
+          roundRectPath(ctx, leftOuter + 4, y + 3, w - leftOuter - 11, blockH - 7, 8);
+          ctx.fill();
+          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(255, 255, 255, 0.08)' : 'rgba(27, 17, 54, 0.2)';
+          roundRectPath(ctx, C.WIDTH - w + 7, y + 3 + offR * 0.25, rightOuter - (C.WIDTH - w) - 11, blockH - 7, 8);
+          ctx.fill();
 
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
-          ctx.fillRect(-this.padLeft + 6, y + 2.5, w + this.padLeft - 12, 2);
-          ctx.fillRect(C.WIDTH - w + 6, y + 2.5, w + this.padRight - 12, 2);
+          // Dark cartoon mortar groove
+          ctx.strokeStyle = 'rgba(27, 17, 54, 0.45)';
+          ctx.lineWidth = 2.6;
+          ctx.beginPath();
+          ctx.moveTo(leftOuter + 4, y + offL * 0.15);
+          ctx.lineTo(w - 6, y + offL * 0.15);
+          ctx.moveTo(C.WIDTH - w + 6, y + offR * 0.25);
+          ctx.lineTo(rightOuter - 4, y + offR * 0.25);
+          ctx.stroke();
+
+          // Occasional cute overhanging moss tuft along inner stone seam (cavern biome)
+          if (theme.key === 'cavern' && hashL === 2) {
+            ctx.fillStyle = '#8ce827';
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(w - 5, y + 16, 4.5, -Math.PI * 0.5, Math.PI * 0.5);
+            ctx.fill();
+            ctx.stroke();
+          }
+          if (theme.key === 'cavern' && hashR === 3) {
+            ctx.fillStyle = '#8ce827';
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(C.WIDTH - w + 5, y + 38, 4.5, Math.PI * 0.5, Math.PI * 1.5);
+            ctx.fill();
+            ctx.stroke();
+          }
         }
       }
 
+      if (Art) {
+        Art.overlayGrain(ctx, leftOuter, viewTop - 10, w - leftOuter, fullH + 20, 0.045);
+        Art.overlayGrain(ctx, C.WIDTH - w, viewTop - 10, rightOuter - (C.WIDTH - w), fullH + 20, 0.045);
+      }
+
+      // Inner colored cliff trim + bold cartoon ink edge contour
       ctx.fillStyle = theme.wallInnerEdge;
-      ctx.fillRect(w - 4.5, viewTop - 20, 4.5, fullH + 40);
-      ctx.fillRect(C.WIDTH - w, viewTop - 20, 4.5, fullH + 40);
+      ctx.fillRect(w - 6.5, viewTop - 20, 6.5, fullH + 40);
+      ctx.fillRect(C.WIDTH - w, viewTop - 20, 6.5, fullH + 40);
 
       ctx.fillStyle = theme.wallHighlight;
-      ctx.fillRect(w - 1.5, viewTop - 20, 1.5, fullH + 40);
-      ctx.fillRect(C.WIDTH - w, viewTop - 20, 1.5, fullH + 40);
+      ctx.fillRect(w - 4.5, viewTop - 20, 2.5, fullH + 40);
+      ctx.fillRect(C.WIDTH - w + 2, viewTop - 20, 2.5, fullH + 40);
+
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.moveTo(w, viewTop - 20);
+      ctx.lineTo(w, viewBottom + 20);
+      ctx.moveTo(C.WIDTH - w, viewTop - 20);
+      ctx.lineTo(C.WIDTH - w, viewBottom + 20);
+      ctx.stroke();
 
       // Bioluminescent wall contact glow matching the jelly's active color palette!
       if (this.player.alive && this.player.wallAttached !== 0) {
@@ -4715,12 +4834,18 @@
         ctx.fillStyle = theme.wallBase;
         ctx.fillRect(w, floorScreenY, C.WIDTH - w * 2, viewBottom - floorScreenY + 30);
 
-        ctx.fillStyle = 'rgba(6, 10, 20, 0.35)';
-        ctx.fillRect(w, floorScreenY + 4, C.WIDTH - w * 2, 4);
+        // Lush cartoon mossy floor cap
+        ctx.fillStyle = '#7de01d';
+        ctx.fillRect(w, floorScreenY, C.WIDTH - w * 2, 10);
+        ctx.fillStyle = '#b5ff47';
+        ctx.fillRect(w, floorScreenY + 1, C.WIDTH - w * 2, 3.5);
 
-        ctx.fillStyle = C.COLORS.floorAccent;
-        ctx.globalAlpha = 0.55;
-        ctx.fillRect(w, floorScreenY, C.WIDTH - w * 2, 3.5);
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.moveTo(w, floorScreenY);
+        ctx.lineTo(C.WIDTH - w, floorScreenY);
+        ctx.stroke();
         ctx.restore();
       }
     }
@@ -4887,190 +5012,149 @@
     }
 
     _drawSculptedWord(ctx, text, x, y, fontSize, topFill, botFill, lipColor) {
+      const Art = JellyGame.Art;
+      const font = `700 ${fontSize}px ${C.FONTS.DISPLAY}`;
+      if (Art) {
+        Art.drawCartoonText(ctx, text, x, y, font, topFill, botFill, lipColor, Math.max(4.5, fontSize * 0.14));
+        return;
+      }
       ctx.save();
-      ctx.font = `700 ${fontSize}px ${C.FONTS.DISPLAY}`;
+      ctx.font = font;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
-
-      // 1. Extruded 3D bottom shadow lip
-      ctx.fillStyle = lipColor;
-      ctx.strokeStyle = '#06101e';
+      ctx.fillStyle = lipColor || '#1b1136';
+      ctx.strokeStyle = '#1b1136';
       ctx.lineWidth = 7.5;
-      ctx.strokeText(text, x, y + 5.5);
-      ctx.fillText(text, x, y + 5.5);
-
-      // 2. Crisp dark ink contour
-      ctx.strokeStyle = '#081526';
-      ctx.lineWidth = 7;
+      ctx.strokeText(text, x, y + 5);
+      ctx.fillText(text, x, y + 5);
       ctx.strokeText(text, x, y);
-
-      // 3. Plump vertical gradient body
-      const grad = ctx.createLinearGradient(x, y - fontSize * 0.45, x, y + fontSize * 0.45);
-      grad.addColorStop(0, topFill);
-      grad.addColorStop(1, botFill);
-      ctx.fillStyle = grad;
+      ctx.fillStyle = topFill;
       ctx.fillText(text, x, y);
-
-      // 4. Subtle top inner specular sheen
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
-      ctx.fillText(text, x, y - 1.4);
-
       ctx.restore();
     }
 
     _drawMainMenu(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       ctx.save();
 
-      // Organic parabolic trajectory motif rising from perched jelly into the open shaft
-      const jellyX = this.player.positionX;
-      const jellyY = this.player.positionY - this.cameraY;
+      // 1. Hand-lettered Cartoon Logo at top (echoing store icon)
+      if (Art) {
+        Art.drawCartoonLogo(ctx, C.WIDTH * 0.5, 134, 0.96, this.hintTime);
+      } else {
+        this._drawSculptedWord(ctx, 'JELLY', C.WIDTH * 0.5, 118, 52, '#fffdf5', '#e8d4ae', ink);
+        this._drawSculptedWord(ctx, 'CLIMB', C.WIDTH * 0.5, 174, 54, '#ffef6b', '#ee5a0e', ink);
+      }
+
+      // 2. Hero Cartoon Stage: Mossy Floating Island + Bouncing Equipped Jelly + Golden Gem Arc
+      const islandX = C.WIDTH * 0.5;
+      const islandY = 348;
+      if (Art) {
+        Art.drawCartoonMossIsland(ctx, islandX, islandY, 148, 56, 1);
+      }
+
+      // Playful dashed comic hop arc toward floating Jel Özü
+      const gemX = 338;
+      const gemY = 238 + Math.sin(this.hintTime * 3.1) * 5;
       ctx.save();
-      const arcSteps = 11;
+      const arcSteps = 7;
       for (let i = 1; i <= arcSteps; i++) {
-        const u = i / arcSteps;
-        const ax = (1 - u) * (1 - u) * (jellyX + 18) + 2 * (1 - u) * u * 195 + u * u * 356;
-        const ay = (1 - u) * (1 - u) * (jellyY - 12) + 2 * (1 - u) * u * 270 + u * u * 252;
-        const pulse = 0.25 + 0.25 * Math.sin(this.hintTime * 3.2 - i * 0.45);
-        ctx.globalAlpha = (1 - u * 0.55) * pulse;
-        ctx.fillStyle = i === arcSteps ? '#ffd166' : C.COLORS.jellyPrimary;
+        const u = i / (arcSteps + 1);
+        const ax = (1 - u) * (1 - u) * (islandX + 18) + 2 * (1 - u) * u * 276 + u * u * gemX;
+        const ay = (1 - u) * (1 - u) * (islandY - 46) + 2 * (1 - u) * u * 238 + u * u * gemY;
+        const pulse = 0.55 + 0.35 * Math.sin(this.hintTime * 4 - i * 0.5);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#fff9d6';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.arc(ax, ay, 4.2 * (1 - u * 0.4), 0, Math.PI * 2);
+        ctx.arc(ax, ay, 4.2 * (1 - u * 0.25), 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
 
-      // Handcrafted Multi-Layer Extruded Logotype (LocoRoco / Cut the Rope inspired)
-      const wave1 = Math.sin(this.hintTime * 2.3) * 3.5;
-      const wave2 = Math.sin(this.hintTime * 2.3 - 0.85) * 3.5;
+      this._drawGemEmblem(ctx, gemX, gemY, 13.5);
 
-      // Soft atmospheric title halo
-      ctx.save();
-      const titleHalo = ctx.createRadialGradient(
-        C.WIDTH * 0.5,
-        192,
-        10,
-        C.WIDTH * 0.5,
-        192,
-        125
-      );
-      titleHalo.addColorStop(0, 'rgba(54, 245, 176, 0.16)');
-      titleHalo.addColorStop(1, 'rgba(54, 245, 176, 0)');
-      ctx.fillStyle = titleHalo;
+      // Live Hero Jelly Mascot bouncing proudly on the mossy island!
+      const bounceCycle = Math.abs(Math.sin(this.hintTime * 3.2));
+      const jumpH = bounceCycle * 18;
+      const sqY = bounceCycle < 0.14 ? 0.86 : 1 + bounceCycle * 0.1;
+      const sqX = 1 / sqY;
+      const heroX = islandX - 6;
+      const heroY = islandY - 31 - jumpH;
+
+      // Ground contact shadow shrinking as Jelly hops
+      ctx.fillStyle = 'rgba(27, 17, 54, 0.32)';
       ctx.beginPath();
-      ctx.arc(C.WIDTH * 0.5, 192, 125, 0, Math.PI * 2);
+      ctx.ellipse(heroX, islandY - 6, 26 * (1 - bounceCycle * 0.3), 6 * (1 - bounceCycle * 0.3), 0, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.save();
+      ctx.translate(heroX, heroY);
+      ctx.scale(sqX, sqY);
+      this._drawMiniJellyPreview(ctx, 0, 0, 29, this.equippedAccessory, this.equippedColor, true);
       ctx.restore();
 
-      // Decorative golden star-drop emblem floating above title
-      this._drawGemEmblem(ctx, C.WIDTH * 0.5, 114 + wave1 * 0.6, 10.5);
-
-      this._drawSculptedWord(
-        ctx,
-        'JELLY',
-        C.WIDTH * 0.5,
-        164 + wave1,
-        52,
-        '#ffffff',
-        '#cfe8ff',
-        '#193254'
-      );
-
-      this._drawSculptedWord(
-        ctx,
-        'CLIMB',
-        C.WIDTH * 0.5,
-        220 + wave2,
-        54,
-        '#8affdb',
-        '#10c48b',
-        '#05593f'
-      );
-
-      // Centerpiece Tactile Play Cushion (430..494)
-      const playW = 224;
-      const playH = 64;
+      // 3. Centerpiece Chunky Cartoon PLAY Cushion Button
+      const playW = 228;
+      const playH = 66;
       const playX = (C.WIDTH - playW) * 0.5;
-      const playY = 430;
+      const playY = 438;
       const playPressed = this.pressedBtn === 'play';
       this.uiRects.menuPlayBtn = { x: playX, y: playY, w: playW, h: playH };
 
       ctx.save();
-      const pulseScale = 1 + Math.sin(this.hintTime * 3.4) * 0.016;
+      const pulseScale = playPressed ? 1 : 1 + Math.sin(this.hintTime * 3.4) * 0.015;
       const pCx = playX + playW * 0.5;
       const pCy = playY + playH * 0.5;
-      ctx.translate(pCx, pCy + (playPressed ? 3.5 : 0));
-      if (playPressed) {
-        ctx.scale(1.03, 0.94);
+      ctx.translate(pCx, pCy);
+      ctx.scale(pulseScale, 1 / Math.sqrt(pulseScale));
+
+      if (Art) {
+        Art.drawCartoonButton(ctx, -playW * 0.5, -playH * 0.5, playW, playH, 'green', 33, playPressed);
       } else {
-        ctx.scale(pulseScale, 1 / Math.sqrt(pulseScale));
+        ctx.fillStyle = '#15c98a';
+        roundRectPath(ctx, -playW * 0.5, -playH * 0.5, playW, playH, 33);
+        ctx.fill();
       }
 
-      // Soft outer ripple aura
-      ctx.strokeStyle = 'rgba(54, 245, 176, 0.24)';
-      ctx.lineWidth = 2;
-      roundRectPath(ctx, -playW * 0.5 - 5, -playH * 0.5 - 4, playW + 10, playH + 11, 34);
-      ctx.stroke();
-
-      // 3D base lip
-      ctx.fillStyle = '#046c4e';
-      ctx.strokeStyle = '#071729';
-      ctx.lineWidth = 3;
-      roundRectPath(ctx, -playW * 0.5, -playH * 0.5 + 5, playW, playH, 32);
-      ctx.fill();
-      ctx.stroke();
-
-      // Glossy jelly cushion top face
-      const playGrad = ctx.createLinearGradient(0, -playH * 0.5, 0, playH * 0.5);
-      playGrad.addColorStop(0, '#6effd2');
-      playGrad.addColorStop(0.5, C.COLORS.jellyPrimary);
-      playGrad.addColorStop(1, '#0fb882');
-      ctx.fillStyle = playGrad;
-      roundRectPath(ctx, -playW * 0.5, -playH * 0.5, playW, playH, 32);
-      ctx.fill();
-      ctx.stroke();
-
-      // Inner top specular jelly shine
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
-      roundRectPath(ctx, -playW * 0.5 + 18, -playH * 0.5 + 5, playW - 36, 12, 6);
-      ctx.fill();
-
-      // Sculpted Play Triangle + Label
       const playText = tr.play || 'PLAY';
-      ctx.font = `700 21px ${C.FONTS.DISPLAY}`;
+      ctx.font = `700 22px ${C.FONTS.DISPLAY}`;
       const textW = ctx.measureText(playText).width;
-      const iconW = 14;
+      const iconW = 15;
       const gap = 10;
       const totalW = iconW + gap + textW;
       const startX = -totalW * 0.5;
+      const pyOff = playPressed ? 2.5 : 0;
 
-      // Play icon with dark outline & ivory fill
-      ctx.fillStyle = '#06261c';
+      ctx.fillStyle = ink;
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(startX, -8.5);
-      ctx.lineTo(startX + iconW, 0);
-      ctx.lineTo(startX, 8.5);
+      ctx.moveTo(startX, -9 + pyOff);
+      ctx.lineTo(startX + iconW, pyOff);
+      ctx.lineTo(startX, 9 + pyOff);
       ctx.closePath();
       ctx.fill();
 
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#06261c';
-      ctx.fillText(playText, startX + iconW + gap, 1);
+      ctx.fillStyle = ink;
+      ctx.fillText(playText, startX + iconW + gap, 1 + pyOff);
       ctx.restore();
 
-      // Flanking Tactile Icon Medallions (Accessories | Leaderboard | Settings)
-      const leftCenterX = 99;
+      // 4. Flanking Tactile Cartoon Icon Medallions (Accessories | Leaderboard | Settings)
+      const leftCenterX = 95;
       const midCenterX = 225;
-      const rightCenterX = 351;
-      const medCenterY = 542;
+      const rightCenterX = 355;
+      const medCenterY = 564;
 
-      this.uiRects.menuAccBtn = { x: leftCenterX - 52, y: 506, w: 104, h: 96 };
-      this.uiRects.menuLbBtn = { x: midCenterX - 52, y: 506, w: 104, h: 96 };
-      this.uiRects.menuSetBtn = { x: rightCenterX - 52, y: 506, w: 104, h: 96 };
+      this.uiRects.menuAccBtn = { x: leftCenterX - 52, y: medCenterY - 36, w: 104, h: 98 };
+      this.uiRects.menuLbBtn = { x: midCenterX - 52, y: medCenterY - 36, w: 104, h: 98 };
+      this.uiRects.menuSetBtn = { x: rightCenterX - 52, y: medCenterY - 36, w: 104, h: 98 };
 
       this._drawMenuMedallion(
         ctx,
@@ -5107,15 +5191,17 @@
 
     _drawModeSelectModal(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
 
       ctx.save();
-      ctx.fillStyle = `rgba(6, 10, 20, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      ctx.fillStyle = `rgba(17, 10, 38, ${0.72 * clamp(this.modalAnim * 1.5, 0, 1)})`;
       this._fillViewportRect(ctx);
 
       const panelW = 368;
-      const panelH = 312;
+      const panelH = 316;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -5126,15 +5212,44 @@
 
       this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
 
-      // Header title
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.font = `700 20px ${C.FONTS.DISPLAY}`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#091324';
-      ctx.strokeText(tr.selectModeTitle || 'SELECT MODE', panelX + 24, panelY + 38);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(tr.selectModeTitle || 'SELECT MODE', panelX + 24, panelY + 38);
+      // Header pill plaque with gamepad emblem & comic title
+      const modeTitle = tr.selectModeTitle || 'SELECT MODE';
+      const plaqueW = 224;
+      const plaqueH = 36;
+      const plaqueX = panelX + 54;
+      const plaqueY = panelY + 20;
+
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, plaqueX, plaqueY + 2.5, plaqueW, plaqueH, 18);
+      ctx.fill();
+
+      const plqGrad = ctx.createLinearGradient(0, plaqueY, 0, plaqueY + plaqueH);
+      plqGrad.addColorStop(0, '#4d3a8f');
+      plqGrad.addColorStop(1, '#291d59');
+      ctx.fillStyle = plqGrad;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.6;
+      roundRectPath(ctx, plaqueX, plaqueY, plaqueW, plaqueH, 18);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+      roundRectPath(ctx, plaqueX + 14, plaqueY + 3.5, plaqueW - 28, 5, 2.5);
+      ctx.fill();
+
+      ctx.font = `700 18.5px ${C.FONTS.DISPLAY}`;
+      this._drawUiRow(
+        ctx,
+        [
+          { icon: 'gamepad', r: 9.2, color: '#fff8eb', gap: 9 },
+          { text: modeTitle, color: '#fff8eb', stroke: ink, strokeW: 4.2 }
+        ],
+        plaqueX + plaqueW * 0.5,
+        plaqueY + plaqueH * 0.5 + 0.5,
+        'center',
+        '#fff8eb',
+        plaqueW - 20
+      );
 
       // Close medallion
       const closeSize = 34;
@@ -5160,8 +5275,8 @@
         tr.modeClassic || 'CLASSIC',
         tr.modeSubClassic || 'Endless climb at your own rhythm',
         `${tr.best || 'BEST'}: ${this.bestMeters} m`,
-        '#36f5b0',
-        '#056e4f'
+        '#097550',
+        '#097550'
       );
 
       // Mode Card 2: RISING FLOOR
@@ -5177,204 +5292,198 @@
         tr.modeRising || 'RISING FLOOR',
         tr.modeSubRising || 'Outrun the rising magma tide!',
         `${tr.best || 'BEST'}: ${this.bestRisingMeters} m`,
-        '#ff793f',
-        '#8c2613'
+        '#b0390c',
+        '#b0390c'
       );
 
       ctx.restore();
     }
 
     _drawModeCard(ctx, x, y, w, h, modeType, title, desc, bestLabel, accent, lip) {
-      ctx.save();
-      // 3D base lip
-      ctx.fillStyle = '#081120';
-      roundRectPath(ctx, x, y + 4, w, h, 20);
-      ctx.fill();
-
-      // Card body
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const isRising = modeType === 'rising';
-      const grad = ctx.createLinearGradient(x, y, x, y + h);
-      if (isRising) {
-        grad.addColorStop(0, '#381925');
-        grad.addColorStop(1, '#1d0b14');
-      } else {
-        grad.addColorStop(0, '#18334e');
-        grad.addColorStop(1, '#0d1d31');
-      }
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2;
-      roundRectPath(ctx, x, y, w, h, 20);
-      ctx.fill();
-
-      // Subtle atmospheric inner sheen & biome texture clipped inside card
       ctx.save();
-      roundRectPath(ctx, x, y, w, h, 20);
-      ctx.clip();
-      const cardGlow = ctx.createRadialGradient(x + 56, y + h * 0.5, 4, x + 56, y + h * 0.5, 130);
-      cardGlow.addColorStop(0, isRising ? 'rgba(255, 108, 55, 0.22)' : 'rgba(54, 245, 176, 0.18)');
-      cardGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = cardGlow;
-      ctx.fillRect(x, y, w, h);
 
-      // Subtle top inner glass bevel highlight
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(x + 18, y + 1.5);
-      ctx.lineTo(x + w - 18, y + 1.5);
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 2;
-      roundRectPath(ctx, x, y, w, h, 20);
-      ctx.stroke();
-
-      // Left illustrated emblem well
-      const iconCx = x + 46;
-      const iconCy = y + h * 0.5;
-      const wellR = 30;
-      ctx.fillStyle = isRising ? '#1b0b12' : '#081829';
-      ctx.strokeStyle = isRising ? 'rgba(255, 121, 63, 0.55)' : 'rgba(54, 245, 176, 0.55)';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.arc(iconCx, iconCy, wellR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      const t = this.hintTime || 0;
-      const jellyR = 11.4;
-      if (modeType === 'classic') {
-        // Minimal dark abyss background + glowing Infinity (∞) unlimited emblem below + larger Jelly
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(iconCx, iconCy, wellR - 1.4, 0, Math.PI * 2);
-        ctx.clip();
-
-        const skyGrad = ctx.createLinearGradient(iconCx, iconCy - wellR, iconCx, iconCy + wellR);
-        skyGrad.addColorStop(0, '#081829');
-        skyGrad.addColorStop(1, '#0d293b');
-        ctx.fillStyle = skyGrad;
-        ctx.fillRect(iconCx - wellR, iconCy - wellR, wellR * 2, wellR * 2);
-
-        // Soft mint glow around bottom Infinity ribbon
-        const infY = iconCy + 15.5;
-        const infGlow = ctx.createRadialGradient(iconCx, infY, 2, iconCx, infY, 22);
-        infGlow.addColorStop(0, 'rgba(54, 245, 176, 0.28)');
-        infGlow.addColorStop(1, 'rgba(54, 245, 176, 0)');
-        ctx.fillStyle = infGlow;
-        ctx.fillRect(iconCx - wellR, iconCy - wellR, wellR * 2, wellR * 2);
-
-        // Crisp continuous Infinity (∞) loop symbolizing Endless / Unlimited climb
-        const traceInfinity = () => {
-          ctx.beginPath();
-          ctx.moveTo(iconCx, infY);
-          ctx.bezierCurveTo(
-            iconCx - 6.5,
-            infY - 8.2,
-            iconCx - 19,
-            infY - 8.2,
-            iconCx - 19,
-            infY
-          );
-          ctx.bezierCurveTo(
-            iconCx - 19,
-            infY + 8.2,
-            iconCx - 6.5,
-            infY + 8.2,
-            iconCx,
-            infY
-          );
-          ctx.bezierCurveTo(
-            iconCx + 6.5,
-            infY - 8.2,
-            iconCx + 19,
-            infY - 8.2,
-            iconCx + 19,
-            infY
-          );
-          ctx.bezierCurveTo(
-            iconCx + 19,
-            infY + 8.2,
-            iconCx + 6.5,
-            infY + 8.2,
-            iconCx,
-            infY
-          );
-          ctx.closePath();
-        };
-
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#051520';
-        ctx.lineWidth = 6.2;
-        traceInfinity();
-        ctx.stroke();
-
-        const infGrad = ctx.createLinearGradient(iconCx - 19, infY - 6, iconCx + 19, infY + 6);
-        infGrad.addColorStop(0, '#36f5b0');
-        infGrad.addColorStop(0.5, '#8affdb');
-        infGrad.addColorStop(1, '#12c48b');
-        ctx.strokeStyle = infGrad;
-        ctx.lineWidth = 3.4;
-        traceInfinity();
-        ctx.stroke();
-
-        ctx.restore();
-
-        const bob = Math.sin(t * 3.2) * 1.1;
-        this._drawMiniJellyPreview(ctx, iconCx, iconCy - 6.0 + bob, jellyR, this.equippedAccessory);
+      if (Art) {
+        Art.drawCartoonCard(ctx, x, y, w, h, isRising ? 'gold' : 'mint', 20);
       } else {
-        // Clean dark backdrop + smooth vibrant magma wave below + larger Jelly (no clutter behind character)
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(iconCx, iconCy, wellR - 1.4, 0, Math.PI * 2);
-        ctx.clip();
+        ctx.fillStyle = isRising ? '#ffe08a' : '#dcfff0';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.4;
+        roundRectPath(ctx, x, y, w, h, 20);
+        ctx.fill();
+        ctx.stroke();
+      }
 
-        const skyLava = ctx.createLinearGradient(iconCx, iconCy - wellR, iconCx, iconCy + wellR);
-        skyLava.addColorStop(0, '#190a13');
-        skyLava.addColorStop(1, '#2b0f18');
-        ctx.fillStyle = skyLava;
-        ctx.fillRect(iconCx - wellR, iconCy - wellR, wellR * 2, wellR * 2);
+      // Left rounded-square cartoon diorama thumbnail card
+      const thumbW = 76;
+      const thumbH = 76;
+      const thumbX = x + 11;
+      const thumbY = y + (h - thumbH) * 0.5;
+      const thumbR = 16;
+      const tCx = thumbX + thumbW * 0.5;
+      const t = this.hintTime || 0;
 
-        const waveShift = Math.sin(t * 3.8) * 1.2;
-        const lGrad = ctx.createLinearGradient(iconCx, iconCy + 6, iconCx, iconCy + 30);
-        lGrad.addColorStop(0, '#ffd32a');
-        lGrad.addColorStop(0.35, '#ff5e36');
-        lGrad.addColorStop(1, '#b31b1b');
-        ctx.fillStyle = lGrad;
+      // Subtle 3D lip under thumbnail frame
+      ctx.fillStyle = isRising ? '#96340b' : '#0b6645';
+      roundRectPath(ctx, thumbX, thumbY + 2.5, thumbW, thumbH, thumbR);
+      ctx.fill();
+
+      ctx.save();
+      roundRectPath(ctx, thumbX, thumbY, thumbW, thumbH, thumbR);
+      ctx.clip();
+
+      if (modeType === 'classic') {
+        // Sunny azure cartoon sky with soft rays & puffy clouds
+        const skyGrad = ctx.createLinearGradient(0, thumbY, 0, thumbY + thumbH);
+        skyGrad.addColorStop(0, '#1e52ba');
+        skyGrad.addColorStop(0.55, '#469df2');
+        skyGrad.addColorStop(1, '#9de3ff');
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
+
+        ctx.fillStyle = 'rgba(255, 250, 224, 0.16)';
         ctx.beginPath();
-        ctx.moveTo(iconCx - 31, iconCy + 31);
-        ctx.lineTo(iconCx - 31, iconCy + 11 + waveShift * 0.4);
-        ctx.quadraticCurveTo(iconCx - 10, iconCy + 4 - waveShift, iconCx, iconCy + 11);
-        ctx.quadraticCurveTo(iconCx + 12, iconCy + 17 + waveShift, iconCx + 31, iconCy + 9 - waveShift * 0.4);
-        ctx.lineTo(iconCx + 31, iconCy + 31);
+        ctx.moveTo(thumbX + 18, thumbY);
+        ctx.lineTo(thumbX + 46, thumbY);
+        ctx.lineTo(thumbX + 16, thumbY + thumbH);
+        ctx.lineTo(thumbX - 10, thumbY + thumbH);
         ctx.closePath();
         ctx.fill();
 
+        // Cozy sky clouds left and right behind Jelly
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        for (const [cxOff, cyOff, sc] of [
+          [-26, 26, 0.85],
+          [26, 22, 0.78]
+        ]) {
+          ctx.beginPath();
+          ctx.arc(tCx + cxOff, thumbY + cyOff, 7.5 * sc, 0, Math.PI * 2);
+          ctx.arc(tCx + cxOff + 7 * sc, thumbY + cyOff - 2 * sc, 8.5 * sc, 0, Math.PI * 2);
+          ctx.arc(tCx + cxOff + 14 * sc, thumbY + cyOff + 1 * sc, 6.2 * sc, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Miniature mossy floating island perched near thumbnail floor
+        if (Art) {
+          Art.drawCartoonMossIsland(ctx, tCx, thumbY + 57, 62, 22, 1);
+        } else {
+          ctx.fillStyle = '#7de01d';
+          ctx.fillRect(tCx - 28, thumbY + 52, 56, 12);
+        }
+
+        // Floating golden Jel Özü sparkle top-right corner
+        const bob = Math.sin(t * 3.1) * 1.8;
+        if (Art) {
+          Art.drawGemEmblem(ctx, thumbX + thumbW - 14, thumbY + 15 + bob * 0.4, 5.2);
+        }
+
+        // Soft bounce shadow + equipped Jelly hopping proudly on mossy island
+        const bounceCycle = Math.abs(Math.sin(t * 3.1));
+        const jumpH = bounceCycle * 5.5;
+        ctx.fillStyle = 'rgba(27, 17, 54, 0.28)';
+        ctx.beginPath();
+        ctx.ellipse(tCx, thumbY + 50, 11 * (1 - bounceCycle * 0.22), 2.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(tCx, thumbY + 35 - jumpH);
+        const sqY = bounceCycle < 0.14 ? 0.9 : 1 + bounceCycle * 0.08;
+        ctx.scale(1 / sqY, sqY);
+        this._drawMiniJellyPreview(ctx, 0, 0, 12, this.equippedAccessory, this.equippedColor, true);
         ctx.restore();
-        const escapeBob = Math.sin(t * 4.0 + 1.2) * 1.1;
-        this._drawMiniJellyPreview(ctx, iconCx, iconCy - 6.0 + escapeBob, jellyR, this.equippedAccessory);
+      } else {
+        // Dramatic volcanic magma cavern twilight sky
+        const skyLava = ctx.createLinearGradient(0, thumbY, 0, thumbY + thumbH);
+        skyLava.addColorStop(0, '#2a0f3b');
+        skyLava.addColorStop(0.55, '#821c33');
+        skyLava.addColorStop(1, '#eb541c');
+        ctx.fillStyle = skyLava;
+        ctx.fillRect(thumbX, thumbY, thumbW, thumbH);
+
+        // Distant jagged volcanic spire silhouettes
+        ctx.fillStyle = '#47152e';
+        ctx.beginPath();
+        ctx.moveTo(thumbX, thumbY + 56);
+        ctx.lineTo(thumbX + 16, thumbY + 36);
+        ctx.lineTo(thumbX + 34, thumbY + 50);
+        ctx.lineTo(thumbX + 58, thumbY + 33);
+        ctx.lineTo(thumbX + thumbW, thumbY + 52);
+        ctx.lineTo(thumbX + thumbW, thumbY + thumbH);
+        ctx.lineTo(thumbX, thumbY + thumbH);
+        ctx.closePath();
+        ctx.fill();
+
+        // Dynamic curved comic escape swoosh launching upward from lava
+        const escapeBob = Math.sin(t * 4.0 + 0.8) * 1.6;
+        ctx.fillStyle = 'rgba(255, 250, 232, 0.9)';
+        ctx.beginPath();
+        ctx.moveTo(thumbX + 11, thumbY + 55);
+        ctx.quadraticCurveTo(thumbX + 19, thumbY + 34, tCx + 5, thumbY + 33 + escapeBob);
+        ctx.lineTo(tCx + 7, thumbY + 29 + escapeBob);
+        ctx.quadraticCurveTo(thumbX + 24, thumbY + 35, thumbX + 11, thumbY + 55);
+        ctx.closePath();
+        ctx.fill();
+
+        // Leaping hero Jelly dodging rising magma
+        ctx.save();
+        ctx.translate(tCx + 6, thumbY + 30 + escapeBob);
+        ctx.rotate(0.08);
+        ctx.scale(0.95, 1.06);
+        this._drawMiniJellyPreview(ctx, 0, 0, 11.5, this.equippedAccessory, this.equippedColor, true);
+        ctx.restore();
+
+        // Molten bubbling cartoon lava tide across full bottom edge
+        const waveShift = Math.sin(t * 3.8) * 1.8;
+        const lGrad = ctx.createLinearGradient(0, thumbY + 51, 0, thumbY + thumbH);
+        lGrad.addColorStop(0, '#ffe875');
+        lGrad.addColorStop(0.28, '#ff7726');
+        lGrad.addColorStop(1, '#ba181d');
+        ctx.fillStyle = lGrad;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(thumbX - 2, thumbY + thumbH + 2);
+        ctx.lineTo(thumbX - 2, thumbY + 56 + waveShift * 0.4);
+        ctx.quadraticCurveTo(tCx - 14, thumbY + 50 - waveShift, tCx, thumbY + 56);
+        ctx.quadraticCurveTo(tCx + 15, thumbY + 62 + waveShift, thumbX + thumbW + 2, thumbY + 54 - waveShift * 0.4);
+        ctx.lineTo(thumbX + thumbW + 2, thumbY + thumbH + 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
       }
 
-      // Title, Description & Best Score
-      const textX = x + 88;
+      // Inner top highlight bar across thumbnail card
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+      roundRectPath(ctx, thumbX + 6, thumbY + 3, thumbW - 12, 5, 2.5);
+      ctx.fill();
+      ctx.restore();
+
+      // Crisp rounded-square comic ink border frame
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.6;
+      roundRectPath(ctx, thumbX, thumbY, thumbW, thumbH, thumbR);
+      ctx.stroke();
+
+      // Title, Description & Best Score (crisp dark ink on bright card)
+      const textX = x + 97;
+      const maxTextW = w - 160;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `700 17px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(title, textX, y + 28);
+      ctx.fillStyle = ink;
+      ctx.font = `700 17.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(title, textX, y + 28, maxTextW);
 
-      ctx.fillStyle = 'rgba(215, 232, 255, 0.84)';
+      ctx.fillStyle = isRising ? '#5c3114' : '#214d40';
       ctx.font = `600 11.5px ${C.FONTS.UI}`;
-      ctx.fillText(desc, textX, y + 51);
+      ctx.fillText(desc, textX, y + 51, maxTextW);
 
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { icon: 'star', r: 4.4, color: accent, gap: 5 },
+          { icon: 'star', r: 4.5, color: '#ffbe3b', gap: 5 },
           { text: bestLabel, color: accent }
         ],
         textX,
@@ -5383,38 +5492,23 @@
         accent
       );
 
-      // Right Play Cushion Button inside Card (3D gradient + top gloss crescent)
+      // Right Cartoon Play Cushion Button inside Card
       const pR = 20;
       const pCx = x + w - 34;
       const pCy = y + h * 0.5;
-      ctx.fillStyle = lip;
-      ctx.beginPath();
-      ctx.arc(pCx, pCy + 2.5, pR, 0, Math.PI * 2);
-      ctx.fill();
-
-      const btnGrad = ctx.createLinearGradient(pCx, pCy - pR, pCx, pCy + pR);
-      if (isRising) {
-        btnGrad.addColorStop(0, '#ffa95c');
-        btnGrad.addColorStop(1, '#f4511e');
+      if (Art) {
+        Art.drawCartoonButton(ctx, pCx - pR, pCy - pR, pR * 2, pR * 2, isRising ? 'orange' : 'green', pR);
       } else {
-        btnGrad.addColorStop(0, '#6effd2');
-        btnGrad.addColorStop(1, '#12c48b');
+        ctx.fillStyle = isRising ? '#ff6d28' : '#15c98a';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(pCx, pCy, pR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       }
-      ctx.fillStyle = btnGrad;
-      ctx.strokeStyle = '#071422';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(pCx, pCy, pR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
 
-      // Subtle glossy upper crescent inside Play button
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
-      ctx.beginPath();
-      ctx.ellipse(pCx, pCy - 9.5, 10.5, 4.2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#062019';
+      ctx.fillStyle = ink;
       ctx.beginPath();
       ctx.moveTo(pCx - 4.5, pCy - 7);
       ctx.lineTo(pCx + 7.5, pCy);
@@ -5426,117 +5520,95 @@
     }
 
     _drawMenuMedallion(ctx, cx, cy, label, iconType, isPressed, showBadge) {
-      const size = 60;
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
+      const size = 64;
       const half = size * 0.5;
       const pressY = isPressed ? 3 : 0;
 
       ctx.save();
       ctx.translate(cx, cy);
 
-      // 3D stone base lip
-      ctx.fillStyle = '#0c1526';
-      ctx.strokeStyle = '#060d18';
-      ctx.lineWidth = 2.5;
-      roundRectPath(ctx, -half, -half + 4.5, size, size, 20);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonButton(ctx, -half, -half, size, size, 'slate', 22, isPressed);
+      } else {
+        ctx.fillStyle = '#342863';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.6;
+        roundRectPath(ctx, -half, -half + pressY, size, size, 22);
+        ctx.fill();
+        ctx.stroke();
+      }
 
-      // Tactile slate-stone medallion face
-      const bodyGrad = ctx.createLinearGradient(0, -half, 0, half);
-      bodyGrad.addColorStop(0, isPressed ? '#2c4166' : '#324a73');
-      bodyGrad.addColorStop(1, '#1b2942');
-      ctx.fillStyle = bodyGrad;
-      roundRectPath(ctx, -half, -half + pressY, size, size, 20);
-      ctx.fill();
-      ctx.stroke();
-
-      // Top inner bevel highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
-      roundRectPath(ctx, -half + 7, -half + 4 + pressY, size - 14, 7, 3.5);
-      ctx.fill();
-
-      // Recessed inner emblem well
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.45)';
+      // Cozy twilight well inside medallion
+      ctx.fillStyle = 'rgba(20, 12, 48, 0.45)';
       ctx.beginPath();
-      ctx.arc(0, pressY, 20, 0, Math.PI * 2);
+      ctx.arc(0, pressY + 1, 21, 0, Math.PI * 2);
       ctx.fill();
 
-      // Custom handcrafted vector icon
+      // Unified cartoon vector icon
       ctx.save();
       ctx.translate(0, pressY);
       if (iconType === 'crown') {
         const cGrad = ctx.createLinearGradient(-12, -10, 12, 8);
-        cGrad.addColorStop(0, '#fff0b3');
-        cGrad.addColorStop(0.5, '#ffd166');
-        cGrad.addColorStop(1, '#f39c12');
+        cGrad.addColorStop(0, '#fff5bd');
+        cGrad.addColorStop(0.5, '#ffd147');
+        cGrad.addColorStop(1, '#f08c00');
         ctx.fillStyle = cGrad;
-        ctx.strokeStyle = '#111b2e';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.4;
         ctx.lineJoin = 'round';
         ctx.beginPath();
-        ctx.moveTo(-11, 7);
-        ctx.lineTo(-13, -6);
-        ctx.lineTo(-5, -1);
-        ctx.lineTo(0, -10);
-        ctx.lineTo(5, -1);
-        ctx.lineTo(13, -6);
-        ctx.lineTo(11, 7);
+        ctx.moveTo(-12, 7.5);
+        ctx.lineTo(-14, -6.5);
+        ctx.lineTo(-5.5, -1);
+        ctx.lineTo(0, -11);
+        ctx.lineTo(5.5, -1);
+        ctx.lineTo(14, -6.5);
+        ctx.lineTo(12, 7.5);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = '#ff4757';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
-        ctx.arc(0, 2, 2.3, 0, Math.PI * 2);
+        ctx.arc(0, 2, 2.8, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
       } else if (iconType === 'trophy') {
-        this._drawTrophyIcon(ctx, 0, 0, 1);
+        this._drawTrophyIcon(ctx, 0, 0, 1.04);
       } else if (iconType === 'gear') {
-        ctx.fillStyle = '#d8e6ff';
-        ctx.strokeStyle = '#111b2e';
-        ctx.lineWidth = 1.8;
-        const teeth = 8;
-        const outerR = 12.5;
-        const innerR = 9.2;
-        ctx.beginPath();
-        for (let i = 0; i < teeth * 2; i++) {
-          const ang = (i * Math.PI) / teeth + Math.PI * 0.125;
-          const r = i % 2 === 0 ? outerR : innerR;
-          const gx = Math.cos(ang) * r;
-          const gy = Math.sin(ang) * r;
-          if (i === 0) ctx.moveTo(gx, gy);
-          else ctx.lineTo(gx, gy);
+        if (Art) {
+          Art.drawGearIcon(ctx, 0, 0, 1.02);
         }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#223454';
-        ctx.beginPath();
-        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
       }
       ctx.restore();
 
-      // Notification ruby-gold gem if an accessory is ready to unlock
+      // Notification golden Jel Özü gem if an accessory is ready to unlock
       if (showBadge) {
-        const bounce = Math.abs(Math.sin(this.hintTime * 4.5)) * 3;
-        this._drawGemEmblem(ctx, half - 4, -half + 4 - bounce, 6.5);
+        const bounce = Math.abs(Math.sin(this.hintTime * 4.5)) * 3.5;
+        this._drawGemEmblem(ctx, half - 3, -half + 3 - bounce, 7.5);
       }
 
-      // Sculpted micro-ribbon caption underneath medallion
-      const tagY = half + 17;
+      // Warm cream cartoon ribbon caption underneath medallion
+      const tagY = half + 19;
       ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
-      const tagW = Math.max(76, ctx.measureText(label).width + 18);
-      ctx.fillStyle = 'rgba(13, 21, 36, 0.78)';
-      ctx.strokeStyle = 'rgba(180, 210, 255, 0.18)';
-      ctx.lineWidth = 1;
-      roundRectPath(ctx, -tagW * 0.5, tagY - 10, tagW, 20, 10);
+      const tagW = Math.max(80, ctx.measureText(label).width + 18);
+      ctx.fillStyle = '#d3b888';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, -tagW * 0.5, tagY - 8.5, tagW, 21, 10.5);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#e6f0ff';
+      ctx.fillStyle = '#fff8eb';
+      roundRectPath(ctx, -tagW * 0.5, tagY - 10.5, tagW, 21, 10.5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = ink;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, 0, tagY + 0.5);
@@ -5545,29 +5617,23 @@
     }
 
     _drawGemEmblem(ctx, x, y, r) {
+      if (JellyGame.Art) {
+        JellyGame.Art.drawGemEmblem(ctx, x, y, r);
+        return;
+      }
       ctx.save();
       ctx.translate(x, y);
-      const grad = ctx.createLinearGradient(0, -r, 0, r);
-      grad.addColorStop(0, '#fff5bd');
-      grad.addColorStop(0.55, '#ffd166');
-      grad.addColorStop(1, '#f59e0b');
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = '#111b2e';
-      ctx.lineWidth = Math.max(1.25, r * 0.28);
-      ctx.lineJoin = 'round';
+      ctx.fillStyle = '#ffd147';
+      ctx.strokeStyle = '#1b1136';
+      ctx.lineWidth = Math.max(1.5, r * 0.25);
       ctx.beginPath();
-      ctx.moveTo(0, -r * 1.1);
-      ctx.lineTo(r * 0.88, 0);
-      ctx.lineTo(0, r * 1.1);
-      ctx.lineTo(-r * 0.88, 0);
+      ctx.moveTo(0, -r * 1.15);
+      ctx.lineTo(r * 0.9, 0);
+      ctx.lineTo(0, r * 1.15);
+      ctx.lineTo(-r * 0.9, 0);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.beginPath();
-      ctx.arc(-r * 0.22, -r * 0.25, r * 0.22, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
     }
 
@@ -5581,6 +5647,7 @@
         return;
       }
 
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
       ctx.translate(x, y);
       ctx.lineJoin = 'round';
@@ -5589,9 +5656,9 @@
       if (kind === 'crown') {
         const w = r * 1.12;
         const h = r * 0.85;
-        ctx.fillStyle = color || '#ffd166';
-        ctx.strokeStyle = '#111b2e';
-        ctx.lineWidth = Math.max(1.2, r * 0.24);
+        ctx.fillStyle = color || '#ffd147';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = Math.max(1.5, r * 0.28);
         ctx.beginPath();
         ctx.moveTo(-w, h);
         ctx.lineTo(-w * 1.05, -h * 0.55);
@@ -5608,9 +5675,9 @@
         ctx.arc(0, h * 0.42, r * 0.2, 0, Math.PI * 2);
         ctx.fill();
       } else if (kind === 'bolt') {
-        ctx.fillStyle = color || '#ffd166';
-        ctx.strokeStyle = '#111b2e';
-        ctx.lineWidth = Math.max(1.1, r * 0.22);
+        ctx.fillStyle = color || '#ffd147';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = Math.max(1.4, r * 0.26);
         ctx.beginPath();
         ctx.moveTo(r * 0.28, -r * 1.08);
         ctx.lineTo(-r * 0.76, r * 0.12);
@@ -5624,25 +5691,25 @@
       } else if (kind === 'lock') {
         const bw = r * 1.48;
         const bh = r * 1.12;
-        ctx.strokeStyle = color || '#94b8e8';
-        ctx.lineWidth = Math.max(1.3, r * 0.28);
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = Math.max(1.8, r * 0.34);
         ctx.beginPath();
         ctx.arc(0, -r * 0.22, r * 0.46, Math.PI, 0);
         ctx.stroke();
         ctx.fillStyle = color || '#94b8e8';
-        ctx.strokeStyle = '#0b1020';
-        ctx.lineWidth = 1.1;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.5;
         roundRectPath(ctx, -bw * 0.5, -r * 0.18, bw, bh, r * 0.3);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = '#0b1020';
+        ctx.fillStyle = ink;
         ctx.beginPath();
         ctx.arc(0, r * 0.34, r * 0.18, 0, Math.PI * 2);
         ctx.fill();
       } else if (kind === 'warning') {
-        ctx.fillStyle = color || '#ff7b72';
-        ctx.strokeStyle = '#1a060b';
-        ctx.lineWidth = 1.3;
+        ctx.fillStyle = color || '#ff5e57';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.moveTo(0, -r * 1.02);
         ctx.lineTo(r * 1.02, r * 0.88);
@@ -5650,13 +5717,13 @@
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = '#1a060b';
-        ctx.fillRect(-r * 0.13, -r * 0.38, r * 0.26, r * 0.68);
+        ctx.fillStyle = ink;
+        ctx.fillRect(-r * 0.14, -r * 0.38, r * 0.28, r * 0.68);
         ctx.beginPath();
-        ctx.arc(0, r * 0.54, r * 0.15, 0, Math.PI * 2);
+        ctx.arc(0, r * 0.54, r * 0.16, 0, Math.PI * 2);
         ctx.fill();
       } else if (kind === 'play') {
-        ctx.fillStyle = color || '#06261c';
+        ctx.fillStyle = color || ink;
         ctx.beginPath();
         ctx.moveTo(-r * 0.62, -r * 0.86);
         ctx.lineTo(r * 0.92, 0);
@@ -5664,7 +5731,7 @@
         ctx.closePath();
         ctx.fill();
       } else if (kind === 'skip') {
-        ctx.fillStyle = color || '#dce8ff';
+        ctx.fillStyle = color || '#fff8eb';
         ctx.beginPath();
         ctx.moveTo(-r * 0.85, -r * 0.72);
         ctx.lineTo(r * 0.15, 0);
@@ -5674,8 +5741,8 @@
         roundRectPath(ctx, r * 0.28, -r * 0.72, r * 0.36, r * 1.44, r * 0.16);
         ctx.fill();
       } else if (kind === 'upgrade') {
-        ctx.strokeStyle = color || '#261402';
-        ctx.lineWidth = Math.max(1.7, r * 0.34);
+        ctx.strokeStyle = color || ink;
+        ctx.lineWidth = Math.max(1.9, r * 0.36);
         ctx.beginPath();
         ctx.moveTo(0, r * 0.75);
         ctx.lineTo(0, -r * 0.68);
@@ -5684,22 +5751,22 @@
         ctx.lineTo(r * 0.68, -r * 0.04);
         ctx.stroke();
       } else if (kind === 'check') {
-        ctx.strokeStyle = color || '#06241b';
-        ctx.lineWidth = Math.max(1.8, r * 0.36);
+        ctx.strokeStyle = color || ink;
+        ctx.lineWidth = Math.max(2.0, r * 0.38);
         ctx.beginPath();
         ctx.moveTo(-r * 0.72, r * 0.04);
         ctx.lineTo(-r * 0.14, r * 0.62);
         ctx.lineTo(r * 0.82, -r * 0.56);
         ctx.stroke();
       } else if (kind === 'star' || kind === 'spark') {
-        const inner = kind === 'spark' ? r * 0.34 : r * 0.45;
+        const inner = kind === 'spark' ? r * 0.38 : r * 0.46;
         const points = kind === 'spark' ? 4 : 5;
-        ctx.fillStyle = color || '#ffd166';
-        ctx.strokeStyle = '#111b2e';
-        ctx.lineWidth = Math.max(1.0, r * 0.2);
+        ctx.fillStyle = color || '#ffd147';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = Math.max(1.3, r * 0.24);
         ctx.beginPath();
         for (let i = 0; i < points * 2; i++) {
-          const rad = i % 2 === 0 ? r * 1.04 : inner;
+          const rad = i % 2 === 0 ? r * 1.06 : inner;
           const ang = -Math.PI * 0.5 + (i * Math.PI) / points;
           const px = Math.cos(ang) * rad;
           const py = Math.sin(ang) * rad;
@@ -5711,9 +5778,9 @@
         ctx.stroke();
       } else if (kind === 'pencil') {
         ctx.rotate(-Math.PI * 0.25);
-        ctx.fillStyle = color || '#e6f0ff';
-        ctx.strokeStyle = '#09111f';
-        ctx.lineWidth = 1.0;
+        ctx.fillStyle = color || '#fff8eb';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.4;
         roundRectPath(ctx, -r * 0.85, -r * 0.28, r * 1.25, r * 0.56, r * 0.12);
         ctx.fill();
         ctx.stroke();
@@ -5722,6 +5789,79 @@
         ctx.lineTo(r * 0.95, 0);
         ctx.lineTo(r * 0.45, r * 0.28);
         ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (kind === 'gear') {
+        if (JellyGame.Art && JellyGame.Art.drawGearIcon) {
+          JellyGame.Art.drawGearIcon(ctx, 0, 0, r / 12.2);
+        }
+      } else if (kind === 'restart') {
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = Math.max(3.2, r * 0.55);
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.68, -Math.PI * 0.82, Math.PI * 0.72);
+        ctx.stroke();
+        ctx.strokeStyle = color || '#fff8eb';
+        ctx.lineWidth = Math.max(1.8, r * 0.3);
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.68, -Math.PI * 0.82, Math.PI * 0.72);
+        ctx.stroke();
+        // Curved arrow head at top-left
+        ctx.fillStyle = color || '#fff8eb';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.24, -r * 0.96);
+        ctx.lineTo(-r * 0.88, -r * 0.78);
+        ctx.lineTo(-r * 0.58, -r * 0.22);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (kind === 'home') {
+        ctx.fillStyle = color || '#fff8eb';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = Math.max(1.5, r * 0.26);
+        // Chimney + cottage roof + base
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 0.92);
+        ctx.lineTo(r * 0.94, -r * 0.08);
+        ctx.lineTo(r * 0.66, -r * 0.08);
+        ctx.lineTo(r * 0.66, r * 0.82);
+        ctx.lineTo(-r * 0.66, r * 0.82);
+        ctx.lineTo(-r * 0.66, -r * 0.08);
+        ctx.lineTo(-r * 0.94, -r * 0.08);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = ink;
+        roundRectPath(ctx, -r * 0.22, r * 0.14, r * 0.44, r * 0.64, r * 0.12);
+        ctx.fill();
+      } else if (kind === 'gamepad') {
+        // Chunky thick-inked cartoon game controller icon
+        ctx.fillStyle = color || '#fff8eb';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.65, -r * 0.55);
+        ctx.lineTo(r * 0.65, -r * 0.55);
+        ctx.quadraticCurveTo(r * 1.22, -r * 0.5, r * 1.24, r * 0.34);
+        ctx.quadraticCurveTo(r * 1.16, r * 0.88, r * 0.68, r * 0.68);
+        ctx.lineTo(r * 0.38, r * 0.32);
+        ctx.lineTo(-r * 0.38, r * 0.32);
+        ctx.lineTo(-r * 0.68, r * 0.68);
+        ctx.quadraticCurveTo(-r * 1.16, r * 0.88, -r * 1.24, r * 0.34);
+        ctx.quadraticCurveTo(-r * 1.22, -r * 0.5, -r * 0.65, -r * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Left D-pad plus + right A/B dots
+        ctx.fillStyle = ink;
+        ctx.fillRect(-r * 0.68, -r * 0.14, r * 0.48, r * 0.2);
+        ctx.fillRect(-r * 0.54, -r * 0.28, r * 0.2, r * 0.48);
+        ctx.beginPath();
+        ctx.arc(r * 0.42, -r * 0.14, r * 0.12, 0, Math.PI * 2);
+        ctx.arc(r * 0.68, r * 0.04, r * 0.12, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -5755,6 +5895,13 @@
         if (p.icon) {
           this._drawUiIcon(ctx, p.icon, cursorX + w * 0.5, p.dy || 0, p.r || 5.5, p.color || defaultColor);
         } else if (p.text) {
+          if (p.stroke) {
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = p.strokeW || 4;
+            ctx.strokeStyle = p.stroke;
+            ctx.strokeText(p.text, cursorX, 0);
+          }
           ctx.fillStyle = p.color || defaultColor;
           ctx.fillText(p.text, cursorX, 0);
         }
@@ -5764,77 +5911,47 @@
       ctx.restore();
     }
 
-    _drawMonumentTablet(ctx, x, y, w, h, radius = 24) {
-      // 3D base lip shadow
-      ctx.fillStyle = '#070d18';
-      roundRectPath(ctx, x, y + 7, w, h, radius);
-      ctx.fill();
-
-      // Main chiseled slate-stone body
-      const bodyGrad = ctx.createLinearGradient(x, y, x, y + h);
-      bodyGrad.addColorStop(0, '#223452');
-      bodyGrad.addColorStop(1, '#142036');
-      ctx.fillStyle = bodyGrad;
-      ctx.strokeStyle = '#091220';
+    _drawMonumentTablet(ctx, x, y, w, h, radius = 26) {
+      if (JellyGame.Art) {
+        JellyGame.Art.drawCartoonPanel(ctx, x, y, w, h, radius);
+        return;
+      }
+      ctx.fillStyle = '#221848';
+      ctx.strokeStyle = '#1b1136';
       ctx.lineWidth = 3;
       roundRectPath(ctx, x, y, w, h, radius);
       ctx.fill();
       ctx.stroke();
-
-      // Inner bevel highlight rim
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.22)';
-      ctx.lineWidth = 1.5;
-      roundRectPath(ctx, x + 3, y + 3, w - 6, h - 6, radius - 2);
-      ctx.stroke();
-
-      // Top center specular stone sheen
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-      roundRectPath(ctx, x + 22, y + 4, w - 44, 6, 3);
-      ctx.fill();
     }
 
     _drawCloseMedallion(ctx, x, y, size) {
+      if (JellyGame.Art) {
+        JellyGame.Art.drawCloseMedallion(ctx, x, y, size);
+        return;
+      }
       const r = size * 0.5;
-      const cx = x + r;
-      const cy = y + r;
-      ctx.save();
-      ctx.fillStyle = '#0b1322';
-      ctx.beginPath();
-      ctx.arc(cx, cy + 2.5, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#2c4166';
-      ctx.strokeStyle = '#091220';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = '#e6f0ff';
+      ctx.fillStyle = '#e63956';
+      ctx.strokeStyle = '#1b1136';
       ctx.lineWidth = 2.4;
-      ctx.lineCap = 'round';
-      const d = 5.2;
       ctx.beginPath();
-      ctx.moveTo(cx - d, cy - d);
-      ctx.lineTo(cx + d, cy + d);
-      ctx.moveTo(cx + d, cy - d);
-      ctx.lineTo(cx - d, cy + d);
+      ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
-      ctx.restore();
     }
 
     _drawSettingsModal(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
 
       ctx.save();
-      ctx.fillStyle = `rgba(6, 10, 20, ${0.72 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      ctx.fillStyle = `rgba(17, 10, 38, ${0.72 * clamp(this.modalAnim * 1.5, 0, 1)})`;
       this._fillViewportRect(ctx);
 
       const panelW = 364;
-      const panelH = 392;
+      const panelH = 398;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -5849,10 +5966,11 @@
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `700 21px ${C.FONTS.DISPLAY}`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#091324';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4.8;
+      ctx.strokeStyle = ink;
       ctx.strokeText(tr.settings || 'SETTINGS', panelX + 26, panelY + 38);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#fff8eb';
       ctx.fillText(tr.settings || 'SETTINGS', panelX + 26, panelY + 38);
 
       // Close medallion
@@ -5864,18 +5982,18 @@
 
       const segW = 160;
       const segH = 38;
-      const segX = panelX + panelW - segW - 22;
+      const segX = panelX + panelW - segW - 24;
 
-      // Row 1: Sound FX well + custom speaker icon
+      // Row 1: Sound FX warm cream card + comic speaker icon
       const row1Y = panelY + 98;
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.55)';
-      roundRectPath(ctx, panelX + 18, row1Y - 25, panelW - 36, 50, 16);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonCard(ctx, panelX + 18, row1Y - 25, panelW - 36, 50, 'cream', 16);
+      }
 
       this._drawSpeakerIcon(ctx, panelX + 42, row1Y, this.soundEnabled);
 
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#eef5ff';
+      ctx.fillStyle = ink;
       ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(tr.sound || 'Sound FX', panelX + 64, row1Y + 0.5);
 
@@ -5893,11 +6011,11 @@
         this.soundEnabled
       );
 
-      // Row 2: Adaptive Music Volume Slider + clickable mute toggle on label
-      const row2Y = panelY + 158;
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.55)';
-      roundRectPath(ctx, panelX + 18, row2Y - 25, panelW - 36, 50, 16);
-      ctx.fill();
+      // Row 2: Adaptive Music Volume Slider inside warm cream card
+      const row2Y = panelY + 160;
+      if (Art) {
+        Art.drawCartoonCard(ctx, panelX + 18, row2Y - 25, panelW - 36, 50, 'cream', 16);
+      }
 
       const effMusicRatio = this.musicEnabled ? clamp(this.musicVolume, 0, 1) : 0;
       const musicOnNow = effMusicRatio > 0.01;
@@ -5911,7 +6029,7 @@
       this._drawMusicIcon(ctx, panelX + 42, row2Y, musicOnNow);
 
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#eef5ff';
+      ctx.fillStyle = ink;
       ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(tr.music || 'Music', panelX + 64, row2Y + 0.5);
 
@@ -5920,54 +6038,49 @@
       this.uiRects.musicSliderTrack = { x: trackX, y: row2Y, w: trackW };
       this.uiRects.musicSliderHit = { x: trackX - 10, y: row2Y - 24, w: trackW + 20, h: 48 };
 
-      // Recessed volume groove
-      ctx.fillStyle = '#09111f';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.16)';
-      ctx.lineWidth = 1;
-      roundRectPath(ctx, trackX, row2Y - 4.5, trackW, 9, 4.5);
+      // Chunky inked slider groove
+      ctx.fillStyle = '#1b1138';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, trackX, row2Y - 5.5, trackW, 11, 5.5);
       ctx.fill();
       ctx.stroke();
 
-      // Bioluminescent fill
       if (effMusicRatio > 0.01) {
-        const fillW = Math.max(9, trackW * effMusicRatio);
+        const fillW = Math.max(10, trackW * effMusicRatio);
         const sGrad = ctx.createLinearGradient(trackX, row2Y, trackX + fillW, row2Y);
-        sGrad.addColorStop(0, '#10b981');
-        sGrad.addColorStop(1, '#6effd2');
+        sGrad.addColorStop(0, '#15c98a');
+        sGrad.addColorStop(1, '#6affc9');
         ctx.fillStyle = sGrad;
-        roundRectPath(ctx, trackX, row2Y - 4.5, fillW, 9, 4.5);
+        roundRectPath(ctx, trackX + 1, row2Y - 4, fillW - 2, 8, 4);
         ctx.fill();
       }
 
-      // Glossy slider knob
+      // Chunky inked slider knob
       const knobX = trackX + trackW * effMusicRatio;
-      ctx.fillStyle = '#071422';
+      ctx.fillStyle = musicOnNow ? '#ffe875' : '#b8b0cc';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
-      ctx.arc(knobX, row2Y + 1.5, 9.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = musicOnNow ? '#8affdb' : '#6e86ad';
-      ctx.strokeStyle = '#06241b';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(knobX, row2Y, 8.8, 0, Math.PI * 2);
+      ctx.arc(knobX, row2Y, 9.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = musicOnNow ? '#36f5b0' : 'rgba(180, 200, 232, 0.55)';
-      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      ctx.fillStyle = musicOnNow ? '#0b7853' : '#6c5c94';
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'right';
       ctx.fillText(`${Math.round(effMusicRatio * 100)}%`, segX + segW - 2, row2Y + 0.5);
 
-      // Row 3: Language well + custom globe icon
-      const row3Y = panelY + 218;
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.55)';
-      roundRectPath(ctx, panelX + 18, row3Y - 25, panelW - 36, 50, 16);
-      ctx.fill();
+      // Row 3: Language well + comic globe icon
+      const row3Y = panelY + 222;
+      if (Art) {
+        Art.drawCartoonCard(ctx, panelX + 18, row3Y - 25, panelW - 36, 50, 'cream', 16);
+      }
 
       this._drawGlobeIcon(ctx, panelX + 42, row3Y);
 
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#eef5ff';
+      ctx.fillStyle = ink;
       ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(tr.language || 'Language', panelX + 64, row3Y + 0.5);
 
@@ -5985,9 +6098,9 @@
         this.lang === 'en'
       );
 
-      // Row 4: Play Store Compliance — Privacy & Terms + Data Reset buttons
-      const btnY = panelY + 272;
-      const btnH = 40;
+      // Row 4: Play Store Compliance — Privacy & Terms + Data Reset cartoon buttons
+      const btnY = panelY + 278;
+      const btnH = 42;
       const gap = 10;
       const halfBtnW = (panelW - 36 - gap) * 0.5;
       const privX = panelX + 18;
@@ -5996,50 +6109,31 @@
       this.uiRects.settingsPrivacyBtn = { x: privX, y: btnY, w: halfBtnW, h: btnH };
       this.uiRects.settingsResetBtn = { x: rstX, y: btnY, w: halfBtnW, h: btnH };
 
-      // Privacy & Terms tactile button
-      ctx.fillStyle = '#0b1322';
-      roundRectPath(ctx, privX, btnY + 3, halfBtnW, btnH, 16);
-      ctx.fill();
-      ctx.fillStyle = '#293e62';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.25)';
-      ctx.lineWidth = 1.3;
-      roundRectPath(ctx, privX, btnY, halfBtnW, btnH, 16);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonButton(ctx, privX, btnY, halfBtnW, btnH, 'slate', 16);
+        Art.drawCartoonButton(ctx, rstX, btnY, halfBtnW, btnH, this.confirmResetPending ? 'rose' : 'orange', 16);
+      }
 
-      ctx.fillStyle = '#e6f0ff';
-      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      ctx.fillStyle = '#fff8eb';
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.fillText(tr.privacyBtn || 'Privacy & Terms', privX + halfBtnW * 0.5, btnY + btnH * 0.5 + 0.5);
 
-      // Reset Data tactile button
-      ctx.fillStyle = '#0b1322';
-      roundRectPath(ctx, rstX, btnY + 3, halfBtnW, btnH, 16);
-      ctx.fill();
-      ctx.fillStyle = this.confirmResetPending ? '#7a1c28' : '#26293e';
-      ctx.strokeStyle = this.confirmResetPending
-        ? '#ff5e57'
-        : 'rgba(255, 130, 140, 0.24)';
-      ctx.lineWidth = 1.3;
-      roundRectPath(ctx, rstX, btnY, halfBtnW, btnH, 16);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = this.confirmResetPending ? '#ffe3e3' : '#ffb8c0';
-      ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillStyle = this.confirmResetPending ? '#fff8eb' : ink;
+      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
       const resetLabel = this.confirmResetPending
         ? tr.confirmReset || 'Tap Again to Confirm'
         : tr.resetDataBtn || 'Reset Data';
       ctx.fillText(resetLabel, rstX + halfBtnW * 0.5, btnY + btnH * 0.5 + 0.5);
 
       if (this.resetStatusMsg) {
-        ctx.fillStyle = C.COLORS.jellyPrimary;
-        ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
-        ctx.fillText(this.resetStatusMsg, C.WIDTH * 0.5, panelY + 344);
+        ctx.fillStyle = '#6affc9';
+        ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(this.resetStatusMsg, C.WIDTH * 0.5, panelY + 354);
       } else {
-        ctx.fillStyle = 'rgba(180, 202, 235, 0.45)';
-        ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
-        ctx.fillText('Jelly Climb v1.2.2', C.WIDTH * 0.5, panelY + 346);
+        ctx.fillStyle = 'rgba(255, 248, 235, 0.56)';
+        ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
+        ctx.fillText('Jelly Climb v1.2.2', C.WIDTH * 0.5, panelY + 356);
       }
 
       ctx.restore();
@@ -6047,15 +6141,17 @@
 
     _drawPauseModal(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
 
       ctx.save();
-      ctx.fillStyle = `rgba(6, 10, 20, ${0.78 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      ctx.fillStyle = `rgba(17, 10, 38, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
       this._fillViewportRect(ctx);
 
       const panelW = 340;
-      const panelH = 318;
+      const panelH = 322;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -6066,34 +6162,78 @@
 
       this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
 
-      // Header title
+      // Warm gold cartoon pause badge beside header title
+      const badgeCx = panelX + 34;
+      const badgeCy = panelY + 35;
+      ctx.fillStyle = '#ffcf4d';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(badgeCx, badgeCy, 12.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, badgeCx - 5, badgeCy - 5.5, 3.6, 11, 1.5);
+      ctx.fill();
+      roundRectPath(ctx, badgeCx + 1.4, badgeCy - 5.5, 3.6, 11, 1.5);
+      ctx.fill();
+
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.font = `700 21px ${C.FONTS.DISPLAY}`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#091324';
-      ctx.strokeText(tr.pauseTitle || 'PAUSED', panelX + 24, panelY + 36);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(tr.pauseTitle || 'PAUSED', panelX + 24, panelY + 36);
+      ctx.font = `700 20.5px ${C.FONTS.DISPLAY}`;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4.6;
+      ctx.strokeStyle = ink;
+      ctx.strokeText(tr.pauseTitle || 'PAUSED', panelX + 54, panelY + 36);
+      ctx.fillStyle = '#fff8eb';
+      ctx.fillText(tr.pauseTitle || 'PAUSED', panelX + 54, panelY + 36);
 
-      // Close / Resume medallion
       const closeSize = 34;
       const closeX = panelX + panelW - closeSize - 18;
       const closeY = panelY + 19;
       this.uiRects.modalCloseBtn = { x: closeX, y: closeY, w: closeSize, h: closeSize };
       this._drawCloseMedallion(ctx, closeX, closeY, closeSize);
 
-      // Mode + altitude status pill
+      // Warm cream mode + altitude status plaque with Jelly crest & corner mossy leaf sprout
       const pillX = panelX + 22;
       const pillY = panelY + 62;
       const pillW = panelW - 44;
-      const pillH = 32;
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.62)';
-      ctx.strokeStyle = 'rgba(175, 210, 255, 0.16)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, pillX, pillY, pillW, pillH, 14);
+      const pillH = 38;
+      if (Art) {
+        Art.drawCartoonCard(ctx, pillX, pillY, pillW, pillH, 'cream', 15);
+      }
+
+      // Tiny storybook leaf sprout perched atop the left edge of the status plaque
+      ctx.save();
+      ctx.translate(pillX + 18, pillY + 1);
+      ctx.fillStyle = '#7de01d';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(-3.5, -4, 4.4, 2.3, -0.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      ctx.fillStyle = '#b5ff47';
+      ctx.beginPath();
+      ctx.ellipse(3.5, -4.5, 4.8, 2.5, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Left mini hero medallion inside status plaque
+      const miniCx = pillX + 22;
+      const miniCy = pillY + pillH * 0.5;
+      ctx.fillStyle = '#253978';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(miniCx, miniCy, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      this._drawMiniJellyPreview(ctx, miniCx, miniCy + 0.5, 8.6, 'none', this.equippedColor, false);
+
+      // Right golden gem crest inside status plaque
+      this._drawGemEmblem(ctx, pillX + pillW - 21, miniCy, 7.2);
 
       const modeLabel =
         this.gameMode === 'rising'
@@ -6102,66 +6242,64 @@
             ? tr.modeTutorial || 'TUTORIAL'
             : tr.modeClassic || 'CLASSIC';
       const modeColor =
-        this.gameMode === 'rising' ? '#ff9f7f' : this.gameMode === 'tutorial' ? '#ffd166' : '#6effd2';
+        this.gameMode === 'rising' ? '#b0390c' : this.gameMode === 'tutorial' ? '#9e5b04' : '#166e3a';
 
-      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.fillStyle = modeColor;
       ctx.fillText(
         `${modeLabel}  •  ${Math.floor(this.currentMeters)} m`,
-        panelX + panelW * 0.5,
+        panelX + panelW * 0.5 + 1,
         pillY + pillH * 0.5 + 0.5,
-        pillW - 20
+        pillW - 88
       );
 
-      // Hint subtitle
+      // Subtle themed divider flourishes flanking the pause subtitle
+      const hintText = tr.pauseHint || 'World & physics are paused';
       ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillStyle = 'rgba(180, 205, 240, 0.72)';
-      ctx.fillText(
-        tr.pauseHint || 'World & physics are paused',
-        panelX + panelW * 0.5,
-        panelY + 109,
-        pillW
-      );
+      const hintTw = Math.min(pillW - 54, ctx.measureText(hintText).width);
+      const hintCy = panelY + 114;
+      const divGap = hintTw * 0.5 + 10;
+      ctx.strokeStyle = 'rgba(255, 224, 140, 0.32)';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(pillX + 10, hintCy);
+      ctx.lineTo(C.WIDTH * 0.5 - divGap, hintCy);
+      ctx.moveTo(C.WIDTH * 0.5 + divGap, hintCy);
+      ctx.lineTo(pillX + pillW - 10, hintCy);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 248, 235, 0.84)';
+      ctx.fillText(hintText, panelX + panelW * 0.5, hintCy + 0.5, pillW - 40);
 
       // Primary Emerald Resume CTA
       const btnX = panelX + 22;
       const btnW = panelW - 44;
-      const resY = panelY + 124;
+      const resY = panelY + 130;
       const resH = 52;
       this.uiRects.pauseResumeBtn = { x: btnX, y: resY, w: btnW, h: resH };
 
-      ctx.fillStyle = '#046c4e';
-      roundRectPath(ctx, btnX, resY + 4, btnW, resH, 26);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonButton(ctx, btnX, resY, btnW, resH, 'green', 26);
+      }
 
-      const resGrad = ctx.createLinearGradient(0, resY, 0, resY + resH);
-      resGrad.addColorStop(0, '#6effd2');
-      resGrad.addColorStop(1, '#12c48b');
-      ctx.fillStyle = resGrad;
-      roundRectPath(ctx, btnX, resY, btnW, resH, 26);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      roundRectPath(ctx, btnX + 18, resY + 4, btnW - 36, 9, 4.5);
-      ctx.fill();
-
-      ctx.font = `700 15.5px ${C.FONTS.DISPLAY}`;
+      ctx.font = `700 16px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { icon: 'play', r: 5.5, color: '#06261c', gap: 8 },
-          { text: tr.resume || 'RESUME', color: '#06261c' }
+          { icon: 'play', r: 5.8, color: ink, gap: 8 },
+          { text: tr.resume || 'RESUME', color: ink }
         ],
         C.WIDTH * 0.5,
         resY + resH * 0.5 + 1,
         'center',
-        '#06261c',
+        ink,
         btnW - 24
       );
 
-      // Secondary row: Restart + Settings
-      const secY = panelY + 192;
+      // Secondary row: Restart + Settings (with inked cartoon icons)
+      const secY = panelY + 195;
       const secH = 44;
       const gap = 10;
       const halfW = (btnW - gap) * 0.5;
@@ -6171,57 +6309,62 @@
       this.uiRects.pauseSettingsBtn = { x: setX, y: secY, w: halfW, h: secH };
 
       for (const item of [
-        { x: rstX, label: tr.restartRun || 'RESTART' },
-        { x: setX, label: tr.settings || 'SETTINGS' }
+        { x: rstX, icon: 'restart', color: '#ffe478', label: tr.restartRun || 'RESTART' },
+        { x: setX, icon: 'gear', color: '#fff8eb', label: tr.settings || 'SETTINGS' }
       ]) {
-        ctx.fillStyle = '#0b1322';
-        roundRectPath(ctx, item.x, secY + 3, halfW, secH, 18);
-        ctx.fill();
-
-        ctx.fillStyle = '#283c5e';
-        ctx.strokeStyle = 'rgba(180, 210, 255, 0.25)';
-        ctx.lineWidth = 1.4;
-        roundRectPath(ctx, item.x, secY, halfW, secH, 18);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#eef5ff';
-        ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-        ctx.textAlign = 'center';
-        ctx.fillText(item.label, item.x + halfW * 0.5, secY + secH * 0.5 + 0.5, halfW - 14);
+        if (Art) {
+          Art.drawCartoonButton(ctx, item.x, secY, halfW, secH, 'slate', 16);
+        }
+        ctx.font = `700 12.2px ${C.FONTS.DISPLAY}`;
+        this._drawUiRow(
+          ctx,
+          [
+            { icon: item.icon, r: 5.8, color: item.color, gap: 6 },
+            { text: item.label, color: '#fff8eb' }
+          ],
+          item.x + halfW * 0.5,
+          secY + secH * 0.5 + 0.5,
+          'center',
+          '#fff8eb',
+          halfW - 14
+        );
       }
 
-      // Main Menu button
-      const menuY = panelY + 250;
+      // Main Menu button with cozy home icon
+      const menuY = panelY + 252;
       const menuH = 42;
       this.uiRects.pauseMenuBtn = { x: btnX, y: menuY, w: btnW, h: menuH };
 
-      ctx.fillStyle = '#0b111e';
-      roundRectPath(ctx, btnX, menuY + 3, btnW, menuH, 18);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonButton(ctx, btnX, menuY, btnW, menuH, 'rose', 16);
+      }
 
-      ctx.fillStyle = '#2b1c29';
-      ctx.strokeStyle = 'rgba(255, 130, 140, 0.34)';
-      ctx.lineWidth = 1.4;
-      roundRectPath(ctx, btnX, menuY, btnW, menuH, 18);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffd2d8';
-      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
-      ctx.textAlign = 'center';
-      ctx.fillText(tr.mainMenuBtn || 'MAIN MENU', btnX + btnW * 0.5, menuY + menuH * 0.5 + 0.5, btnW - 20);
+      ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
+      this._drawUiRow(
+        ctx,
+        [
+          { icon: 'home', r: 6.2, color: '#fff8eb', gap: 7 },
+          { text: tr.mainMenuBtn || 'MAIN MENU', color: '#fff8eb' }
+        ],
+        btnX + btnW * 0.5,
+        menuY + menuH * 0.5 + 0.5,
+        'center',
+        '#fff8eb',
+        btnW - 22
+      );
 
       ctx.restore();
     }
 
     _drawPrivacyModal(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
 
       ctx.save();
-      ctx.fillStyle = `rgba(6, 10, 20, ${0.76 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      ctx.fillStyle = `rgba(17, 10, 38, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
       this._fillViewportRect(ctx);
 
       const panelW = 392;
@@ -6239,35 +6382,31 @@
       // Header
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.font = `700 19px ${C.FONTS.DISPLAY}`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#091324';
+      ctx.font = `700 19.5px ${C.FONTS.DISPLAY}`;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4.6;
+      ctx.strokeStyle = ink;
       ctx.strokeText(tr.privacyTitle || 'PRIVACY & TERMS', panelX + 24, panelY + 36);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#fff8eb';
       ctx.fillText(tr.privacyTitle || 'PRIVACY & TERMS', panelX + 24, panelY + 36);
 
-      // Close medallion
       const closeSize = 34;
       const closeX = panelX + panelW - closeSize - 18;
       const closeY = panelY + 19;
       this.uiRects.modalCloseBtn = { x: closeX, y: closeY, w: closeSize, h: closeSize };
       this._drawCloseMedallion(ctx, closeX, closeY, closeSize);
 
-      // Recessed reading well
+      // Warm cream parchment reading card
       const wellX = panelX + 20;
       const wellY = panelY + 66;
       const wellW = panelW - 40;
-      const wellH = 326;
-      ctx.fillStyle = 'rgba(9, 15, 28, 0.68)';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.14)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, wellX, wellY, wellW, wellH, 18);
-      ctx.fill();
-      ctx.stroke();
+      const wellH = 324;
+      if (Art) {
+        Art.drawCartoonCard(ctx, wellX, wellY, wellW, wellH, 'cream', 18);
+      }
 
-      // Word-wrapped policy lines
       const lines = tr.policyLines || [];
-      ctx.fillStyle = '#dce8ff';
+      ctx.fillStyle = ink;
       ctx.font = `600 12.5px ${C.FONTS.UI}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
@@ -6295,7 +6434,7 @@
 
       // Bottom buttons: Back to Settings + Open Full Policy HTML
       const btnY = panelY + panelH - 64;
-      const btnH = 40;
+      const btnH = 42;
       const gap = 12;
       const halfW = (wellW - gap) * 0.5;
       const backX = wellX;
@@ -6304,199 +6443,105 @@
       this.uiRects.privacyBackBtn = { x: backX, y: btnY, w: halfW, h: btnH };
       this.uiRects.privacyOpenPageBtn = { x: openX, y: btnY, w: halfW, h: btnH };
 
-      ctx.fillStyle = '#283c5e';
-      roundRectPath(ctx, backX, btnY, halfW, btnH, 16);
-      ctx.fill();
-      ctx.fillStyle = '#e6f0ff';
-      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      if (Art) {
+        Art.drawCartoonButton(ctx, backX, btnY, halfW, btnH, 'slate', 16);
+        Art.drawCartoonButton(ctx, openX, btnY, halfW, btnH, 'green', 16);
+      }
+      ctx.fillStyle = '#fff8eb';
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(tr.backToSettings || '← Back', backX + halfW * 0.5, btnY + btnH * 0.5 + 0.5);
 
-      ctx.fillStyle = C.COLORS.jellyPrimary;
-      roundRectPath(ctx, openX, btnY, halfW, btnH, 16);
-      ctx.fill();
-      ctx.fillStyle = '#06241b';
+      ctx.fillStyle = ink;
       ctx.fillText(tr.openFullPolicy || 'Full Policy ↗', openX + halfW * 0.5, btnY + btnH * 0.5 + 0.5);
 
       ctx.restore();
     }
 
     _drawSpeakerIcon(ctx, x, y, isOn) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.fillStyle = isOn ? C.COLORS.jellyPrimary : '#94a3b8';
-      ctx.beginPath();
-      ctx.moveTo(-8, -4);
-      ctx.lineTo(-3, -4);
-      ctx.lineTo(2, -9);
-      ctx.lineTo(2, 9);
-      ctx.lineTo(-3, 4);
-      ctx.lineTo(-8, 4);
-      ctx.closePath();
-      ctx.fill();
-
-      if (isOn) {
-        ctx.strokeStyle = C.COLORS.jellyPrimary;
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.arc(3, 0, 4.5, -0.7, 0.7);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(3, 0, 8, -0.75, 0.75);
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = '#ff5e57';
-        ctx.lineWidth = 2.2;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(5, -4);
-        ctx.lineTo(11, 4);
-        ctx.moveTo(11, -4);
-        ctx.lineTo(5, 4);
-        ctx.stroke();
+      if (JellyGame.Art) {
+        JellyGame.Art.drawSpeakerIcon(ctx, x, y, isOn);
       }
-      ctx.restore();
     }
 
     _drawMusicIcon(ctx, x, y, isOn) {
-      ctx.save();
-      ctx.translate(x, y);
-      const col = isOn ? '#ffd166' : '#94a3b8';
-      ctx.fillStyle = col;
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 2;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      // Beamed eighth notes
-      ctx.beginPath();
-      ctx.arc(-4.5, 4.5, 3.2, 0, Math.PI * 2);
-      ctx.arc(4.5, 3.0, 3.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.moveTo(-1.8, 4.5);
-      ctx.lineTo(-1.8, -6.5);
-      ctx.lineTo(7.2, -8.0);
-      ctx.lineTo(7.2, 3.0);
-      ctx.stroke();
-
-      if (!isOn) {
-        ctx.strokeStyle = '#ff5e57';
-        ctx.lineWidth = 2.2;
-        ctx.beginPath();
-        ctx.moveTo(-7, -7);
-        ctx.lineTo(8, 8);
-        ctx.stroke();
+      if (JellyGame.Art) {
+        JellyGame.Art.drawMusicIcon(ctx, x, y, isOn);
       }
-      ctx.restore();
     }
 
     _drawGlobeIcon(ctx, x, y) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.strokeStyle = '#74b9ff';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(0, 0, 8.5, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 4.2, 8.5, 0, 0, Math.PI * 2);
-      ctx.moveTo(-8, 0);
-      ctx.lineTo(8, 0);
-      ctx.stroke();
-      ctx.restore();
+      if (JellyGame.Art) {
+        JellyGame.Art.drawGlobeIcon(ctx, x, y);
+      }
     }
 
     _drawSegmentedControl(ctx, x, y, w, h, leftLabel, rightLabel, isLeftActive) {
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       ctx.save();
-      // Recessed well
-      ctx.fillStyle = '#091220';
-      ctx.strokeStyle = 'rgba(170, 205, 255, 0.14)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, x, y, w, h, 20);
+      // Chunky inked dark-plum recessed track
+      ctx.fillStyle = '#1b1138';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      roundRectPath(ctx, x, y, w, h, 19);
       ctx.fill();
       ctx.stroke();
 
       const halfW = w * 0.5;
       const activeX = isLeftActive ? x + 3 : x + halfW + 1;
 
-      // 3D lip on active rocker
-      ctx.fillStyle = '#057a58';
-      roundRectPath(ctx, activeX, y + 5, halfW - 4, h - 8, 16);
-      ctx.fill();
-
-      // Active rocker top face
-      ctx.fillStyle = C.COLORS.jellyPrimary;
-      roundRectPath(ctx, activeX, y + 3, halfW - 4, h - 8, 16);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonButton(ctx, activeX, y + 3, halfW - 4, h - 8, 'green', 15);
+      } else {
+        ctx.fillStyle = C.COLORS.jellyPrimary;
+        roundRectPath(ctx, activeX, y + 3, halfW - 4, h - 8, 15);
+        ctx.fill();
+      }
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
 
-      ctx.fillStyle = isLeftActive ? '#06241b' : 'rgba(205, 222, 248, 0.68)';
+      ctx.fillStyle = isLeftActive ? ink : '#f5e9cf';
       ctx.fillText(leftLabel, x + halfW * 0.5, y + h * 0.5);
 
-      ctx.fillStyle = !isLeftActive ? '#06241b' : 'rgba(205, 222, 248, 0.68)';
+      ctx.fillStyle = !isLeftActive ? ink : '#f5e9cf';
       ctx.fillText(rightLabel, x + halfW * 1.5, y + h * 0.5);
       ctx.restore();
     }
 
     _drawHeartIcon(ctx, cx, cy, size, filled) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.beginPath();
-      const s = size;
-      ctx.moveTo(0, s * 0.42);
-      ctx.bezierCurveTo(-s * 0.95, -s * 0.25, -s * 0.65, -s * 0.98, 0, -s * 0.35);
-      ctx.bezierCurveTo(s * 0.65, -s * 0.98, s * 0.95, -s * 0.25, 0, s * 0.42);
-      ctx.closePath();
-
-      if (filled) {
-        const g = ctx.createLinearGradient(0, -s * 0.85, 0, s * 0.45);
-        g.addColorStop(0, '#ff8598');
-        g.addColorStop(1, '#ff3355');
-        ctx.fillStyle = g;
-        ctx.strokeStyle = '#ffd1da';
-        ctx.lineWidth = 1.1;
-        ctx.fill();
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.strokeStyle = 'rgba(255, 107, 129, 0.35)';
-        ctx.lineWidth = 1.2;
-        ctx.fill();
-        ctx.stroke();
+      if (JellyGame.Art) {
+        JellyGame.Art.drawHeartIcon(ctx, cx, cy, size, filled);
       }
-      ctx.restore();
     }
 
     _drawHUD(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       ctx.save();
 
-      // Top-left tactile pause/menu medallion
+      // Top-left tactile cartoon pause/menu medallion
       const mBtn = this.uiRects.topMenuBtn;
-      ctx.fillStyle = '#09111f';
-      roundRectPath(ctx, mBtn.x, mBtn.y + 3, mBtn.w, mBtn.h, 14);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(26, 40, 64, 0.9)';
-      ctx.strokeStyle = 'rgba(175, 210, 255, 0.25)';
-      ctx.lineWidth = 1.5;
-      roundRectPath(ctx, mBtn.x, mBtn.y, mBtn.w, mBtn.h, 14);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonButton(ctx, mBtn.x, mBtn.y, mBtn.w, mBtn.h, 'slate', 14);
+      } else {
+        ctx.fillStyle = '#342863';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.4;
+        roundRectPath(ctx, mBtn.x, mBtn.y, mBtn.w, mBtn.h, 14);
+        ctx.fill();
+        ctx.stroke();
+      }
 
       // Two sculpted pause/menu bars
-      ctx.fillStyle = '#e6f0ff';
-      roundRectPath(ctx, mBtn.x + 11, mBtn.y + 14, 18, 3.2, 1.6);
+      ctx.fillStyle = '#fff8eb';
+      roundRectPath(ctx, mBtn.x + 11, mBtn.y + 13.5, 18, 3.6, 1.8);
       ctx.fill();
-      roundRectPath(ctx, mBtn.x + 11, mBtn.y + 22.5, 13, 3.2, 1.6);
+      roundRectPath(ctx, mBtn.x + 11, mBtn.y + 22, 13, 3.6, 1.8);
       ctx.fill();
 
       // Player Hearts capsule beside top-left Menu button (1 Heart normal, 3 Boss Arena Hearts)
@@ -6507,14 +6552,13 @@
       const hpW = hMax * 21 + 12;
       const hpH = 32;
 
-      ctx.fillStyle = hMax >= 3 ? 'rgba(38, 16, 26, 0.9)' : 'rgba(13, 21, 38, 0.84)';
-      ctx.strokeStyle =
-        hMax >= 3
-          ? '#ffd166'
-          : hCur === 1
-          ? 'rgba(255, 107, 129, 0.58)'
-          : 'rgba(175, 210, 255, 0.24)';
-      ctx.lineWidth = hMax >= 3 ? 1.6 : 1.4;
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, hpX, hpY + 2.5, hpW, hpH, 16);
+      ctx.fill();
+
+      ctx.fillStyle = hMax >= 3 ? '#451d36' : '#2a1f54';
+      ctx.strokeStyle = hMax >= 3 ? '#ffd147' : ink;
+      ctx.lineWidth = 2.4;
       roundRectPath(ctx, hpX, hpY, hpW, hpH, 16);
       ctx.fill();
       ctx.stroke();
@@ -6523,7 +6567,7 @@
         this._drawHeartIcon(ctx, hpX + 16.5 + i * 21, hpY + hpH * 0.5 + 1, 7.9, i < hCur);
       }
 
-      // Top-center plump extruded altitude counter with milestone bounce
+      // Top-center plump comic-inked altitude counter with milestone bounce
       const mPulse = 1 + Math.sin(this.meterMilestonePulse * Math.PI) * 0.22;
       ctx.save();
       ctx.translate(C.WIDTH * 0.5, 30);
@@ -6534,9 +6578,9 @@
         0,
         0,
         30,
-        '#ffffff',
-        '#d8ecff',
-        '#0c1a30'
+        '#fffdf5',
+        '#ffe8b3',
+        ink
       );
       ctx.restore();
 
@@ -6544,31 +6588,37 @@
       if (activeBest > 0) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = this.isNewRecord
-          ? C.COLORS.jellyPrimary
-          : 'rgba(205, 225, 255, 0.68)';
         ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = ink;
+        ctx.strokeText(`${tr.best || 'BEST'}: ${activeBest} m`, C.WIDTH * 0.5, 50);
+        ctx.fillStyle = this.isNewRecord ? '#6affc9' : '#fff5d6';
         ctx.fillText(`${tr.best || 'BEST'}: ${activeBest} m`, C.WIDTH * 0.5, 50);
       }
 
       // Tempo ribbon badge when active (x2+), or next Boss altitude tracker when idle
       if (this.tempoTier >= 2 && this.state === 'playing') {
         const isHigh = this.tempoTier >= C.TEMPO.DOUBLE_DROP_TIER;
-        const pillW = 110;
-        const pillH = 24;
+        const pillW = 114;
+        const pillH = 25;
         const pillX = (C.WIDTH - pillW) * 0.5;
         const pillY = activeBest > 0 ? 68 : 54;
 
-        ctx.fillStyle = 'rgba(9, 16, 30, 0.72)';
-        ctx.strokeStyle = isHigh ? C.COLORS.tempoGold : C.COLORS.tempoCyan;
-        ctx.lineWidth = 1.5;
-        roundRectPath(ctx, pillX, pillY, pillW, pillH, 12);
+        ctx.fillStyle = ink;
+        roundRectPath(ctx, pillX, pillY + 2, pillW, pillH, 12.5);
+        ctx.fill();
+
+        ctx.fillStyle = '#251b4d';
+        ctx.strokeStyle = isHigh ? '#ffd147' : '#6affc9';
+        ctx.lineWidth = 2.2;
+        roundRectPath(ctx, pillX, pillY, pillW, pillH, 12.5);
         ctx.fill();
         ctx.stroke();
 
         if (this.player.isAttached() && this.tempoTimer > 0) {
           const ratio = clamp(this.tempoTimer / C.TEMPO.WINDOW_SEC, 0, 1);
-          ctx.fillStyle = isHigh ? 'rgba(255, 209, 102, 0.28)' : 'rgba(54, 245, 176, 0.24)';
+          ctx.fillStyle = isHigh ? 'rgba(255, 209, 71, 0.34)' : 'rgba(106, 255, 201, 0.28)';
           roundRectPath(ctx, pillX + 2, pillY + 2, (pillW - 4) * ratio, pillH - 4, 10);
           ctx.fill();
         }
@@ -6581,13 +6631,13 @@
         this._drawUiRow(
           ctx,
           [
-            { icon: 'bolt', r: 4.5, color: isHigh ? '#ffeaa7' : C.COLORS.jellyPrimary, gap: 4 },
-            { text: tempoLabel, color: isHigh ? '#ffeaa7' : C.COLORS.jellyPrimary }
+            { icon: 'bolt', r: 4.5, color: isHigh ? '#ffe875' : '#6affc9', gap: 4 },
+            { text: tempoLabel, color: isHigh ? '#ffe875' : '#6affc9' }
           ],
           C.WIDTH * 0.5,
           pillY + pillH * 0.5 + 0.5,
           'center',
-          isHigh ? '#ffeaa7' : C.COLORS.jellyPrimary,
+          isHigh ? '#ffe875' : '#6affc9',
           pillW - 12
         );
       } else if (
@@ -6598,18 +6648,36 @@
       ) {
         const nextMilestone = JellyGame.Bosses.getMilestoneMeters(this.nextBossIndex);
         const nearBoss = nextMilestone - this.currentMeters <= 25;
-        const nextCol = nearBoss ? '#ffd166' : 'rgba(255, 209, 102, 0.78)';
+        const nextCol = nearBoss ? '#ffe875' : '#ffdf91';
+        const bossLabel = `${tr.bossNextAt || 'BOSS AT'} ${nextMilestone} m`;
         ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+        const pillW = Math.min(184, Math.max(114, ctx.measureText(bossLabel).width + 32));
+        const pillH = 20;
+        const pillX = (C.WIDTH - pillW) * 0.5;
+        const pillY = activeBest > 0 ? 67 : 53;
+
+        ctx.fillStyle = ink;
+        roundRectPath(ctx, pillX, pillY + 2, pillW, pillH, 10);
+        ctx.fill();
+
+        ctx.fillStyle = '#251b4d';
+        ctx.strokeStyle = nearBoss ? '#ffd147' : ink;
+        ctx.lineWidth = nearBoss ? 2 : 1.8;
+        roundRectPath(ctx, pillX, pillY, pillW, pillH, 10);
+        ctx.fill();
+        ctx.stroke();
+
         this._drawUiRow(
           ctx,
           [
-            { icon: 'crown', r: 4.5, color: nearBoss ? '#ffd166' : 'rgba(255, 209, 102, 0.85)', gap: 5 },
-            { text: `${tr.bossNextAt || 'BOSS AT'} ${nextMilestone} m`, color: nextCol }
+            { icon: 'crown', r: 4.5, color: '#ffd147', gap: 5 },
+            { text: bossLabel, color: nextCol }
           ],
           C.WIDTH * 0.5,
-          (activeBest > 0 ? 67 : 52) + 5.5,
+          pillY + pillH * 0.5 + 0.5,
           'center',
-          nextCol
+          nextCol,
+          pillW - 14
         );
       }
 
@@ -6623,22 +6691,20 @@
       ctx.scale(gScale, gScale);
       ctx.translate(-bCx, -bCy);
 
-      ctx.fillStyle = '#09111f';
+      ctx.fillStyle = ink;
       roundRectPath(ctx, btn.x, btn.y + 3, btn.w, btn.h, 20);
       ctx.fill();
 
-      ctx.fillStyle = 'rgba(26, 40, 64, 0.92)';
-      ctx.strokeStyle = this._hasWardrobeBadge()
-        ? C.COLORS.collectOuter
-        : 'rgba(175, 210, 255, 0.26)';
-      ctx.lineWidth = 1.6;
+      ctx.fillStyle = '#2d215c';
+      ctx.strokeStyle = this._hasWardrobeBadge() ? '#ffd147' : ink;
+      ctx.lineWidth = 2.4;
       roundRectPath(ctx, btn.x, btn.y, btn.w, btn.h, 20);
       ctx.fill();
       ctx.stroke();
 
       this._drawGemEmblem(ctx, btn.x + 19, btn.y + btn.h * 0.5, 7);
 
-      ctx.fillStyle = '#fff5d6';
+      ctx.fillStyle = '#fff8eb';
       ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -6648,16 +6714,16 @@
         ctx,
         btn.x + btn.w - 19,
         btn.y + btn.h * 0.5 + 1,
-        10,
+        10.5,
         this.equippedAccessory
       );
 
       if (this._hasWardrobeBadge()) {
         ctx.fillStyle = '#ff4757';
-        ctx.strokeStyle = '#09111f';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(btn.x + btn.w - 5, btn.y + 5, 5, 0, Math.PI * 2);
+        ctx.arc(btn.x + btn.w - 5, btn.y + 5, 5.2, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -6820,81 +6886,91 @@
       const isShieldLocked = id === 'shield' && this.player.hasShield;
       const isReady = isPassive ? this.angelCharges > 0 : cdLeft <= 0 && !isAirLocked && !isShieldLocked;
 
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
-      // Drop shadow
-      ctx.fillStyle = '#070c16';
+      // Chunky inked drop lip
+      ctx.fillStyle = ink;
       ctx.beginPath();
-      ctx.arc(cx, cy + 3, r, 0, Math.PI * 2);
+      ctx.arc(cx, cy + 3.5, r, 0, Math.PI * 2);
       ctx.fill();
 
-      // Frosted orb body
-      ctx.fillStyle = 'rgba(13, 21, 38, 0.9)';
+      // Cozy twilight-plum orb medallion body
+      const orbGrad = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+      orbGrad.addColorStop(0, '#3e2f78');
+      orbGrad.addColorStop(1, '#22174a');
+      ctx.fillStyle = orbGrad;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
 
       if (isPassive) {
         const hasCharge = this.angelCharges > 0;
-        ctx.strokeStyle = hasCharge ? def.primaryColor : 'rgba(165, 205, 255, 0.25)';
-        ctx.lineWidth = hasCharge ? 2.4 : 1.5;
+        ctx.strokeStyle = hasCharge ? def.primaryColor : 'rgba(255, 244, 214, 0.25)';
+        ctx.lineWidth = hasCharge ? 2.6 : 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r - 2.6, 0, Math.PI * 2);
         ctx.stroke();
 
         ctx.globalAlpha = hasCharge ? 1 : 0.35;
         Ab.drawIcon(ctx, id, cx, cy - 2, 13, this.hintTime);
         ctx.globalAlpha = 1;
 
-        // Remaining angel charge pips along bottom edge of orb
         const total = Math.max(1, this.angelMaxCharges || Ab.getCharges('angel', lvl));
         const dotSp = 8;
         const startX = cx - ((total - 1) * dotSp) * 0.5;
         for (let i = 0; i < total; i++) {
-          ctx.fillStyle = i < this.angelCharges ? '#ffd166' : 'rgba(255, 255, 255, 0.16)';
+          ctx.fillStyle = i < this.angelCharges ? '#ffd147' : 'rgba(255, 255, 255, 0.2)';
           ctx.beginPath();
           ctx.arc(startX + i * dotSp, cy + 14, 2.5, 0, Math.PI * 2);
           ctx.fill();
         }
       } else {
-        // Cooldown sweep track + active pulse glow
         if (cdLeft > 0) {
           const ratio = clamp(1 - cdLeft / cdMax, 0, 1);
-          ctx.strokeStyle = 'rgba(165, 205, 255, 0.16)';
+          ctx.strokeStyle = 'rgba(255, 244, 214, 0.16)';
           ctx.lineWidth = 2.6;
           ctx.beginPath();
-          ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+          ctx.arc(cx, cy, r - 2.6, 0, Math.PI * 2);
           ctx.stroke();
 
           ctx.strokeStyle = def.primaryColor;
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(cx, cy, r - 1, -Math.PI * 0.5, -Math.PI * 0.5 + ratio * Math.PI * 2);
+          ctx.arc(cx, cy, r - 2.6, -Math.PI * 0.5, -Math.PI * 0.5 + ratio * Math.PI * 2);
           ctx.stroke();
 
           ctx.globalAlpha = 0.28;
           Ab.drawIcon(ctx, id, cx, cy, 13, this.hintTime);
           ctx.globalAlpha = 1;
 
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = '#fff8eb';
           ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(`${Math.ceil(cdLeft)}`, cx, cy + 0.5);
         } else {
-          const pulse = isReady ? 0.65 + 0.35 * Math.sin(this.hintTime * 5) : 0.35;
-          ctx.strokeStyle = isReady ? def.primaryColor : 'rgba(165, 205, 255, 0.3)';
+          const pulse = isReady ? 0.72 + 0.28 * Math.sin(this.hintTime * 5) : 0.35;
+          ctx.strokeStyle = isReady ? def.primaryColor : 'rgba(255, 244, 214, 0.3)';
           ctx.globalAlpha = pulse;
           ctx.lineWidth = isReady ? 2.6 : 1.6;
           ctx.beginPath();
-          ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+          ctx.arc(cx, cy, r - 2.6, 0, Math.PI * 2);
           ctx.stroke();
           ctx.globalAlpha = isReady ? 1 : 0.48;
           Ab.drawIcon(ctx, id, cx, cy - 1, 13.5, this.hintTime);
           ctx.globalAlpha = 1;
 
           if (isReady) {
-            ctx.fillStyle = def.accentColor;
-            ctx.font = `700 8px ${C.FONTS.DISPLAY}`;
+            ctx.font = `700 8.5px ${C.FONTS.DISPLAY}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = ink;
+            ctx.strokeText(tr.powerReady || 'READY', cx, cy + r + 8);
+            ctx.fillStyle = def.accentColor;
             ctx.fillText(tr.powerReady || 'READY', cx, cy + r + 8);
           }
         }
@@ -6904,6 +6980,8 @@
     }
 
     _drawThemeBanner(ctx) {
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const t = this.themeBannerTimer;
       const alpha = t < 0.4 ? t / 0.4 : t > 2.0 ? (2.4 - t) / 0.4 : 1;
       ctx.save();
@@ -6911,28 +6989,32 @@
 
       ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
       const pillW = clamp(ctx.measureText(this.themeBannerText).width + 64, 212, C.WIDTH - 32);
-      const pillH = 34;
+      const pillH = 36;
       const pillX = (C.WIDTH - pillW) * 0.5;
       const pillY = this.activeBoss && !this.activeBoss.defeated ? 148 : 104;
 
-      ctx.fillStyle = 'rgba(12, 19, 34, 0.85)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
-      ctx.lineWidth = 1.5;
-      roundRectPath(ctx, pillX, pillY, pillW, pillH, 17);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonCard(ctx, pillX, pillY, pillW, pillH, 'cream', 18);
+      } else {
+        ctx.fillStyle = '#fff7e5';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.4;
+        roundRectPath(ctx, pillX, pillY, pillW, pillH, 18);
+        ctx.fill();
+        ctx.stroke();
+      }
 
       this._drawUiRow(
         ctx,
         [
-          { icon: 'spark', r: 4.5, color: '#74f2ff', gap: 7 },
-          { text: this.themeBannerText, color: '#ffffff', gap: 7 },
-          { icon: 'spark', r: 4.5, color: '#74f2ff' }
+          { icon: 'spark', r: 4.8, color: '#ffbe3b', gap: 7 },
+          { text: this.themeBannerText, color: ink, gap: 7 },
+          { icon: 'spark', r: 4.8, color: '#ffbe3b' }
         ],
         C.WIDTH * 0.5,
         pillY + pillH * 0.5 + 0.5,
         'center',
-        '#ffffff',
+        ink,
         pillW - 20
       );
 
@@ -6943,6 +7025,7 @@
       const Bosses = JellyGame.Bosses;
       if (!Bosses) return;
       const tr = this.t();
+      const ink = C.COLORS.ink || '#1b1136';
       const def = Bosses.getBossDefForIndex(this.nextBossIndex);
       const bossName = this._getBossDisplayName(def, tr);
       const pulse = 0.5 + 0.5 * Math.sin(this.hintTime * 11);
@@ -6951,15 +7034,19 @@
       ctx.save();
       ctx.globalAlpha = alpha;
 
-      const w = 282;
-      const h = 44;
+      const w = 286;
+      const h = 46;
       const x = (C.WIDTH - w) * 0.5;
       const y = 98;
 
-      ctx.fillStyle = 'rgba(34, 12, 18, 0.9)';
-      ctx.strokeStyle = pulse > 0.5 ? '#ff5e57' : '#ffd166';
-      ctx.lineWidth = 2;
-      roundRectPath(ctx, x, y, w, h, 14);
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, x, y + 3, w, h, 16);
+      ctx.fill();
+
+      ctx.fillStyle = '#5c1428';
+      ctx.strokeStyle = pulse > 0.5 ? '#ff5e57' : '#ffd147';
+      ctx.lineWidth = 2.5;
+      roundRectPath(ctx, x, y, w, h, 16);
       ctx.fill();
       ctx.stroke();
 
@@ -6967,20 +7054,20 @@
       this._drawUiRow(
         ctx,
         [
-          { icon: 'warning', r: 4.6, color: '#ff7b72', gap: 5 },
-          { text: tr.bossIncoming || 'BOSS APPROACHING!', color: '#ff7b72' }
+          { icon: 'warning', r: 4.8, color: '#ff7b72', gap: 5 },
+          { text: tr.bossIncoming || 'BOSS APPROACHING!', color: '#ff9ca3' }
         ],
         C.WIDTH * 0.5,
-        y + 14,
+        y + 14.5,
         'center',
-        '#ff7b72'
+        '#ff9ca3'
       );
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff5d6';
+      ctx.fillStyle = '#fff8eb';
       ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(`${bossName}  •  ${def.milestoneMeters} m`, C.WIDTH * 0.5, y + 31);
+      ctx.fillText(`${bossName}  •  ${def.milestoneMeters} m`, C.WIDTH * 0.5, y + 32);
 
       ctx.restore();
     }
@@ -6989,36 +7076,40 @@
       const boss = this.activeBoss;
       if (!boss || boss.defeated) return;
       const tr = this.t();
+      const ink = C.COLORS.ink || '#1b1136';
       const arch = boss.archetype;
       const enraged = boss.phase >= 2;
       const accent = enraged ? arch.enrageColor : arch.primaryColor;
       const bossTitle = this._getBossDisplayName(boss.def, tr);
 
       ctx.save();
-      const cardW = 296;
-      const cardH = 44;
+      const cardW = 298;
+      const cardH = 46;
       const cardX = (C.WIDTH - cardW) * 0.5;
       const cardY = 98;
 
-      ctx.fillStyle = 'rgba(10, 17, 32, 0.88)';
-      ctx.strokeStyle = boss.phaseBannerTimer > 0 ? '#ffd166' : accent;
-      ctx.lineWidth = boss.phaseBannerTimer > 0 ? 2.4 : 1.7;
-      roundRectPath(ctx, cardX, cardY, cardW, cardH, 14);
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, cardX, cardY + 3, cardW, cardH, 16);
+      ctx.fill();
+
+      ctx.fillStyle = '#2d215c';
+      ctx.strokeStyle = boss.phaseBannerTimer > 0 ? '#ffd147' : ink;
+      ctx.lineWidth = 2.6;
+      roundRectPath(ctx, cardX, cardY, cardW, cardH, 16);
       ctx.fill();
       ctx.stroke();
 
-      // Boss Name & Phase indicator row
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { icon: 'crown', r: 4.8, color: '#ffd166', gap: 5 },
-          { text: bossTitle, color: '#ffffff' }
+          { icon: 'crown', r: 4.8, color: '#ffd147', gap: 5 },
+          { text: bossTitle, color: '#fff8eb' }
         ],
         cardX + 12,
-        cardY + 14,
+        cardY + 14.5,
         'left',
-        '#ffffff',
+        '#fff8eb',
         162
       );
 
@@ -7029,29 +7120,29 @@
         this._drawUiRow(
           ctx,
           [
-            { icon: 'bolt', r: 4.3, color: '#ffd166', gap: 3 },
-            { text: statusCore, color: '#ffd166' }
+            { icon: 'bolt', r: 4.3, color: '#ffd147', gap: 3 },
+            { text: statusCore, color: '#ffd147' }
           ],
           cardX + cardW - 12,
-          cardY + 14,
+          cardY + 14.5,
           'right',
-          '#ffd166'
+          '#ffd147'
         );
       } else {
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = accent;
-        ctx.fillText(statusCore, cardX + cardW - 12, cardY + 14);
+        ctx.fillText(statusCore, cardX + cardW - 12, cardY + 14.5);
       }
 
-      // Segmented HP Track
+      // Inked Segmented HP Track
       const barX = cardX + 12;
-      const barY = cardY + 26;
+      const barY = cardY + 26.5;
       const barW = cardW - 24;
-      const barH = 10;
+      const barH = 11;
 
-      ctx.fillStyle = '#070d18';
-      roundRectPath(ctx, barX, barY, barW, barH, 5);
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, barX, barY, barW, barH, 5.5);
       ctx.fill();
 
       const maxHp = Math.max(1, boss.maxHp);
@@ -7065,7 +7156,7 @@
           if (i < boss.hp) {
             ctx.fillStyle = boss.hurtFlashTimer > 0 ? '#ffffff' : accent;
           } else {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.09)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
           }
           roundRectPath(ctx, sx, sy, segW, sh, 2);
           ctx.fill();
@@ -7086,6 +7177,8 @@
       const toast = this.rewardToast;
       if (!toast || !toast.accessory) return;
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const t = toast.timer;
       const maxT = toast.maxTimer || 3.1;
       const inOut = t < 0.35 ? t / 0.35 : t > maxT - 0.3 ? (maxT - t) / 0.3 : 1;
@@ -7095,23 +7188,17 @@
       ctx.globalAlpha = alpha;
       const slideY = (1 - this._easeOutBack(clamp(inOut, 0, 1))) * -22;
 
-      const w = 278;
-      const h = 52;
+      const w = 282;
+      const h = 54;
       const x = (C.WIDTH - w) * 0.5;
       const baseY = this.activeBoss && !this.activeBoss.defeated ? 148 : 96;
       const y = baseY + slideY;
 
-      const grad = ctx.createLinearGradient(x, y, x + w, y + h);
-      grad.addColorStop(0, 'rgba(42, 31, 14, 0.94)');
-      grad.addColorStop(1, 'rgba(18, 28, 48, 0.95)');
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = '#ffd166';
-      ctx.lineWidth = 2;
-      roundRectPath(ctx, x, y, w, h, 26);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonCard(ctx, x, y, w, h, 'gold', 27);
+      }
 
-      this._drawMiniJellyPreview(ctx, x + 30, y + h * 0.5 + 1, 14, toast.accessory.id);
+      this._drawMiniJellyPreview(ctx, x + 30, y + h * 0.5, 14, toast.accessory.id);
 
       const accName =
         (tr.accNames && tr.accNames[toast.accessory.id]) || toast.accessory.name;
@@ -7119,36 +7206,36 @@
       this._drawUiRow(
         ctx,
         [
-          { icon: 'trophy', r: 4.8, color: '#ffd166', gap: 5 },
-          { text: `${tr.rewardUnlockedToast || 'UNLOCKED'}!`, color: '#ffd166' }
+          { icon: 'trophy', r: 4.8, color: '#ff9f1c', gap: 5 },
+          { text: `${tr.rewardUnlockedToast || 'UNLOCKED'}!`, color: '#b0390c' }
         ],
         x + 54,
-        y + 17,
+        y + 17.5,
         'left',
-        '#ffd166'
+        '#b0390c'
       );
 
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = ink;
       ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(accName, x + 54, y + 35);
+      ctx.fillText(accName, x + 54, y + 36);
 
       if (toast.bonusDrops > 0) {
-        ctx.fillStyle = 'rgba(255, 209, 102, 0.2)';
+        ctx.fillStyle = ink;
         roundRectPath(ctx, x + w - 66, y + 14, 54, 24, 12);
         ctx.fill();
         ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
         this._drawUiRow(
           ctx,
           [
-            { text: `+${toast.bonusDrops}`, color: '#ffeaa7', gap: 3 },
+            { text: `+${toast.bonusDrops}`, color: '#ffe875', gap: 3 },
             { icon: 'gem', r: 3.9 }
           ],
           x + w - 39,
           y + 26.5,
           'center',
-          '#ffeaa7'
+          '#ffe875'
         );
       }
 
@@ -7157,6 +7244,8 @@
 
     _drawDeathOverlay(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const rawT = clamp((this.deathTimer - 0.35) / 0.26, 0, 1);
       const spring = this._easeOutBack(rawT);
       const scale = 0.88 + 0.12 * spring;
@@ -7164,13 +7253,13 @@
       ctx.save();
       ctx.globalAlpha = rawT;
 
-      ctx.fillStyle = 'rgba(6, 10, 20, 0.68)';
+      ctx.fillStyle = 'rgba(17, 10, 38, 0.72)';
       this._fillViewportRect(ctx);
 
-      const cardW = 316;
-      const cardH = 304;
+      const cardW = 318;
+      const cardH = 310;
       const cardX = (C.WIDTH - cardW) * 0.5;
-      const cardY = C.HEIGHT * 0.29;
+      const cardY = C.HEIGHT * 0.285;
 
       ctx.translate(C.WIDTH * 0.5, cardY + cardH * 0.5);
       ctx.scale(scale, scale);
@@ -7178,20 +7267,20 @@
 
       this._drawMonumentTablet(ctx, cardX, cardY, cardW, cardH, 26);
 
-      // Recessed dark score well at top of tablet
-      ctx.fillStyle = 'rgba(9, 15, 28, 0.62)';
-      roundRectPath(ctx, cardX + 20, cardY + 20, cardW - 40, 106, 18);
-      ctx.fill();
+      // Warm cream cartoon scoreboard card inside tablet
+      if (Art) {
+        Art.drawCartoonCard(ctx, cardX + 20, cardY + 18, cardW - 40, 110, 'cream', 18);
+      }
 
       this._drawSculptedWord(
         ctx,
         `${this.currentMeters} m`,
         C.WIDTH * 0.5,
-        cardY + 52,
+        cardY + 51,
         38,
-        '#ffffff',
-        '#cfe8ff',
-        '#091526'
+        '#ffe875',
+        '#ff9f1c',
+        ink
       );
 
       const activeBest = this.getActiveBestMeters();
@@ -7202,16 +7291,16 @@
         this._drawUiRow(
           ctx,
           [
-            { icon: 'star', r: 4.8, color: C.COLORS.jellyPrimary, gap: 5 },
-            { text: `${tr.newBest || 'NEW BEST!'} (${activeBest} m)`, color: C.COLORS.jellyPrimary }
+            { icon: 'star', r: 4.8, color: '#ffbe3b', gap: 5 },
+            { text: `${tr.newBest || 'NEW BEST!'} (${activeBest} m)`, color: '#097550' }
           ],
           C.WIDTH * 0.5,
           cardY + 86,
           'center',
-          C.COLORS.jellyPrimary
+          '#097550'
         );
       } else {
-        ctx.fillStyle = 'rgba(195, 218, 250, 0.78)';
+        ctx.fillStyle = '#5a4a82';
         ctx.fillText(`${tr.best || 'BEST'}: ${activeBest} m`, C.WIDTH * 0.5, cardY + 86);
       }
 
@@ -7220,57 +7309,46 @@
       const runStatParts =
         this.runBossesDefeated > 0
           ? [
-              { text: `+${this.runGemsEarned}`, gap: 4 },
-              { icon: 'gem', r: 4.4, gap: 7 },
-              { text: '•', gap: 7 },
-              { icon: 'crown', r: 4.5, color: '#ffd166', gap: 4 },
-              { text: `${this.runBossesDefeated}` }
+              { text: `+${this.runGemsEarned}`, color: '#b0390c', gap: 4 },
+              { icon: 'gem', r: 4.5, gap: 7 },
+              { text: '•', color: '#5a4a82', gap: 7 },
+              { icon: 'crown', r: 4.6, color: '#ffd147', gap: 4 },
+              { text: `${this.runBossesDefeated}`, color: ink }
             ]
           : [
-              { text: `+${this.runGemsEarned}`, gap: 4 },
-              { icon: 'gem', r: 4.4, gap: 5 },
-              { text: tr.dropsUnit || 'Drops' }
+              { text: `+${this.runGemsEarned}`, color: '#b0390c', gap: 4 },
+              { icon: 'gem', r: 4.5, gap: 5 },
+              { text: tr.dropsUnit || 'Drops', color: ink }
             ];
-      this._drawUiRow(ctx, runStatParts, C.WIDTH * 0.5, cardY + 109, 'center', '#ffd166', 250);
+      this._drawUiRow(ctx, runStatParts, C.WIDTH * 0.5, cardY + 110, 'center', ink, 250);
 
       // Primary Tactile PLAY AGAIN Cushion Button
-      const btnW = 256;
+      const btnW = 258;
       const btnH = 50;
       const btnX = (C.WIDTH - btnW) * 0.5;
-      const retryY = cardY + 144;
+      const retryY = cardY + 146;
       this.uiRects.retryBtn = { x: btnX, y: retryY, w: btnW, h: btnH };
 
-      ctx.fillStyle = '#046c4e';
-      roundRectPath(ctx, btnX, retryY + 4, btnW, btnH, 25);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonButton(ctx, btnX, retryY, btnW, btnH, 'green', 25);
+      }
 
-      const retryGrad = ctx.createLinearGradient(0, retryY, 0, retryY + btnH);
-      retryGrad.addColorStop(0, '#6effd2');
-      retryGrad.addColorStop(1, '#12c48b');
-      ctx.fillStyle = retryGrad;
-      roundRectPath(ctx, btnX, retryY, btnW, btnH, 25);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-      roundRectPath(ctx, btnX + 18, retryY + 4, btnW - 36, 9, 4.5);
-      ctx.fill();
-
-      ctx.font = `700 15.5px ${C.FONTS.DISPLAY}`;
+      ctx.font = `700 16px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { icon: 'play', r: 5.5, color: '#06261c', gap: 8 },
-          { text: tr.playAgain || 'PLAY AGAIN', color: '#06261c' }
+          { icon: 'play', r: 5.5, color: ink, gap: 8 },
+          { text: tr.playAgain || 'PLAY AGAIN', color: ink }
         ],
         C.WIDTH * 0.5,
         retryY + btnH * 0.5 + 1,
         'center',
-        '#06261c'
+        ink
       );
 
       // Secondary Tactile Action Row: Accessories (left) & Leaderboard (right)
-      const shopY = cardY + 206;
-      const shopH = 40;
+      const shopY = cardY + 208;
+      const shopH = 42;
       const halfGap = 10;
       const halfW = (btnW - halfGap) * 0.5;
       const shopX = btnX;
@@ -7279,22 +7357,13 @@
       this.uiRects.deathShopBtn = { x: shopX, y: shopY, w: halfW, h: shopH };
       this.uiRects.deathLbBtn = { x: lbX, y: shopY, w: halfW, h: shopH };
 
-      // Left: Accessories
-      ctx.fillStyle = '#0b1322';
-      roundRectPath(ctx, shopX, shopY + 3, halfW, shopH, 20);
-      ctx.fill();
-
-      ctx.fillStyle = '#283c5e';
       const gearAlert = this._hasWardrobeBadge() || this.runUnlockedGear.length > 0;
-      ctx.strokeStyle = gearAlert
-        ? C.COLORS.collectOuter
-        : 'rgba(180, 210, 255, 0.25)';
-      ctx.lineWidth = 1.5;
-      roundRectPath(ctx, shopX, shopY, halfW, shopH, 20);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonButton(ctx, shopX, shopY, halfW, shopH, gearAlert ? 'gold' : 'slate', 18);
+        Art.drawCartoonButton(ctx, lbX, shopY, halfW, shopH, 'slate', 18);
+      }
 
-      const shopBtnCol = gearAlert ? '#ffeaa7' : '#e6f0ff';
+      const shopBtnCol = gearAlert ? ink : '#fff8eb';
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       const shopParts =
         this.runUnlockedGear.length > 0
@@ -7316,45 +7385,35 @@
         halfW - 14
       );
 
-      // Right: Mode Leaderboard
-      ctx.fillStyle = '#0b1322';
-      roundRectPath(ctx, lbX, shopY + 3, halfW, shopH, 20);
-      ctx.fill();
-
-      ctx.fillStyle = '#283c5e';
-      ctx.strokeStyle =
-        this.gameMode === 'rising' ? 'rgba(255, 121, 63, 0.55)' : 'rgba(54, 245, 176, 0.45)';
-      ctx.lineWidth = 1.5;
-      roundRectPath(ctx, lbX, shopY, halfW, shopH, 20);
-      ctx.fill();
-      ctx.stroke();
-
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { icon: 'trophy', r: 5.2, color: '#ffd166', gap: 5 },
-          { text: tr.leaderboard || 'RANKS', color: '#ffeaa7' }
+          { icon: 'trophy', r: 5.2, color: '#ffd147', gap: 5 },
+          { text: tr.leaderboard || 'RANKS', color: '#fff8eb' }
         ],
         lbX + halfW * 0.5,
         shopY + shopH * 0.5 + 0.5,
         'center',
-        '#ffeaa7',
+        '#fff8eb',
         halfW - 14
       );
 
       // Quiet Tactile Menu Pill
-      const menuY = cardY + 256;
+      const menuY = cardY + 260;
       const menuH = 34;
       this.uiRects.deathMenuBtn = { x: btnX, y: menuY, w: btnW, h: menuH };
 
-      ctx.fillStyle = 'rgba(10, 17, 30, 0.55)';
+      ctx.fillStyle = '#1b1138';
+      ctx.strokeStyle = 'rgba(255, 248, 235, 0.2)';
+      ctx.lineWidth = 1.6;
       roundRectPath(ctx, btnX, menuY, btnW, menuH, 17);
       ctx.fill();
+      ctx.stroke();
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(205, 222, 248, 0.78)';
+      ctx.fillStyle = '#fff8eb';
       ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
       ctx.fillText(tr.menu || 'MENU', C.WIDTH * 0.5, menuY + menuH * 0.5 + 0.5);
 
@@ -7363,6 +7422,8 @@
 
     _drawAccessoryDrawer(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const accMod = JellyGame.Accessories;
       const allList = accMod ? accMod.LIST : [];
       const activeTab = this.wardrobeTab || 'head';
@@ -7377,7 +7438,7 @@
       const scale = 0.86 + 0.14 * spring;
 
       ctx.save();
-      ctx.fillStyle = `rgba(6, 10, 20, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      ctx.fillStyle = `rgba(17, 10, 38, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
       this._fillViewportRect(ctx);
 
       const panelW = 396;
@@ -7396,10 +7457,11 @@
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `700 20px ${C.FONTS.DISPLAY}`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#091324';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4.6;
+      ctx.strokeStyle = ink;
       ctx.strokeText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 32);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#fff8eb';
       ctx.fillText(tr.accessories || 'ACCESSORIES', panelX + 24, panelY + 32);
 
       const gearCountText = `${this._getOwnedGearCount()}/${allList.length} ${tr.gearUnit || 'Gear'}`;
@@ -7409,13 +7471,13 @@
       const closeY = panelY + 16;
       const gearPillX = closeX - gearPillW - 10;
       const gearPillY = panelY + 20;
-      ctx.fillStyle = 'rgba(54, 245, 176, 0.14)';
-      ctx.strokeStyle = 'rgba(54, 245, 176, 0.36)';
-      ctx.lineWidth = 1.2;
+      ctx.fillStyle = '#dcfff0';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
       roundRectPath(ctx, gearPillX, gearPillY, gearPillW, 24, 12);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = '#8affdb';
+      ctx.fillStyle = '#097550';
       ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.fillText(gearCountText, gearPillX + gearPillW * 0.5, gearPillY + 12.5);
@@ -7423,46 +7485,46 @@
       this.uiRects.modalCloseBtn = { x: closeX, y: closeY, w: closeSize, h: closeSize };
       this._drawCloseMedallion(ctx, closeX, closeY, closeSize);
 
-      // Interactive Hero Stage Alcove (live combined Head + Face + Back Jelly + Color Swatches)
+      // Interactive Hero Stage Alcove (cobalt sky diorama + mossy pedestal + live Jelly + Color Swatches)
       const stageX = panelX + 20;
       const stageY = panelY + 54;
       const stageW = panelW - 40;
       const stageH = 92;
 
-      ctx.fillStyle = 'rgba(9, 15, 28, 0.68)';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.14)';
-      ctx.lineWidth = 1.2;
+      const stageGrad = ctx.createLinearGradient(stageX, stageY, stageX, stageY + stageH);
+      stageGrad.addColorStop(0, '#1f3f94');
+      stageGrad.addColorStop(1, '#3162c4');
+      ctx.fillStyle = stageGrad;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       roundRectPath(ctx, stageX, stageY, stageW, stageH, 18);
       ctx.fill();
       ctx.stroke();
 
       const pedX = stageX + 52;
-      const pedY = stageY + 69;
-      const activePal = this.player.getColorPalette();
-      const spotGrad = ctx.createRadialGradient(pedX, pedY - 18, 4, pedX, pedY - 18, 44);
-      spotGrad.addColorStop(0, activePal.glow);
-      spotGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = spotGrad;
-      ctx.beginPath();
-      ctx.arc(pedX, pedY - 18, 44, 0, Math.PI * 2);
-      ctx.fill();
+      const pedY = stageY + 75;
 
-      ctx.fillStyle = '#283c5e';
-      ctx.strokeStyle = '#091324';
-      ctx.lineWidth = 1.8;
-      roundRectPath(ctx, pedX - 28, pedY, 56, 10, 5);
+      // Mini mossy stone pedestal under preview Jelly
+      ctx.fillStyle = '#644061';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, pedX - 27, pedY + 3, 54, 10, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#8ce827';
+      roundRectPath(ctx, pedX - 28, pedY - 1, 56, 7, 3.5);
       ctx.fill();
       ctx.stroke();
 
       const bWave = Math.sin(this.wardrobePreviewBounce * Math.PI);
-      const jumpY = -bWave * 11;
+      const jumpY = -bWave * 9;
       const sqX = 1 - bWave * 0.14 + Math.sin(this.hintTime * 3.6) * 0.03;
       const sqY = 1 / sqX;
 
       ctx.save();
-      ctx.translate(pedX, pedY - 21 + jumpY);
+      ctx.translate(pedX, pedY - 19 + jumpY);
       ctx.scale(sqX, sqY);
-      this._drawMiniJellyPreview(ctx, 0, 0, 21, this.equippedAccessory);
+      this._drawMiniJellyPreview(ctx, 0, 0, 18.5, this.equippedAccessory, this.equippedColor, true);
       ctx.restore();
 
       // Active slot pills showing equipped combo (HAT | FACE | BACK | PWR)
@@ -7482,26 +7544,18 @@
         const py = stageY + 11;
         ctx.fillStyle = isActiveSlot
           ? sKey === 'power'
-            ? 'rgba(116, 242, 255, 0.22)'
-            : 'rgba(54, 245, 176, 0.2)'
-          : 'rgba(255, 255, 255, 0.06)';
-        ctx.strokeStyle = isActiveSlot
-          ? sKey === 'power'
             ? '#74f2ff'
-            : C.COLORS.jellyPrimary
-          : 'rgba(165, 205, 255, 0.18)';
-        ctx.lineWidth = 1;
+            : '#6affc9'
+          : 'rgba(27, 17, 54, 0.45)';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.6;
         roundRectPath(ctx, px, py, 35, 20, 10);
         ctx.fill();
         ctx.stroke();
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = isActiveSlot
-          ? sKey === 'power'
-            ? '#b8f2ff'
-            : '#8affdb'
-          : 'rgba(180, 200, 232, 0.55)';
+        ctx.fillStyle = isActiveSlot ? ink : 'rgba(255, 248, 235, 0.72)';
         ctx.font = `700 8.5px ${C.FONTS.DISPLAY}`;
         ctx.fillText(sLbl, px + 17.5, py + 10.5, 31);
       }
@@ -7510,16 +7564,16 @@
       const pouchW = 100;
       const pouchX = stageX + stageW - pouchW - 10;
       const pouchY = stageY + 9;
-      ctx.fillStyle = 'rgba(255, 209, 102, 0.16)';
-      ctx.strokeStyle = 'rgba(255, 209, 102, 0.4)';
-      ctx.lineWidth = 1.2;
+      ctx.fillStyle = '#fff2c2';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
       roundRectPath(ctx, pouchX, pouchY, pouchW, 24, 12);
       ctx.fill();
       ctx.stroke();
 
       this._drawGemEmblem(ctx, pouchX + 15, pouchY + 12, 5.5);
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffeaa7';
+      ctx.fillStyle = ink;
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(
         `${this.gems} ${tr.dropsUnit || 'Drops'}`,
@@ -7528,7 +7582,7 @@
         pouchW - 34
       );
 
-      // 5 Bioluminescent Jelly Color Swatches
+      // 5 Inked Cartoon Jelly Color Swatches
       this.uiRects.colorSwatches = [];
       const colors = C.JELLY_COLORS || [];
       const swStartX = stageX + 114;
@@ -7548,28 +7602,28 @@
         ctx.save();
         ctx.translate(sx, swY);
         if (equipped) {
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2.2;
+          ctx.strokeStyle = '#fff8eb';
+          ctx.lineWidth = 2.6;
           ctx.beginPath();
           ctx.arc(0, 0, 14.5, 0, Math.PI * 2);
           ctx.stroke();
         }
 
         ctx.fillStyle = col.primary;
-        ctx.strokeStyle = col.rim;
-        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.arc(0, 0, 11, 0, Math.PI * 2);
+        ctx.arc(0, 0, 11.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
         ctx.beginPath();
         ctx.arc(-3.5, -3.5, 3, 0, Math.PI * 2);
         ctx.fill();
 
         if (!unlocked) {
-          const priceCol = this.gems >= col.cost ? '#ffd166' : 'rgba(195, 212, 240, 0.65)';
+          const priceCol = this.gems >= col.cost ? '#ffe875' : 'rgba(255, 248, 235, 0.75)';
           ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
           this._drawUiRow(
             ctx,
@@ -7578,7 +7632,7 @@
               { text: `${col.cost}`, color: priceCol }
             ],
             0,
-            19,
+            19.5,
             'center',
             priceCol
           );
@@ -7608,33 +7662,15 @@
         const isOn = activeTab === tb.key;
         this.uiRects[tb.rectKey] = { x: tx, y: tabBarY, w: oneTabW, h: tabH };
 
-        ctx.fillStyle = isOn
-          ? tb.gold
-            ? '#925406'
-            : tb.cyan
-            ? '#086b82'
-            : '#057a58'
-          : '#091220';
-        roundRectPath(ctx, tx, tabBarY + 2.5, oneTabW, tabH - 2, 13);
-        ctx.fill();
+        if (Art) {
+          const scheme = isOn ? (tb.gold ? 'gold' : tb.cyan ? 'orange' : 'green') : 'slate';
+          Art.drawCartoonButton(ctx, tx, tabBarY, oneTabW, tabH - 2, scheme, 12, !isOn);
+        }
 
-        ctx.fillStyle = isOn
-          ? tb.gold
-            ? '#ffd166'
-            : tb.cyan
-            ? '#74f2ff'
-            : C.COLORS.jellyPrimary
-          : 'rgba(20, 32, 54, 0.9)';
-        ctx.strokeStyle = isOn ? 'transparent' : 'rgba(165, 205, 255, 0.16)';
-        ctx.lineWidth = 1.2;
-        roundRectPath(ctx, tx, tabBarY, oneTabW, tabH - 2, 13);
-        ctx.fill();
-        if (!isOn) ctx.stroke();
-
-        const txtCol = isOn ? (tb.gold ? '#261402' : '#06241b') : 'rgba(205, 222, 248, 0.85)';
+        const txtCol = isOn ? ink : '#fff8eb';
         ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
         if (tb.icon) {
-          const icoCol = isOn ? txtCol : tb.gold ? '#ffd166' : '#74f2ff';
+          const icoCol = isOn ? ink : tb.gold ? '#ffd147' : '#ffaa1d';
           this._drawUiRow(
             ctx,
             [
@@ -7642,7 +7678,7 @@
               { text: tb.label, color: txtCol }
             ],
             tx + oneTabW * 0.5,
-            tabBarY + (tabH - 2) * 0.5 + 0.5,
+            tabBarY + (tabH - 2) * 0.5 + (isOn ? 0.5 : 2),
             'center',
             txtCol,
             oneTabW - 6
@@ -7651,21 +7687,24 @@
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillStyle = txtCol;
-          ctx.fillText(tb.label, tx + oneTabW * 0.5, tabBarY + (tabH - 2) * 0.5 + 0.5, oneTabW - 6);
+          ctx.fillText(tb.label, tx + oneTabW * 0.5, tabBarY + (tabH - 2) * 0.5 + (isOn ? 0.5 : 2), oneTabW - 6);
         }
 
         if (tb.key === 'rewards' && this.unseenRewards.size > 0 && !isOn) {
           ctx.fillStyle = '#ff4757';
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.arc(tx + oneTabW - 7, tabBarY + 6.5, 3.8, 0, Math.PI * 2);
+          ctx.arc(tx + oneTabW - 6, tabBarY + 6, 4, 0, Math.PI * 2);
           ctx.fill();
+          ctx.stroke();
         } else if (
           tb.key === 'powers' &&
           this.equippedAbility &&
           this.equippedAbility !== 'none' &&
           !isOn
         ) {
-          ctx.fillStyle = '#74f2ff';
+          ctx.fillStyle = '#ffaa1d';
           ctx.beginPath();
           ctx.arc(tx + oneTabW - 7, tabBarY + 6.5, 3.2, 0, Math.PI * 2);
           ctx.fill();
@@ -7676,7 +7715,7 @@
           this.equippedSlots[tb.key] !== 'none' &&
           !isOn
         ) {
-          ctx.fillStyle = '#36f5b0';
+          ctx.fillStyle = '#6affc9';
           ctx.beginPath();
           ctx.arc(tx + oneTabW - 7, tabBarY + 6.5, 3.2, 0, Math.PI * 2);
           ctx.fill();
@@ -7692,9 +7731,9 @@
       this.uiRects.shopCards = [];
       this.uiRects.powerCards = [];
 
-      ctx.fillStyle = 'rgba(7, 12, 22, 0.55)';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.12)';
-      ctx.lineWidth = 1.1;
+      ctx.fillStyle = '#191138';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       roundRectPath(ctx, wellX, wellY, wellW, wellH, 18);
       ctx.fill();
       ctx.stroke();
@@ -7724,7 +7763,7 @@
           });
         }
 
-        ctx.fillStyle = '#8affdb';
+        ctx.fillStyle = '#ffe875';
         ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.fillText(
@@ -7772,18 +7811,16 @@
       }
       ctx.restore();
 
-      // Scrollbar thumb when category overflows 3 rows
       if (maxScroll > 0) {
         const trackH = wellH - 24;
         const thumbH = Math.max(32, (wellH / totalH) * trackH);
         const thumbY = wellY + 12 + (this.wardrobeScrollY / maxScroll) * (trackH - thumbH);
-        ctx.fillStyle = 'rgba(165, 205, 255, 0.28)';
+        ctx.fillStyle = 'rgba(255, 248, 235, 0.35)';
         roundRectPath(ctx, wellX + wellW - 6, thumbY, 3, thumbH, 1.5);
         ctx.fill();
       }
 
-      // Bottom close hint
-      ctx.fillStyle = 'rgba(185, 205, 235, 0.52)';
+      ctx.fillStyle = 'rgba(255, 248, 235, 0.65)';
       ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 18);
@@ -7793,78 +7830,70 @@
 
     _drawPowerShowcaseCard(ctx, ab, cx, cy, cardW, cardH, tr) {
       const Ab = JellyGame.Abilities;
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const lvl = this.getAbilityLevel(ab.id);
       const unlocked = lvl >= 1;
       const equipped = this.equippedAbility === ab.id;
       const nextCost = Ab ? Ab.getNextUpgradeCost(ab.id, lvl) : null;
       const canAfford = nextCost !== null && this.gems >= nextCost;
 
-      ctx.fillStyle = equipped
-        ? 'rgba(20, 44, 62, 0.92)'
-        : unlocked
-        ? 'rgba(16, 26, 46, 0.88)'
-        : 'rgba(11, 18, 32, 0.8)';
-      ctx.strokeStyle = equipped
-        ? ab.primaryColor
-        : unlocked
-        ? 'rgba(165, 205, 255, 0.28)'
-        : canAfford
-        ? '#ffd166'
-        : 'rgba(165, 205, 255, 0.14)';
-      ctx.lineWidth = equipped ? 2.2 : 1.3;
-      roundRectPath(ctx, cx, cy, cardW, cardH, 16);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonCard(ctx, cx, cy, cardW, cardH, equipped ? 'mint' : canAfford ? 'gold' : 'cream', 16);
+      }
 
-      // Vector emblem medallion on top-left
+      // Cozy twilight-cobalt cartoon medallion on top-left
       const medX = cx + 28;
       const medY = cy + 30;
-      ctx.fillStyle = 'rgba(7, 12, 22, 0.78)';
-      ctx.strokeStyle = unlocked ? ab.primaryColor : 'rgba(165, 205, 255, 0.2)';
-      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#253978';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.arc(medX, medY, 18, 0, Math.PI * 2);
+      ctx.arc(medX, medY, 18.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       ctx.save();
-      if (!unlocked) ctx.globalAlpha = 0.65;
+      if (!unlocked) ctx.globalAlpha = 0.72;
       if (Ab) Ab.drawIcon(ctx, ab.id, medX, medY, 11.5, this.hintTime);
       ctx.restore();
 
       // Top-right Level Pill
-      ctx.fillStyle = unlocked ? 'rgba(116, 242, 255, 0.16)' : 'rgba(255, 255, 255, 0.06)';
-      roundRectPath(ctx, cx + cardW - 60, cy + 10, 50, 18, 9);
+      ctx.fillStyle = unlocked ? '#221848' : 'rgba(27, 17, 54, 0.14)';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.4;
+      roundRectPath(ctx, cx + cardW - 60, cy + 10, 50, 19, 9.5);
       ctx.fill();
+      ctx.stroke();
       ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
       if (unlocked) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = ab.accentColor;
+        ctx.fillStyle = '#ffe875';
         ctx.fillText(`LV.${lvl}/10`, cx + cardW - 35, cy + 19.5);
       } else {
         this._drawUiRow(
           ctx,
           [
-            { icon: 'lock', r: 3.6, color: 'rgba(180, 200, 232, 0.65)', gap: 3 },
-            { text: '0/10', color: 'rgba(180, 200, 232, 0.65)' }
+            { icon: 'lock', r: 3.6, color: '#5a4a82', gap: 3 },
+            { text: '0/10', color: ink }
           ],
           cx + cardW - 35,
           cy + 19.5,
           'center',
-          'rgba(180, 200, 232, 0.65)'
+          ink
         );
       }
 
-      // Localized Title & Description
+      // Localized Title & Description (dark ink on warm cream card)
       const pName = (tr.abilityNames && tr.abilityNames[ab.id]) || ab.id;
       const pDesc = (tr.abilityDescs && tr.abilityDescs[ab.id]) || '';
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `700 12px ${C.FONTS.DISPLAY}`;
+      ctx.fillStyle = ink;
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(pName, cx + 10, cy + 62, cardW - 20);
 
-      ctx.fillStyle = '#9bb6dc';
+      ctx.fillStyle = '#5a4a82';
       ctx.font = `600 9.5px ${C.FONTS.UI}`;
       ctx.fillText(pDesc, cx + 10, cy + 79, cardW - 20);
 
@@ -7881,17 +7910,20 @@
         const unit = tr.powerCdSec || 's';
         statText = nxtCd ? `${curCd}${unit} → ${nxtCd}${unit}` : `${curCd}${unit}`;
       }
-      ctx.fillStyle = unlocked ? ab.primaryColor : '#ffd166';
+      ctx.fillStyle = unlocked ? '#097550' : '#b0390c';
       ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
       ctx.fillText(statText, cx + 10, cy + 98, cardW - 20);
 
       // 10-pip mini level bar
       const pipW = (cardW - 20 - 9 * 2.5) / 10;
-      const pipY = cy + 114;
+      const pipY = cy + 112;
       for (let k = 0; k < 10; k++) {
-        ctx.fillStyle = k < lvl ? ab.primaryColor : 'rgba(255, 255, 255, 0.1)';
-        roundRectPath(ctx, cx + 10 + k * (pipW + 2.5), pipY, pipW, 4.5, 2);
+        ctx.fillStyle = k < lvl ? '#15c98a' : 'rgba(27, 17, 54, 0.14)';
+        ctx.strokeStyle = k < lvl ? ink : 'transparent';
+        ctx.lineWidth = 1;
+        roundRectPath(ctx, cx + 10 + k * (pipW + 2.5), pipY, pipW, 5.5, 2.5);
         ctx.fill();
+        if (k < lvl) ctx.stroke();
       }
 
       // Action buttons along bottom
@@ -7921,7 +7953,7 @@
         equipped,
         true,
         false,
-        equipped ? [{ icon: 'check', r: 4.6, color: '#06241b' }] : tr.equip || 'EQUIP'
+        equipped ? [{ icon: 'check', r: 4.6, color: ink }] : tr.equip || 'EQUIP'
       );
       this._drawGearCardButton(
         ctx,
@@ -7934,7 +7966,7 @@
         canAfford,
         nextCost !== null
           ? [
-              { icon: 'upgrade', r: 4.2, color: canAfford ? '#261402' : 'rgba(185, 200, 225, 0.5)', gap: 3 },
+              { icon: 'upgrade', r: 4.2, color: canAfford ? ink : '#6b5e85', gap: 3 },
               { icon: 'gem', r: 3.9, gap: 2 },
               { text: `${nextCost}` }
             ]
@@ -7944,6 +7976,8 @@
     }
 
     _drawGearShowcaseCard(ctx, acc, cx, cy, cardW, cardH, stats, tr, showGoalTag) {
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const accMod = JellyGame.Accessories;
       const unlocked = this.unlockedAccessories.has(acc.id);
       const equipped = this.equippedSlots && this.equippedSlots[acc.slot] === acc.id;
@@ -7952,42 +7986,38 @@
       const prog = isMilestone && accMod ? accMod.getMilestoneProgress(acc, stats) : null;
       const bonusDrops = (acc.milestone && acc.milestone.bonusDrops) || 0;
 
-      ctx.fillStyle = equipped
-        ? 'rgba(54, 245, 176, 0.16)'
-        : isMilestone && unlocked
-        ? 'rgba(42, 34, 18, 0.68)'
-        : 'rgba(14, 23, 40, 0.78)';
-      ctx.strokeStyle = equipped
-        ? C.COLORS.jellyPrimary
-        : affordable || (isMilestone && unlocked)
-        ? C.COLORS.collectOuter
-        : 'rgba(165, 205, 255, 0.14)';
-      ctx.lineWidth = equipped ? 2.2 : 1.3;
-      roundRectPath(ctx, cx, cy, cardW, cardH, 16);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        const variant = equipped ? 'mint' : isMilestone && unlocked ? 'gold' : affordable ? 'gold' : 'cream';
+        Art.drawCartoonCard(ctx, cx, cy, cardW, cardH, variant, 16);
+      }
 
       // Top-left slot pill (when in GOALS tab) or milestone bonus badge (top-right)
       if (showGoalTag) {
         const sLabel = (tr.slotNames && tr.slotNames[acc.slot]) || acc.slot.toUpperCase();
-        ctx.fillStyle = 'rgba(165, 205, 255, 0.12)';
+        ctx.fillStyle = '#221848';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.4;
         roundRectPath(ctx, cx + 8, cy + 7, 42, 16, 8);
         ctx.fill();
-        ctx.fillStyle = 'rgba(205, 224, 250, 0.78)';
+        ctx.stroke();
+        ctx.fillStyle = '#fff8eb';
         ctx.font = `700 8.5px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.fillText(sLabel, cx + 29, cy + 15.5);
       }
 
       if (isMilestone && bonusDrops > 0) {
-        ctx.fillStyle = unlocked ? 'rgba(54, 245, 176, 0.18)' : 'rgba(255, 209, 102, 0.16)';
+        ctx.fillStyle = unlocked ? '#097550' : '#221848';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.4;
         roundRectPath(ctx, cx + cardW - 52, cy + 7, 44, 17, 8.5);
         ctx.fill();
-        const badgeCol = unlocked ? '#8affdb' : '#ffeaa7';
+        ctx.stroke();
+        const badgeCol = unlocked ? '#a6ffe2' : '#ffe875';
         ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
         const badgeParts = unlocked
           ? [
-              { icon: 'check', r: 3.4, color: '#8affdb', gap: 2 },
+              { icon: 'check', r: 3.4, color: badgeCol, gap: 2 },
               { text: `+${bonusDrops}`, color: badgeCol, gap: 1.5 },
               { icon: 'gem', r: 3.3 }
             ]
@@ -7998,56 +8028,65 @@
         this._drawUiRow(ctx, badgeParts, cx + cardW - 30, cy + 16, 'center', badgeCol);
       }
 
-      // Soft mini pedestal disc + Jelly wearing ONLY this preview item
-      ctx.fillStyle = equipped ? 'rgba(54, 245, 176, 0.25)' : 'rgba(255, 255, 255, 0.06)';
+      // Cozy twilight-cobalt display medallion showcasing the item itself cleanly!
+      const medCx = cx + cardW * 0.5;
+      const medCy = cy + 37;
+      ctx.fillStyle = equipped ? '#1a5e63' : '#253978';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.ellipse(cx + cardW * 0.5, cy + 54, 21, 4.5, 0, 0, Math.PI * 2);
+      ctx.arc(medCx, medCy, 22, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
 
       ctx.save();
-      if (!unlocked && isMilestone) ctx.globalAlpha = 0.8;
-      this._drawMiniJellyPreview(ctx, cx + cardW * 0.5, cy + 39, 15.5, acc.id);
+      if (!unlocked && isMilestone) ctx.globalAlpha = 0.78;
+      if (accMod && accMod.drawStandaloneCardIcon) {
+        accMod.drawStandaloneCardIcon(ctx, acc, medCx, medCy, 14.5, this.hintTime);
+      } else {
+        this._drawMiniJellyPreview(ctx, medCx, medCy, 15.5, acc.id);
+      }
       ctx.restore();
 
-      // Localized accessory name
+      // Localized accessory name in bold ink
       const accName = (tr.accNames && tr.accNames[acc.id]) || acc.name;
-      ctx.fillStyle = '#f1f5ff';
+      ctx.fillStyle = ink;
       ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(accName, cx + cardW * 0.5, cy + 72, cardW - 14);
+      ctx.fillText(accName, cx + cardW * 0.5, cy + 71, cardW - 14);
 
       if (isMilestone && !unlocked && prog) {
         const goalLabel = (tr.accMilestones && tr.accMilestones[acc.id]) || `${prog.target}`;
-        ctx.fillStyle = '#94b8e8';
+        ctx.fillStyle = '#5a4a82';
         ctx.font = `600 9.5px ${C.FONTS.UI}`;
-        ctx.fillText(goalLabel, cx + cardW * 0.5, cy + 87);
+        ctx.fillText(goalLabel, cx + cardW * 0.5, cy + 86);
 
         const barW = cardW - 24;
-        const barH = 17;
+        const barH = 18;
         const barX = cx + 12;
-        const barY = cy + 98;
-        ctx.fillStyle = '#070e1c';
-        ctx.strokeStyle = 'rgba(165, 205, 255, 0.18)';
-        ctx.lineWidth = 1;
-        roundRectPath(ctx, barX, barY, barW, barH, 8.5);
+        const barY = cy + 97;
+        ctx.fillStyle = '#1b1138';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.6;
+        roundRectPath(ctx, barX, barY, barW, barH, 9);
         ctx.fill();
         ctx.stroke();
 
         if (prog.ratio > 0) {
           const fillW = Math.max(10, (barW - 4) * prog.ratio);
           const barGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY);
-          barGrad.addColorStop(0, '#ffd166');
+          barGrad.addColorStop(0, '#ffd147');
           barGrad.addColorStop(1, '#36f5b0');
           ctx.fillStyle = barGrad;
-          roundRectPath(ctx, barX + 2, barY + 2, fillW, barH - 4, 6.5);
+          roundRectPath(ctx, barX + 2, barY + 2, fillW, barH - 4, 7);
           ctx.fill();
         }
 
         const stat = acc.milestone && acc.milestone.stat;
         const unitSuffix = stat === 'bestClassic' || stat === 'bestRising' ? ' m' : '';
         const prefix = stat === 'bestTempo' ? 'x' : '';
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#fff8eb';
         ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
         ctx.fillText(
           `${prefix}${prog.current} / ${prefix}${prog.target}${unitSuffix}`,
@@ -8057,14 +8096,14 @@
       } else {
         if (isMilestone) {
           const goalLabel = (tr.accMilestones && tr.accMilestones[acc.id]) || '';
-          ctx.fillStyle = '#ffeaa7';
+          ctx.fillStyle = '#9e5b04';
           ctx.font = `600 9.5px ${C.FONTS.UI}`;
-          ctx.fillText(goalLabel, cx + cardW * 0.5, cy + 85);
+          ctx.fillText(goalLabel, cx + cardW * 0.5, cy + 84);
         }
         const badgeW = 104;
         const badgeH = 24;
         const badgeX = cx + (cardW - badgeW) * 0.5;
-        const badgeY = cy + 93;
+        const badgeY = cy + 92;
         this._drawGearCardButton(
           ctx,
           badgeX,
@@ -8076,7 +8115,7 @@
           affordable,
           equipped
             ? [
-                { icon: 'check', r: 4.1, color: '#06241b', gap: 4 },
+                { icon: 'check', r: 4.1, color: ink, gap: 4 },
                 { text: tr.equipped || 'EQUIPPED' }
               ]
             : unlocked
@@ -8096,33 +8135,23 @@
     }
 
     _drawGearCardButton(ctx, x, y, w, h, equipped, unlocked, affordable, labelOrParts) {
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const r = h * 0.5;
-      let txtColor = '#ffffff';
-      if (equipped) {
-        ctx.fillStyle = '#057856';
-        roundRectPath(ctx, x, y + 2.5, w, h, r);
-        ctx.fill();
-        ctx.fillStyle = C.COLORS.jellyPrimary;
-        roundRectPath(ctx, x, y, w, h, r);
-        ctx.fill();
-        txtColor = '#06241b';
-      } else if (unlocked) {
-        ctx.fillStyle = '#0b1322';
-        roundRectPath(ctx, x, y + 2.5, w, h, r);
-        ctx.fill();
-        ctx.fillStyle = '#2c4166';
-        roundRectPath(ctx, x, y, w, h, r);
-        ctx.fill();
-        txtColor = '#ffffff';
+      const scheme = equipped ? 'green' : unlocked ? 'slate' : affordable ? 'gold' : 'disabled';
+      const txtColor = equipped || affordable ? ink : unlocked ? '#fff8eb' : '#5e5342';
+
+      if (Art) {
+        Art.drawCartoonButton(ctx, x, y, w, h, scheme, r);
       } else {
-        ctx.fillStyle = affordable ? '#925406' : 'rgba(9, 15, 26, 0.6)';
-        roundRectPath(ctx, x, y + 2.5, w, h, r);
-        ctx.fill();
-        ctx.fillStyle = affordable ? '#ffd166' : 'rgba(255, 255, 255, 0.06)';
+        ctx.fillStyle = equipped ? '#36f5b0' : unlocked ? '#342863' : '#b5a892';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2;
         roundRectPath(ctx, x, y, w, h, r);
         ctx.fill();
-        txtColor = affordable ? '#261402' : 'rgba(185, 200, 225, 0.5)';
+        ctx.stroke();
       }
+
       ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
       if (Array.isArray(labelOrParts)) {
         this._drawUiRow(
@@ -8143,86 +8172,37 @@
     }
 
     _drawTrophyIcon(ctx, x, y, scale = 1) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(scale, scale);
-
-      const tGrad = ctx.createLinearGradient(0, -12, 0, 12);
-      tGrad.addColorStop(0, '#fff5bd');
-      tGrad.addColorStop(0.55, '#ffd166');
-      tGrad.addColorStop(1, '#f39c12');
-      ctx.fillStyle = tGrad;
-      ctx.strokeStyle = '#111b2e';
-      ctx.lineWidth = 1.8;
-      ctx.lineJoin = 'round';
-
-      // Handles
-      ctx.beginPath();
-      ctx.arc(-8, -4, 4.5, Math.PI * 0.45, Math.PI * 1.55);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(8, -4, 4.5, -Math.PI * 0.55, Math.PI * 0.55);
-      ctx.stroke();
-
-      // Cup body
-      ctx.beginPath();
-      ctx.moveTo(-8, -10);
-      ctx.lineTo(8, -10);
-      ctx.lineTo(6.5, -1);
-      ctx.quadraticCurveTo(5, 4, 2, 4.5);
-      ctx.lineTo(2, 8);
-      ctx.lineTo(6, 10.5);
-      ctx.lineTo(-6, 10.5);
-      ctx.lineTo(-2, 8);
-      ctx.lineTo(-2, 4.5);
-      ctx.quadraticCurveTo(-5, 4, -6.5, -1);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Highlight gleam
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.beginPath();
-      ctx.ellipse(-3.2, -5.5, 1.5, 3, -0.15, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
+      if (JellyGame.Art) {
+        JellyGame.Art.drawTrophyIcon(ctx, x, y, scale);
+      }
     }
 
     _drawRankCrest(ctx, x, y, rank, ghost = false) {
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
       ctx.translate(x, y);
-      if (ghost) ctx.globalAlpha = 0.4;
+      if (ghost) ctx.globalAlpha = 0.45;
 
       if (rank >= 1 && rank <= 3) {
         const palettes = {
-          1: { top: '#fff5b8', mid: '#ffd166', bot: '#d97706', rim: '#78350f', text: '#3b1d02' },
-          2: { top: '#ffffff', mid: '#cbd5e1', bot: '#64748b', rim: '#334155', text: '#0f172a' },
-          3: { top: '#fed7aa', mid: '#f4a261', bot: '#b45309', rim: '#5a2308', text: '#2e1002' }
+          1: { top: '#fff5b8', mid: '#ffd147', bot: '#d97706', text: ink },
+          2: { top: '#ffffff', mid: '#d0dced', bot: '#7a8ca8', text: ink },
+          3: { top: '#ffe0bd', mid: '#f4a261', bot: '#b45309', text: ink }
         };
         const p = palettes[rank];
 
         if (rank === 1 && !ghost) {
-          // Crowned gold champion medallion
-          const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
-          glow.addColorStop(0, 'rgba(255, 209, 102, 0.42)');
-          glow.addColorStop(1, 'rgba(255, 209, 102, 0)');
-          ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(0, 0, 22, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Tiny sculpted crown floating on shield rim
-          ctx.fillStyle = '#ffd166';
-          ctx.strokeStyle = p.rim;
-          ctx.lineWidth = 1.2;
+          ctx.fillStyle = '#ffd147';
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 1.8;
+          ctx.lineJoin = 'round';
           ctx.beginPath();
           ctx.moveTo(-8, -11);
-          ctx.lineTo(-9, -17);
+          ctx.lineTo(-9.5, -17.5);
           ctx.lineTo(-3.5, -13.5);
-          ctx.lineTo(0, -18.5);
+          ctx.lineTo(0, -19);
           ctx.lineTo(3.5, -13.5);
-          ctx.lineTo(9, -17);
+          ctx.lineTo(9.5, -17.5);
           ctx.lineTo(8, -11);
           ctx.closePath();
           ctx.fill();
@@ -8234,10 +8214,10 @@
         sGrad.addColorStop(0.55, p.mid);
         sGrad.addColorStop(1, p.bot);
         ctx.fillStyle = sGrad;
-        ctx.strokeStyle = p.rim;
-        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
 
-        // Hex-crest shield silhouette
         ctx.beginPath();
         ctx.moveTo(0, -13);
         ctx.lineTo(12, -8);
@@ -8255,15 +8235,15 @@
         ctx.textBaseline = 'middle';
         ctx.fillText(`${rank}`, 0, 0.5);
       } else {
-        ctx.fillStyle = 'rgba(17, 27, 46, 0.85)';
-        ctx.strokeStyle = 'rgba(165, 205, 255, 0.22)';
-        ctx.lineWidth = 1.2;
+        ctx.fillStyle = '#362968';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(0, 0, 12.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(205, 222, 248, 0.86)';
+        ctx.fillStyle = '#fff8eb';
         ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -8274,10 +8254,14 @@
     }
 
     _drawModeTabIcon(ctx, x, y, mode, active) {
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
       ctx.translate(x, y);
+      ctx.lineJoin = 'round';
       if (mode === 'rising') {
-        ctx.fillStyle = active ? '#2b0903' : '#ff793f';
+        ctx.fillStyle = active ? ink : '#ff9f43';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(0, -7);
         ctx.quadraticCurveTo(6.5, -1, 4.5, 5.5);
@@ -8286,9 +8270,11 @@
         ctx.quadraticCurveTo(-2, -3.5, 0, -7);
         ctx.closePath();
         ctx.fill();
+        if (!active) ctx.stroke();
       } else {
-        // Summit / altitude diamond peak
-        ctx.fillStyle = active ? '#06241b' : '#36f5b0';
+        ctx.fillStyle = active ? ink : '#6affc9';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(0, -6.5);
         ctx.lineTo(6.5, 5);
@@ -8298,20 +8284,22 @@
         ctx.lineTo(-6.5, 5);
         ctx.closePath();
         ctx.fill();
+        if (!active) ctx.stroke();
       }
       ctx.restore();
     }
 
     _drawLeaderboardModal(ctx) {
       const tr = this.t();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
       const scale = 0.86 + 0.14 * spring;
       const isRising = this.lbTab === 'rising';
-      const accent = isRising ? '#ff793f' : C.COLORS.jellyPrimary;
-      const accentLip = isRising ? '#8c2613' : '#057a58';
+      const accent = isRising ? '#ff793f' : '#36f5b0';
 
       ctx.save();
-      ctx.fillStyle = `rgba(6, 10, 20, ${0.76 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      ctx.fillStyle = `rgba(17, 10, 38, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
       this._fillViewportRect(ctx);
 
       const panelW = 396;
@@ -8326,61 +8314,36 @@
 
       this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
 
-      // Ambient radial spotlight glow inside header matching selected game mode
-      ctx.save();
-      roundRectPath(ctx, panelX + 3, panelY + 3, panelW - 6, panelH - 6, 23);
-      if (typeof ctx.clip === 'function') ctx.clip();
-      const auraGrad = ctx.createRadialGradient(
-        panelX + panelW * 0.45,
-        panelY + 26,
-        8,
-        panelX + panelW * 0.45,
-        panelY + 26,
-        210
-      );
-      auraGrad.addColorStop(
-        0,
-        isRising ? 'rgba(255, 121, 63, 0.22)' : 'rgba(54, 245, 176, 0.2)'
-      );
-      auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = auraGrad;
-      ctx.fillRect(panelX, panelY, panelW, 130);
-      ctx.restore();
-
       const bucket =
         this.leaderboard && this.leaderboard.data
           ? this.leaderboard.data[this.lbTab]
           : { entries: [], playerEntry: null, playerRank: null, totalPlayers: 0 };
       const entries = bucket.entries || [];
 
-      // Sculpted Trophy Crest + Decorative Twinkle Stars + Title
+      // Sculpted Trophy Crest + Title
       this._drawTrophyIcon(ctx, panelX + 34, panelY + 34, 0.96);
-      ctx.fillStyle = 'rgba(255, 240, 175, 0.8)';
-      ctx.beginPath();
-      ctx.arc(panelX + 20, panelY + 21, 1.8, 0, Math.PI * 2);
-      ctx.arc(panelX + 47, panelY + 22, 1.5, 0, Math.PI * 2);
-      ctx.fill();
 
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.font = `700 18.5px ${C.FONTS.DISPLAY}`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#091324';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4.5;
+      ctx.strokeStyle = ink;
       const titleY = entries.length > 0 ? panelY + 28 : panelY + 35;
       ctx.strokeText(tr.leaderboardTitle || 'LEADERBOARD', panelX + 54, titleY);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#fff8eb';
       ctx.fillText(tr.leaderboardTitle || 'LEADERBOARD', panelX + 54, titleY);
 
       if (entries.length > 0) {
         const count = bucket.totalPlayers || entries.length;
         const unit = count === 1 ? tr.climberUnit || 'climber' : tr.climbersUnit || 'climbers';
         const countStr = `${count} ${unit}`;
-        ctx.fillStyle = accent;
+        ctx.fillStyle = isRising ? '#ffb554' : '#72ffcb';
         ctx.font = `700 10.5px ${C.FONTS.UI}`;
         ctx.fillText(countStr, panelX + 55, panelY + 46);
       }
 
-      // Close medallion & Animated Refresh medallion
+      // Close medallion & Refresh medallion
       const closeSize = 34;
       const closeX = panelX + panelW - closeSize - 18;
       const closeY = panelY + 18;
@@ -8390,24 +8353,20 @@
       const refX = closeX - 42;
       const refY = closeY;
       this.uiRects.lbRefreshBtn = { x: refX, y: refY, w: closeSize, h: closeSize };
+      if (Art) {
+        Art.drawCartoonButton(ctx, refX, refY, closeSize, closeSize, 'slate', closeSize * 0.5);
+      }
       const rCx = refX + closeSize * 0.5;
       const rCy = refY + closeSize * 0.5;
-      ctx.fillStyle = '#233554';
-      ctx.strokeStyle = '#091220';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(rCx, rCy, closeSize * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
 
       ctx.save();
       ctx.translate(rCx, rCy);
       if (this.leaderboard && this.leaderboard.loading) {
         ctx.rotate(this.hintTime * 6);
       }
-      ctx.strokeStyle = '#8affdb';
-      ctx.fillStyle = '#8affdb';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#72ffcb';
+      ctx.fillStyle = '#72ffcb';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, 7, 0.35, Math.PI * 1.75);
       ctx.stroke();
@@ -8422,7 +8381,7 @@
       ctx.fill();
       ctx.restore();
 
-      // 2-Mode Tab Segmented Bar (CLASSIC | RISING FLOOR) with vector mode emblems
+      // 2-Mode Tab Segmented Bar (CLASSIC | RISING FLOOR)
       const tabW = panelW - 36;
       const tabH = 42;
       const tabX = panelX + 18;
@@ -8431,24 +8390,17 @@
       this.uiRects.lbTabClassicBtn = { x: tabX, y: tabY, w: halfTabW, h: tabH };
       this.uiRects.lbTabRisingBtn = { x: tabX + halfTabW, y: tabY, w: halfTabW, h: tabH };
 
-      ctx.fillStyle = '#091220';
-      ctx.strokeStyle = 'rgba(170, 205, 255, 0.16)';
-      ctx.lineWidth = 1.2;
+      ctx.fillStyle = '#191138';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       roundRectPath(ctx, tabX, tabY, tabW, tabH, 21);
       ctx.fill();
       ctx.stroke();
 
       const activeTabX = isRising ? tabX + halfTabW + 2 : tabX + 3;
-      ctx.fillStyle = accentLip;
-      roundRectPath(ctx, activeTabX, tabY + 5, halfTabW - 5, tabH - 8, 17);
-      ctx.fill();
-      ctx.fillStyle = accent;
-      roundRectPath(ctx, activeTabX, tabY + 3, halfTabW - 5, tabH - 8, 17);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-      roundRectPath(ctx, activeTabX + 12, tabY + 5.5, halfTabW - 29, 5, 2.5);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonButton(ctx, activeTabX, tabY + 3, halfTabW - 5, tabH - 8, isRising ? 'orange' : 'green', 17);
+      }
 
       ctx.textBaseline = 'middle';
       ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
@@ -8458,65 +8410,43 @@
       const classicCenterX = tabX + halfTabW * 0.5;
       this._drawModeTabIcon(ctx, classicCenterX - classicW * 0.5 - 6, tabY + tabH * 0.5, 'classic', !isRising);
       ctx.textAlign = 'center';
-      ctx.fillStyle = !isRising ? '#06241b' : 'rgba(205, 222, 248, 0.72)';
+      ctx.fillStyle = !isRising ? ink : '#fff8eb';
       ctx.fillText(classicLabel, classicCenterX + 8, tabY + tabH * 0.5);
 
       const risingLabel = tr.modeRising || 'RISING FLOOR';
       const risingW = ctx.measureText(risingLabel).width;
       const risingCenterX = tabX + halfTabW * 1.5;
       this._drawModeTabIcon(ctx, risingCenterX - risingW * 0.5 - 6, tabY + tabH * 0.5, 'rising', isRising);
-      ctx.fillStyle = isRising ? '#240b03' : 'rgba(205, 222, 248, 0.72)';
+      ctx.fillStyle = isRising ? ink : '#fff8eb';
       ctx.fillText(risingLabel, risingCenterX + 8, tabY + tabH * 0.5);
 
-      // Player Profile Identity Card (no backend database jargon!)
+      // Warm Cream Player Profile Identity Card
       const profX = panelX + 18;
       const profY = panelY + 114;
       const profW = panelW - 36;
       const profH = 48;
-      const profGrad = ctx.createLinearGradient(profX, profY, profX + profW, profY + profH);
-      profGrad.addColorStop(0, 'rgba(18, 30, 52, 0.85)');
-      profGrad.addColorStop(1, 'rgba(10, 17, 30, 0.82)');
-      ctx.fillStyle = profGrad;
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.18)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, profX, profY, profW, profH, 16);
-      ctx.fill();
-      ctx.stroke();
-
-      const activePal = this.player.getColorPalette();
-      const avGlow = ctx.createRadialGradient(
-        profX + 26,
-        profY + profH * 0.5,
-        2,
-        profX + 26,
-        profY + profH * 0.5,
-        21
-      );
-      avGlow.addColorStop(0, activePal.glow);
-      avGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = avGlow;
-      ctx.beginPath();
-      ctx.arc(profX + 26, profY + profH * 0.5, 21, 0, Math.PI * 2);
-      ctx.fill();
+      if (Art) {
+        Art.drawCartoonCard(ctx, profX, profY, profW, profH, 'cream', 16);
+      }
 
       this._drawMiniJellyPreview(
         ctx,
         profX + 26,
         profY + profH * 0.5,
-        13,
+        13.5,
         this.equippedAccessory,
         this.equippedColor
       );
 
       const nick = this.leaderboard ? this.leaderboard.nickname : 'JELLY';
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = ink;
       ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
       ctx.fillText(nick, profX + 50, profY + 16.5);
 
       const src = this.leaderboard ? this.leaderboard.storageSource : 'offline';
       const isConnected = src === 'mongodb' || src === 'local';
-      const statusDotCol = isConnected ? '#36f5b0' : '#ffd166';
+      const statusDotCol = isConnected ? '#099672' : '#d97706';
       const statusText = isConnected
         ? tr.dbMongo || 'Online'
         : tr.dbOffline || 'Offline';
@@ -8524,42 +8454,39 @@
       const subtitleText = `${statusText}  •  ${this._getOwnedGearCount()}/${allGearCount} ${tr.gearUnit || 'Gear'}`;
 
       ctx.fillStyle = statusDotCol;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(profX + 54, profY + 34, 3.3, 0, Math.PI * 2);
+      ctx.arc(profX + 54, profY + 34, 3.6, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
 
-      ctx.fillStyle = 'rgba(195, 218, 250, 0.78)';
+      ctx.fillStyle = '#5a4a82';
       ctx.font = `600 10.5px ${C.FONTS.UI}`;
-      ctx.fillText(subtitleText, profX + 62, profY + 34.5);
+      ctx.fillText(subtitleText, profX + 63, profY + 34.5);
 
-      // Tactile 3D [EDIT] button on right of profile strip
+      // Tactile Cartoon [EDIT] button on right of profile strip
       const editW = 80;
       const editH = 29;
       const editX = profX + profW - editW - 9;
       const editY = profY + (profH - editH) * 0.5;
       this.uiRects.lbEditNickBtn = { x: editX, y: editY, w: editW, h: editH };
 
-      ctx.fillStyle = '#09111f';
-      roundRectPath(ctx, editX, editY + 2, editW, editH, 14.5);
-      ctx.fill();
-      ctx.fillStyle = '#283e62';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.3)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, editX, editY, editW, editH, 14.5);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonButton(ctx, editX, editY, editW, editH, 'slate', 14.5);
+      }
 
       ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
-          { icon: 'pencil', r: 4.5, color: '#e6f0ff', gap: 5 },
-          { text: tr.editNick || 'EDIT', color: '#e6f0ff' }
+          { icon: 'pencil', r: 4.5, color: '#fff8eb', gap: 5 },
+          { text: tr.editNick || 'EDIT', color: '#fff8eb' }
         ],
         editX + editW * 0.5,
         editY + editH * 0.5 + 0.5,
         'center',
-        '#e6f0ff',
+        '#fff8eb',
         editW - 10
       );
 
@@ -8571,9 +8498,9 @@
       this.uiRects.lbListWell = { x: wellX, y: wellY, w: wellW, h: wellH };
       this.uiRects.lbPromoBtn = null;
 
-      ctx.fillStyle = 'rgba(8, 13, 24, 0.78)';
-      ctx.strokeStyle = 'rgba(165, 205, 255, 0.14)';
-      ctx.lineWidth = 1.2;
+      ctx.fillStyle = '#191138';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.4;
       roundRectPath(ctx, wellX, wellY, wellW, wellH, 18);
       ctx.fill();
       ctx.stroke();
@@ -8602,13 +8529,6 @@
       if (entries.length === 0) {
         const emCx = wellX + wellW * 0.5;
         const emCy = wellY + 115;
-        const emGlow = ctx.createRadialGradient(emCx, emCy, 6, emCx, emCy, 56);
-        emGlow.addColorStop(0, activePal.glow);
-        emGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = emGlow;
-        ctx.beginPath();
-        ctx.arc(emCx, emCy, 56, 0, Math.PI * 2);
-        ctx.fill();
 
         this._drawRankCrest(ctx, emCx, emCy - 34, 1, false);
         this._drawMiniJellyPreview(
@@ -8617,9 +8537,10 @@
           emCy + 10,
           22,
           this.equippedAccessory,
-          this.equippedColor
+          this.equippedColor,
+          true
         );
-        ctx.fillStyle = 'rgba(215, 232, 255, 0.86)';
+        ctx.fillStyle = '#fff8eb';
         ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
         ctx.textAlign = 'center';
         ctx.fillText(
@@ -8652,16 +8573,14 @@
           curY += rowH + rowGap;
         }
 
-        // Stylized ghost podium placeholders if Top 3 isn't full yet
         for (let slot = entries.length + 1; slot <= 3; slot++) {
           const slotH = 48;
           if (curY + slotH >= wellY && curY <= wellY + wellH) {
             ctx.save();
             ctx.setLineDash([5, 4]);
-            ctx.fillStyle = 'rgba(13, 21, 38, 0.45)';
-            ctx.strokeStyle =
-              slot === 2 ? 'rgba(203, 213, 225, 0.25)' : 'rgba(244, 162, 97, 0.25)';
-            ctx.lineWidth = 1.2;
+            ctx.fillStyle = 'rgba(255, 247, 229, 0.08)';
+            ctx.strokeStyle = 'rgba(255, 247, 229, 0.25)';
+            ctx.lineWidth = 1.6;
             roundRectPath(ctx, rx, curY, rw, slotH, 14);
             ctx.fill();
             ctx.stroke();
@@ -8669,7 +8588,7 @@
 
             this._drawRankCrest(ctx, rx + 26, curY + slotH * 0.5, slot, true);
             ctx.textAlign = 'left';
-            ctx.fillStyle = 'rgba(180, 200, 232, 0.56)';
+            ctx.fillStyle = 'rgba(255, 248, 235, 0.65)';
             ctx.font = `600 11.5px ${C.FONTS.UI}`;
             ctx.fillText(
               tr.openPodiumSlot || 'Open spot, set a score!',
@@ -8681,7 +8600,6 @@
           curY += slotH + rowGap;
         }
 
-        // Interactive Milestone Promo banner at bottom when board is short
         if (showPromo) {
           const promoY = Math.max(curY + 4, wellY + wellH - promoH - 8);
           if (promoY + promoH >= wellY && promoY <= wellY + wellH) {
@@ -8698,37 +8616,32 @@
       }
       ctx.restore();
 
-      // Subtle vertical scrollbar thumb if list scrolls
       if (maxScroll > 0) {
         const trackH = wellH - 24;
         const thumbH = Math.max(30, (wellH / totalContentH) * trackH);
         const thumbY = wellY + 12 + (this.lbScrollY / maxScroll) * (trackH - thumbH);
-        ctx.fillStyle = 'rgba(165, 205, 255, 0.25)';
+        ctx.fillStyle = 'rgba(255, 248, 235, 0.32)';
         roundRectPath(ctx, wellX + wellW - 6, thumbY, 3, thumbH, 1.5);
         ctx.fill();
       }
 
-      // Pinned Footer "YOUR RANK" Summary Bar with target meter gap!
+      // Pinned Footer "YOUR RANK" Summary Bar
       const footX = panelX + 18;
       const footY = panelY + 526;
       const footW = panelW - 36;
       const footH = 48;
-      ctx.fillStyle = isRising ? 'rgba(54, 20, 14, 0.94)' : 'rgba(12, 34, 34, 0.94)';
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 1.6;
-      roundRectPath(ctx, footX, footY, footW, footH, 16);
-      ctx.fill();
-      ctx.stroke();
+      if (Art) {
+        Art.drawCartoonCard(ctx, footX, footY, footW, footH, isRising ? 'gold' : 'mint', 16);
+      }
 
       const localBest = isRising ? this.bestRisingMeters : this.bestMeters;
       const myRankNum = bucket.playerRank;
       const myRankStr = myRankNum ? `#${myRankNum}` : '--';
       ctx.textAlign = 'left';
-      ctx.fillStyle = accent;
+      ctx.fillStyle = isRising ? '#b0390c' : '#097550';
       ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
       ctx.fillText(`${tr.yourRank || 'YOUR RANK'}: ${myRankStr}`, footX + 16, footY + footH * 0.5 + 0.5);
 
-      // Compute motivating gap to the climber right above you (if any)
       let gapLabel = '';
       if (myRankNum && myRankNum > 1 && entries.length >= myRankNum - 1) {
         const targetEntry = entries[myRankNum - 2];
@@ -8741,14 +8654,14 @@
 
       ctx.textAlign = 'right';
       if (gapLabel) {
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = ink;
         ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
         ctx.fillText(`${localBest} m`, footX + footW - 16, footY + 17);
-        ctx.fillStyle = '#ffeaa7';
+        ctx.fillStyle = '#b0390c';
         ctx.font = `700 10.5px ${C.FONTS.UI}`;
         ctx.fillText(gapLabel, footX + footW - 16, footY + 34);
       } else {
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = ink;
         ctx.font = `700 14px ${C.FONTS.DISPLAY}`;
         ctx.fillText(
           localBest > 0 ? `${localBest} m` : tr.unranked || 'Climb to rank!',
@@ -8757,8 +8670,7 @@
         );
       }
 
-      // Close hint beneath footer
-      ctx.fillStyle = 'rgba(185, 205, 235, 0.52)';
+      ctx.fillStyle = 'rgba(255, 248, 235, 0.65)';
       ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
       ctx.textAlign = 'center';
       ctx.fillText(tr.closeHint || 'Tap outside or ✕ to close', C.WIDTH * 0.5, panelY + panelH - 18);
@@ -8767,74 +8679,37 @@
     }
 
     _drawLeaderboardRow(ctx, entry, rx, ry, rw, rowH, isMe, isRising, accent, tr) {
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       const rk = entry.rank;
       const isChamp = rk === 1;
 
-      const cardGrad = ctx.createLinearGradient(rx, ry, rx + rw, ry + rowH);
-      if (isChamp) {
-        cardGrad.addColorStop(0, 'rgba(72, 54, 18, 0.85)');
-        cardGrad.addColorStop(1, 'rgba(30, 26, 20, 0.88)');
-      } else if (isMe) {
-        cardGrad.addColorStop(0, isRising ? 'rgba(84, 34, 22, 0.82)' : 'rgba(14, 54, 48, 0.82)');
-        cardGrad.addColorStop(1, 'rgba(16, 26, 44, 0.86)');
-      } else if (rk === 2) {
-        cardGrad.addColorStop(0, 'rgba(34, 48, 72, 0.82)');
-        cardGrad.addColorStop(1, 'rgba(20, 30, 50, 0.82)');
-      } else if (rk === 3) {
-        cardGrad.addColorStop(0, 'rgba(54, 34, 24, 0.78)');
-        cardGrad.addColorStop(1, 'rgba(24, 28, 46, 0.82)');
-      } else {
-        cardGrad.addColorStop(0, 'rgba(22, 34, 56, 0.74)');
-        cardGrad.addColorStop(1, 'rgba(16, 25, 42, 0.74)');
+      if (Art) {
+        const variant = isChamp ? 'gold' : isMe ? 'mint' : 'cream';
+        Art.drawCartoonCard(ctx, rx, ry, rw, rowH, variant, 15);
       }
-
-      ctx.fillStyle = cardGrad;
-      ctx.strokeStyle = isChamp
-        ? '#ffd166'
-        : isMe
-        ? accent
-        : rk === 2
-        ? 'rgba(203, 213, 225, 0.42)'
-        : rk === 3
-        ? 'rgba(244, 162, 97, 0.42)'
-        : 'rgba(165, 205, 255, 0.12)';
-      ctx.lineWidth = isChamp || isMe ? 1.8 : 1.1;
-      roundRectPath(ctx, rx, ry, rw, rowH, 15);
-      ctx.fill();
-      ctx.stroke();
 
       // Vector Rank Crest
       this._drawRankCrest(ctx, rx + 26, ry + rowH * 0.5 + (isChamp ? 3 : 0), rk, false);
 
-      // Soft avatar glow halo on #1 Champion
       const avX = rx + 64;
       const avY = ry + rowH * 0.5;
-      if (isChamp) {
-        const hGlow = ctx.createRadialGradient(avX, avY, 2, avX, avY, 22);
-        hGlow.addColorStop(0, 'rgba(255, 209, 102, 0.36)');
-        hGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = hGlow;
-        ctx.beginPath();
-        ctx.arc(avX, avY, 22, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
       this._drawMiniJellyPreview(
         ctx,
         avX,
         avY,
         isChamp ? 13.5 : rk <= 3 ? 12 : 11,
         entry.accessory || 'none',
-        entry.color || 'mint'
+        entry.color || 'mint',
+        isChamp
       );
 
-      // Nickname + Champion tag (#1 only; clean score rows with no cluttering Tempo tag)
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = isChamp ? '#fff5cf' : isMe ? '#ffffff' : '#e6f0ff';
+      ctx.fillStyle = ink;
       ctx.font = `700 ${isChamp ? 14 : 13}px ${C.FONTS.DISPLAY}`;
       const nameLabel = isMe ? `${entry.nickname} (${tr.youTag || 'YOU'})` : entry.nickname;
-      const pillW = 72;
+      const pillW = 74;
       const pillX = rx + rw - pillW - 10;
       const nameX = rx + 94;
       const maxNameW = Math.max(80, pillX - nameX - 10);
@@ -8842,58 +8717,45 @@
       ctx.fillText(nameLabel, nameX, nameY, maxNameW);
 
       if (isChamp) {
-        ctx.font = `600 10.5px ${C.FONTS.DISPLAY}`;
+        ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
         const subRowY = ry + rowH * 0.69;
         this._drawUiRow(
           ctx,
           [
-            { icon: 'star', r: 4.1, color: '#ffd166', gap: 4 },
+            { icon: 'star', r: 4.1, color: '#ff9f1c', gap: 4 },
             { text: tr.championTag || 'CHAMPION' }
           ],
           nameX,
           subRowY,
           'left',
-          'rgba(255, 209, 102, 0.94)'
+          '#b0390c'
         );
       }
 
-      // Right-aligned Sculpted Score Pill
+      // Right-aligned Inked Cartoon Score Pill
       const scoreText = `${entry.meters} m`;
       const pillH = isChamp ? 30 : 26;
       const pillY = ry + (rowH - pillH) * 0.5;
-      ctx.fillStyle = isChamp
-        ? 'rgba(255, 209, 102, 0.2)'
-        : isMe
-        ? 'rgba(54, 245, 176, 0.16)'
-        : 'rgba(10, 17, 32, 0.65)';
-      ctx.strokeStyle = isChamp
-        ? 'rgba(255, 209, 102, 0.5)'
-        : isMe
-        ? accent
-        : 'rgba(165, 205, 255, 0.16)';
-      ctx.lineWidth = 1;
+      ctx.fillStyle = isChamp ? '#221848' : isMe ? '#097550' : '#322563';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
       roundRectPath(ctx, pillX, pillY, pillW, pillH, pillH * 0.5);
       ctx.fill();
       ctx.stroke();
 
       ctx.textAlign = 'center';
-      ctx.fillStyle = isChamp ? '#ffd166' : isMe ? accent : '#ffffff';
+      ctx.fillStyle = isChamp ? '#ffe875' : '#fff8eb';
       ctx.font = `700 ${isChamp ? 14.5 : 13.5}px ${C.FONTS.DISPLAY}`;
       ctx.fillText(scoreText, pillX + pillW * 0.5, pillY + pillH * 0.5 + 0.5);
     }
 
     _drawLbMilestonePromo(ctx, x, y, w, h, tr) {
-      const grad = ctx.createLinearGradient(x, y, x + w, y + h);
-      grad.addColorStop(0, 'rgba(32, 26, 56, 0.85)');
-      grad.addColorStop(1, 'rgba(16, 28, 50, 0.88)');
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = 'rgba(255, 209, 102, 0.36)';
-      ctx.lineWidth = 1.2;
-      roundRectPath(ctx, x, y, w, h, 14);
-      ctx.fill();
-      ctx.stroke();
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
+      if (Art) {
+        Art.drawCartoonCard(ctx, x, y, w, h, 'gold', 14);
+      }
 
-      // Preview miniature milestone gear icons inside promo banner
       const previews = ['halo', 'visor', 'horns', 'jetpack', 'wings'];
       for (let i = 0; i < previews.length; i++) {
         this._drawMiniJellyPreview(
@@ -8910,17 +8772,17 @@
       this._drawUiRow(
         ctx,
         [
-          { icon: 'trophy', r: 4.8, color: '#ffd166', gap: 4 },
-          { text: `${tr.rewardsTab || 'MILESTONES'} →`, color: '#ffd166' }
+          { icon: 'trophy', r: 4.8, color: '#ff9f1c', gap: 4 },
+          { text: `${tr.rewardsTab || 'MILESTONES'} →`, color: '#b0390c' }
         ],
         x + w - 12,
         y + 23,
         'right',
-        '#ffd166'
+        '#b0390c'
       );
 
       ctx.textAlign = 'left';
-      ctx.fillStyle = 'rgba(218, 232, 255, 0.85)';
+      ctx.fillStyle = ink;
       ctx.font = `600 10.5px ${C.FONTS.UI}`;
       ctx.fillText(
         tr.milestoneHintStrip || 'Hit altitude & tempo goals to earn rare gear!',
@@ -8931,7 +8793,7 @@
       return { x, y, w, h };
     }
 
-    _drawMiniJellyPreview(ctx, x, y, r, accessoryId, colorId) {
+    _drawMiniJellyPreview(ctx, x, y, r, accessoryId, colorId, determined = false) {
       let pal = null;
       const targetColor = colorId || this.equippedColor;
       if (C.JELLY_COLORS && targetColor) {
@@ -8953,6 +8815,7 @@
             };
       }
 
+      const ink = C.COLORS.ink || '#1b1136';
       ctx.save();
       ctx.translate(x, y);
 
@@ -8975,44 +8838,95 @@
         ctx.restore();
       }
 
-      const grad = ctx.createRadialGradient(-r * 0.28, -r * 0.3, r * 0.15, 0, 0, r * 1.05);
-      grad.addColorStop(0, pal.light);
-      grad.addColorStop(0.45, pal.primary);
-      grad.addColorStop(1, pal.secondary);
-
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = pal.rim;
-      ctx.lineWidth = 1.6;
+      // Cel-shaded cartoon Jelly body with thick ink outline
+      ctx.fillStyle = pal.primary;
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
 
-      // Glossy specular shine on preview jelly
-      ctx.fillStyle = C.COLORS.jellyHighlight;
+      ctx.save();
       ctx.beginPath();
-      ctx.ellipse(-r * 0.32, -r * 0.35, r * 0.24, r * 0.14, -0.55, 0, Math.PI * 2);
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      if (typeof ctx.clip === 'function') ctx.clip();
+
+      ctx.fillStyle = pal.light;
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.72, r * 0.56, -0.35, 0, Math.PI * 2);
       ctx.fill();
 
-      // Cute eyes & smile scaled cleanly to preview size
+      ctx.fillStyle = pal.primary;
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.08, -r * 0.1, r * 0.88, r * 0.78, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = pal.secondary;
+      ctx.beginPath();
+      ctx.arc(r * 0.34, r * 0.38, r * 0.98, 0, Math.PI * 2);
+      ctx.arc(-r * 0.16, -r * 0.2, r * 0.82, 0, Math.PI * 2, true);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = Math.max(1.8, 2.5 * Math.min(1.2, eyeScale));
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Glossy cartoon specular shine on preview jelly
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.33, -r * 0.36, r * 0.24, r * 0.13, -0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-r * 0.54, -r * 0.12, r * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cute comic eyes, cheeks, brows & smile scaled cleanly to preview size
       ctx.save();
       ctx.scale(eyeScale, eyeScale);
       for (const side of [-1, 1]) {
-        ctx.fillStyle = C.COLORS.jellyEye;
+        const ex = side * 5.3;
+        ctx.fillStyle = ink;
         ctx.beginPath();
-        ctx.arc(side * 5.2, 0.5, 2.6, 0, Math.PI * 2);
+        ctx.arc(ex, 0.4, 2.9, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(side * 5.2 - 0.8, -0.3, 0.9, 0, Math.PI * 2);
+        ctx.arc(ex - 0.9, -0.5, 1.05, 0, Math.PI * 2);
         ctx.fill();
+
+        if (determined) {
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 2.0;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ex - side * 2.9, -4.4);
+          ctx.lineTo(ex + side * 2.2, -3.0);
+          ctx.stroke();
+        }
       }
-      ctx.strokeStyle = C.COLORS.jellyEye;
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
+
+      ctx.fillStyle = 'rgba(255, 118, 150, 0.35)';
       ctx.beginPath();
-      ctx.arc(0, 4.0, 2.2, 0.2, Math.PI - 0.2);
-      ctx.stroke();
+      ctx.ellipse(-8.2, 3.2, 2.2, 1.2, 0, 0, Math.PI * 2);
+      ctx.ellipse(8.2, 3.2, 2.2, 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
+      ctx.lineCap = 'round';
+      if (determined) {
+        ctx.fillStyle = '#a81948';
+        ctx.beginPath();
+        ctx.arc(0, 3.4, 3.1, 0.1, Math.PI - 0.1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 4.0, 2.4, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+      }
 
       if (JellyGame.Accessories && accessoryId && accessoryId !== 'none') {
         JellyGame.Accessories.drawAccessory(

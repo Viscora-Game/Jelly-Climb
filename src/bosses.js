@@ -738,7 +738,8 @@
       }
       ctx.restore();
 
-      // 4. Orbiting Shield Petals / Flame Orbs / Void Spheres
+      // 4. Cartoon Inked Orbiting Shield Orbs / Crystal Petals
+      const inkCol = C.COLORS.ink || '#1b1136';
       for (let i = 0; i < this.orbitOrbs.length; i++) {
         const orb = this.orbitOrbs[i];
         const pos = this._getOrbitOrbPosition(orb);
@@ -746,15 +747,16 @@
         ctx.save();
         ctx.translate(pos.x, oy);
         ctx.fillStyle = orb.color;
-        ctx.strokeStyle = '#091526';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = inkCol;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
         ctx.beginPath();
         if (this.id === 'glacius') {
           ctx.rotate(this.orbitAngle + orb.angleOffset);
-          ctx.moveTo(0, -orb.r - 2);
-          ctx.lineTo(orb.r, 0);
-          ctx.lineTo(0, orb.r + 2);
-          ctx.lineTo(-orb.r, 0);
+          ctx.moveTo(0, -orb.r - 2.5);
+          ctx.lineTo(orb.r + 0.5, 0);
+          ctx.lineTo(0, orb.r + 2.5);
+          ctx.lineTo(-orb.r - 0.5, 0);
           ctx.closePath();
         } else {
           ctx.arc(0, 0, orb.r, 0, Math.PI * 2);
@@ -762,7 +764,7 @@
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
         ctx.beginPath();
         ctx.arc(-2.5, -2.5, 2.8, 0, Math.PI * 2);
         ctx.fill();
@@ -829,262 +831,313 @@
     }
 
     _drawArchetypeBody(ctx, r, accent, enraged, t) {
+      const ink = C.COLORS.ink || '#1b1136';
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
       if (this.id === 'craggo') {
-        // Hovering runed stone shoulder pauldrons flanking the golem
+        // Hovering mossy cartoon stone shoulder pauldrons flanking the golem
         const hover = Math.sin(t * 2.6) * 2.6;
         for (const side of [-1, 1]) {
           ctx.save();
-          ctx.translate(side * (r + 7.5), -2 + hover * side);
+          ctx.translate(side * (r + 8), -2 + hover * side);
           ctx.rotate(side * 0.16);
-          ctx.strokeStyle = accent;
-          ctx.globalAlpha = enraged ? 0.8 : 0.48;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(-side * 7, 1);
-          ctx.lineTo(-side * 1, 1);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
 
-          const pGrad = ctx.createLinearGradient(-7, -11, 7, 11);
-          pGrad.addColorStop(0, '#3e5473');
-          pGrad.addColorStop(1, '#142033');
-          ctx.fillStyle = pGrad;
-          ctx.strokeStyle = '#09111f';
-          ctx.lineWidth = 2.2;
+          ctx.fillStyle = '#5e4c82';
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 2.6;
           ctx.beginPath();
-          ctx.moveTo(0, -11);
-          ctx.lineTo(7.5, -4);
-          ctx.lineTo(5.5, 10);
-          ctx.lineTo(-5.5, 10);
-          ctx.lineTo(-7.5, -4);
+          ctx.moveTo(0, -11.5);
+          ctx.lineTo(8, -4.5);
+          ctx.lineTo(6, 10);
+          ctx.lineTo(-6, 10);
+          ctx.lineTo(-8, -4.5);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
 
+          // Moss cap on top of left pauldron for organic asymmetry
+          if (side < 0) {
+            ctx.fillStyle = '#8ce827';
+            ctx.beginPath();
+            ctx.arc(-1, -7.5, 4.5, Math.PI, 0);
+            ctx.fill();
+            ctx.stroke();
+          }
+
           ctx.fillStyle = accent;
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.arc(0, -1, 2.2, 0, Math.PI * 2);
+          ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
           ctx.fill();
+          ctx.stroke();
           ctx.restore();
         }
 
-        // Sculpted obsidian-slate cave golem octagon with 3D rock gradient & upper bevel
-        const rockGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.35, 4, 0, 0, r + 6);
-        rockGrad.addColorStop(0, '#3a506e');
-        rockGrad.addColorStop(0.55, '#203048');
-        rockGrad.addColorStop(1, '#101a2b');
-        ctx.fillStyle = rockGrad;
-        ctx.strokeStyle = '#09111f';
-        ctx.lineWidth = 2.6;
+        // Chunky cartoon stone boulder body (slightly organic notched silhouette)
+        const traceRock = () => {
+          ctx.beginPath();
+          ctx.moveTo(-r * 0.55, -r * 0.92);
+          ctx.lineTo(0, -r * 1.04);
+          ctx.lineTo(r * 0.62, -r * 0.88);
+          ctx.lineTo(r * 1.02, -r * 0.2);
+          ctx.lineTo(r * 0.9, r * 0.68);
+          ctx.lineTo(r * 0.25, r * 1.02);
+          ctx.lineTo(-r * 0.42, r * 0.96);
+          ctx.lineTo(-r * 0.98, r * 0.48);
+          ctx.lineTo(-r * 1.02, -r * 0.28);
+          ctx.closePath();
+        };
+
+        ctx.fillStyle = '#534173';
+        traceRock();
+        ctx.fill();
+
+        // Cel-shaded lower-right stone shadow + upper-left highlight
+        ctx.save();
+        traceRock();
+        if (typeof ctx.clip === 'function') ctx.clip();
+        ctx.fillStyle = '#362752';
         ctx.beginPath();
-        for (let i = 0; i < 8; i++) {
-          const ang = (i / 8) * Math.PI * 2;
-          const rad = i % 2 === 0 ? r + 3.2 : r - 2.6;
-          const px = Math.cos(ang) * rad;
-          const py = Math.sin(ang) * rad;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
+        ctx.arc(r * 0.35, r * 0.42, r * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#735c9c';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.35, -r * 0.45, r * 0.55, r * 0.35, -0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 3.2;
+        traceRock();
+        ctx.stroke();
+
+        // Mossy tuft crowning Craggo's head
+        ctx.fillStyle = '#8ce827';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(-14, -r * 0.82);
+        ctx.quadraticCurveTo(-8, -r * 1.18, 2, -r * 0.98);
+        ctx.quadraticCurveTo(10, -r * 1.15, 16, -r * 0.8);
+        ctx.quadraticCurveTo(4, -r * 0.65, -14, -r * 0.82);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Inner beveled plate & subtle rocky rim gleam
-        ctx.strokeStyle = 'rgba(155, 195, 240, 0.24)';
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.arc(0, 0, r - 6, -Math.PI * 0.85, -Math.PI * 0.15);
-        ctx.stroke();
-
-        // Glowing basalt energy fissures radiating from core
+        // Glowing comic energy fissure (asymmetric)
         ctx.strokeStyle = accent;
-        ctx.globalAlpha = 0.45 + 0.22 * Math.sin(t * 4.5);
-        ctx.lineWidth = 1.7;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.moveTo(-r + 7, -10);
+        ctx.moveTo(-r + 8, -11);
         ctx.lineTo(-10, -4);
-        ctx.lineTo(-7, 7);
-        ctx.moveTo(r - 7, -10);
-        ctx.lineTo(10, -4);
-        ctx.lineTo(7, 7);
+        ctx.lineTo(-8, 6);
+        ctx.moveTo(r - 9, -7);
+        ctx.lineTo(12, -1);
         ctx.stroke();
-        ctx.globalAlpha = 1;
 
-        // Heavy brow shadow + fierce glowing eyes
-        ctx.fillStyle = '#09111f';
+        // Heavy cartoon furrowed brow + big expressive glowing eyes
+        ctx.fillStyle = ink;
         ctx.beginPath();
-        ctx.moveTo(-17, -7);
+        ctx.moveTo(-18, -9);
         ctx.lineTo(0, -2.5);
-        ctx.lineTo(17, -7);
-        ctx.lineTo(14, -11);
-        ctx.lineTo(-14, -11);
+        ctx.lineTo(18, -9);
+        ctx.lineTo(15, -14);
+        ctx.lineTo(-15, -14);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = accent;
-        ctx.beginPath();
-        ctx.moveTo(-14, -4);
-        ctx.lineTo(-4, 0.5);
-        ctx.lineTo(-14, 3);
-        ctx.moveTo(14, -4);
-        ctx.lineTo(4, 0.5);
-        ctx.lineTo(14, 3);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(-9.5, -0.4, 1.5, 0, Math.PI * 2);
-        ctx.arc(9.5, -0.4, 1.5, 0, Math.PI * 2);
-        ctx.fill();
+        for (const side of [-1, 1]) {
+          ctx.fillStyle = enraged ? '#ff5e57' : '#fff5a8';
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(side * 4, -1);
+          ctx.lineTo(side * 15, -6);
+          ctx.lineTo(side * 13, 4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
 
-        // Multi-faceted beveled chest crystal weak core
-        ctx.fillStyle = accent;
-        ctx.strokeStyle = '#09111f';
-        ctx.lineWidth = 1.6;
+        // Grumpy jagged mouth + chest crystal gem
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
-        ctx.moveTo(0, 6);
-        ctx.lineTo(8.5, 14.5);
-        ctx.lineTo(0, 23);
-        ctx.lineTo(-8.5, 14.5);
+        ctx.moveTo(-9, 8);
+        ctx.lineTo(-3, 5.5);
+        ctx.lineTo(3, 8);
+        ctx.lineTo(9, 5.5);
+        ctx.stroke();
+
+        ctx.fillStyle = accent;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.lineTo(7.5, 17);
+        ctx.lineTo(0, 24);
+        ctx.lineTo(-7.5, 17);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = 'rgba(255,255,255,0.68)';
-        ctx.beginPath();
-        ctx.moveTo(0, 7.5);
-        ctx.lineTo(4, 13.5);
-        ctx.lineTo(0, 14.5);
-        ctx.lineTo(-4, 13.5);
-        ctx.closePath();
-        ctx.fill();
       } else if (this.id === 'ignis') {
-        // Volcanic Magma Dragon Core with blazing flame crown
-        const g = ctx.createRadialGradient(0, 0, 5, 0, 0, r);
-        g.addColorStop(0, '#fff3a1');
-        g.addColorStop(0.55, '#ff5e36');
-        g.addColorStop(1, '#6b1218');
+        // Cartoon Magma Demon with thick ink horns, jagged flame brow & blazing eyes
+        ctx.fillStyle = '#331626';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.8;
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(side * 10, -r * 0.65);
+          ctx.quadraticCurveTo(side * 25, -r * 1.32, side * 34, -r * 0.85);
+          ctx.quadraticCurveTo(side * 21, -r * 0.52, side * 17, -r * 0.3);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        const g = ctx.createLinearGradient(0, -r, 0, r);
+        g.addColorStop(0, '#ffbe47');
+        g.addColorStop(0.5, '#ff5233');
+        g.addColorStop(1, '#9c192b');
         ctx.fillStyle = g;
-        ctx.strokeStyle = '#2b080c';
-        ctx.lineWidth = 2.6;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 3.2;
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Curved obsidian horns
-        ctx.fillStyle = '#1f0b10';
+        // Blazing cartoon eyes + fang grin
         for (const side of [-1, 1]) {
+          ctx.fillStyle = '#fff9d6';
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(side * 12, -r * 0.65);
-          ctx.quadraticCurveTo(side * 24, -r * 1.25, side * 32, -r * 0.85);
-          ctx.quadraticCurveTo(side * 20, -r * 0.55, side * 18, -r * 0.35);
-          ctx.closePath();
+          ctx.ellipse(side * 10, -4, 5.5, 3.8, -side * 0.35, 0, Math.PI * 2);
           ctx.fill();
+          ctx.stroke();
         }
-
-        // Blazing eyes
-        ctx.fillStyle = '#fff9d6';
+        ctx.fillStyle = ink;
         ctx.beginPath();
-        ctx.ellipse(-10, -3, 5, 3.2, 0.3, 0, Math.PI * 2);
-        ctx.ellipse(10, -3, 5, 3.2, -0.3, 0, Math.PI * 2);
+        ctx.arc(0, 7, 9, 0.1, Math.PI - 0.1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#fff7e5';
+        ctx.beginPath();
+        ctx.moveTo(-6, 7);
+        ctx.lineTo(-4, 12);
+        ctx.lineTo(-2, 7);
+        ctx.moveTo(2, 7);
+        ctx.lineTo(4, 12);
+        ctx.lineTo(6, 7);
         ctx.fill();
       } else if (this.id === 'aether') {
-        // Electric Storm Sentinel + Twin Rotating Neon Rings
+        // Inked Cartoon Storm Sentinel with rotating electric rings & cyclops visor
         ctx.save();
         ctx.rotate(t * 2.2);
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 2.4;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, r + 10, r * 0.52, 0.35, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.ellipse(0, 0, r + 10, r * 0.52, -0.35, 0, Math.PI * 2);
-        ctx.stroke();
+        for (const rot of [0.35, -0.35]) {
+          ctx.strokeStyle = ink;
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, r + 10, r * 0.52, rot, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.strokeStyle = accent;
+          ctx.lineWidth = 2.4;
+          ctx.stroke();
+        }
         ctx.restore();
 
-        const aGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, r);
-        aGrad.addColorStop(0, '#ffffff');
-        aGrad.addColorStop(0.45, accent);
-        aGrad.addColorStop(1, '#12224d');
+        const aGrad = ctx.createLinearGradient(0, -r, 0, r);
+        aGrad.addColorStop(0, '#9bf4ff');
+        aGrad.addColorStop(0.55, '#3b9eff');
+        aGrad.addColorStop(1, '#263a82');
         ctx.fillStyle = aGrad;
-        ctx.strokeStyle = '#091124';
-        ctx.lineWidth = 2.4;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 3.2;
         ctx.beginPath();
-        ctx.arc(0, 0, r * 0.86, 0, Math.PI * 2);
+        ctx.arc(0, 0, r * 0.88, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Single glowing electric cyclops visor
-        ctx.fillStyle = '#091326';
+        ctx.fillStyle = ink;
         ctx.beginPath();
         if (typeof ctx.roundRect === 'function') {
-          ctx.roundRect(-16, -5, 32, 10, 5);
+          ctx.roundRect(-17, -6, 34, 12, 6);
         } else {
-          ctx.rect(-16, -5, 32, 10);
+          ctx.rect(-17, -6, 34, 12);
         }
         ctx.fill();
-        ctx.fillStyle = enraged ? '#ff5e57' : '#36f5b0';
+        ctx.fillStyle = enraged ? '#ff5e57' : '#6effc9';
         ctx.beginPath();
-        ctx.arc(Math.sin(t * 4) * 6, 0, 4, 0, Math.PI * 2);
+        ctx.arc(Math.sin(t * 4) * 6, 0, 4.4, 0, Math.PI * 2);
         ctx.fill();
       } else if (this.id === 'glacius') {
-        // Frost Empress Crystal Star + Ice Crown
+        // Cel-shaded Frost Empress with comic crystal crown & haughty eyes
         const cGrad = ctx.createLinearGradient(0, -r, 0, r);
-        cGrad.addColorStop(0, '#e0fcff');
-        cGrad.addColorStop(0.5, '#48dbfb');
-        cGrad.addColorStop(1, '#103b4a');
+        cGrad.addColorStop(0, '#e8feff');
+        cGrad.addColorStop(0.55, '#48dbfb');
+        cGrad.addColorStop(1, '#1a5a7a');
         ctx.fillStyle = cGrad;
-        ctx.strokeStyle = '#062436';
-        ctx.lineWidth = 2.4;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 3.2;
 
         ctx.beginPath();
-        ctx.moveTo(0, -r - 6);
-        ctx.lineTo(r * 0.85, -r * 0.25);
-        ctx.lineTo(r * 0.55, r * 0.85);
-        ctx.lineTo(0, r + 4);
-        ctx.lineTo(-r * 0.55, r * 0.85);
-        ctx.lineTo(-r * 0.85, -r * 0.25);
+        ctx.moveTo(0, -r - 7);
+        ctx.lineTo(r * 0.88, -r * 0.25);
+        ctx.lineTo(r * 0.58, r * 0.85);
+        ctx.lineTo(0, r + 5);
+        ctx.lineTo(-r * 0.58, r * 0.85);
+        ctx.lineTo(-r * 0.88, -r * 0.25);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Regal eyes
-        ctx.fillStyle = enraged ? '#ff6b9d' : '#062436';
-        ctx.beginPath();
-        ctx.arc(-9, -2, 3.8, 0, Math.PI * 2);
-        ctx.arc(9, -2, 3.8, 0, Math.PI * 2);
-        ctx.fill();
+        for (const side of [-1, 1]) {
+          ctx.fillStyle = enraged ? '#ff5e8c' : ink;
+          ctx.beginPath();
+          ctx.arc(side * 9, -2, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(side * 9 - 1.2, -3.2, 1.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
-        // Voidon Cosmic Emperor: Dark Matter Eye inside Golden Singularity Halo
+        // Voidon Cosmic Emperor with inked golden halo & dramatic comic eye
         ctx.save();
         ctx.rotate(-t * 1.8);
-        ctx.strokeStyle = '#ffd166';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 5.2;
         ctx.setLineDash([8, 6]);
         ctx.beginPath();
         ctx.arc(0, 0, r + 9, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.strokeStyle = '#ffd147';
+        ctx.lineWidth = 2.6;
+        ctx.stroke();
         ctx.restore();
 
-        const vGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, r);
-        vGrad.addColorStop(0, '#ffd1ff');
-        vGrad.addColorStop(0.4, accent);
-        vGrad.addColorStop(1, '#130829');
+        const vGrad = ctx.createLinearGradient(0, -r, 0, r);
+        vGrad.addColorStop(0, '#f7c2ff');
+        vGrad.addColorStop(0.5, accent);
+        vGrad.addColorStop(1, '#2c125e');
         ctx.fillStyle = vGrad;
-        ctx.strokeStyle = '#080414';
-        ctx.lineWidth = 2.6;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 3.2;
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Cosmic cat-slit pupil eye
-        ctx.fillStyle = '#0a0414';
+        ctx.fillStyle = ink;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 15, 9, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = enraged ? '#ff4757' : '#ffd166';
+        ctx.fillStyle = enraged ? '#ff4757' : '#ffd147';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 4, 7.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 4.2, 7.8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
