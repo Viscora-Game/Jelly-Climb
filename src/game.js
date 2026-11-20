@@ -266,7 +266,7 @@
 
       this._boundCheckLanding = this._checkLandingState.bind(this);
 
-      this.ambientMotes = this._createAmbientMotes(28);
+      this.ambientMotes = this._createAmbientMotes(42);
 
       this.activePointerId = null;
       this.pointer = {
@@ -679,12 +679,14 @@
       const motes = [];
       for (let i = 0; i < count; i++) {
         motes.push({
-          x: C.WALL_WIDTH + 12 + Math.random() * (C.WIDTH - C.WALL_WIDTH * 2 - 24),
+          x: C.WALL_WIDTH + 8 + Math.random() * (C.WIDTH - C.WALL_WIDTH * 2 - 16),
           y: Math.random() * C.HEIGHT,
-          radius: 1 + Math.random() * 1.8,
-          alpha: 0.14 + Math.random() * 0.28,
-          speedY: 8 + Math.random() * 14,
-          driftPhase: Math.random() * Math.PI * 2
+          radius: 1 + Math.random() * 1.9,
+          alpha: 0.16 + Math.random() * 0.3,
+          speedY: 10 + Math.random() * 16,
+          driftPhase: Math.random() * Math.PI * 2,
+          twinklePhase: Math.random() * Math.PI * 2,
+          streakLen: 12 + Math.random() * 12
         });
       }
       return motes;
@@ -2092,8 +2094,11 @@
         }
       }
 
-      // Update special wall surfaces & attached surface physics (Ice slide / Cracked stone)
-      this._updateWallSurfaces(simDt);
+      // Sync biome gravity scale & apply special/atmospheric wall surface physics
+      const playerMeters = Math.max(0, (C.START_PLAYER_Y - this.player.positionY) / C.PIXELS_PER_METER);
+      const playerAtm = this._getAtmosphereAtMeters(playerMeters);
+      this.player.gravityScale = this.gameMode === 'tutorial' ? 1.0 : playerAtm.gravityScale;
+      this._updateWallSurfaces(simDt, playerAtm);
 
       // Sub-stepped physics & pickups
       let remaining = simDt;
@@ -2787,6 +2792,7 @@
     }
 
     _onPlayerLaunch(shot) {
+      const prevAttachWall = this.player.wallAttached;
       if (this.hasLaunchedOnce && this.tempoTimer > 0) {
         this.tempoTier = Math.min(C.TEMPO.MAX_TIER, this.tempoTier + 1);
       } else if (!this.hasLaunchedOnce) {
@@ -2811,6 +2817,20 @@
         this.tempoTier,
         this.player.getColorPalette().primary
       );
+
+      // Tactile weather spray droplets when pushing off snowy or rain-soaked walls
+      const launchMeters = Math.max(0, (C.START_PLAYER_Y - this.player.positionY) / C.PIXELS_PER_METER);
+      const launchAtm = this._getAtmosphereAtMeters(launchMeters);
+      if (launchAtm.weather === 'snow' || launchAtm.weather === 'rain') {
+        const sprayX =
+          prevAttachWall !== 0
+            ? prevAttachWall < 0
+              ? C.WALL_WIDTH + 4
+              : C.WIDTH - C.WALL_WIDTH - 4
+            : this.player.positionX;
+        const sprayCol = launchAtm.weather === 'snow' ? '#d4fbff' : '#74f2ff';
+        this.particles.spawnSparkBurst(sprayX, this.player.positionY, shot.dirX, sprayCol, 4);
+      }
 
       if (this.tempoTier >= 2) {
         const tr = this.t();
@@ -2918,79 +2938,157 @@
       }
     }
 
-    _updateWallSurfaces(dt) {
-      const surfaces = this.generator.surfaces;
-      if (!surfaces) return;
-
-      for (let i = 0; i < surfaces.length; i++) {
-        surfaces[i].update(dt);
+    _isWallPointSafeForSlip(px, py, wallSide) {
+      const guardR = C.PLAYER_RADIUS + 10;
+      const obstacles = this.generator.obstacles;
+      for (let i = 0; i < obstacles.length; i++) {
+        const o = obstacles[i];
+        if (o.checkPointCollision && o.checkPointCollision(px, py, guardR)) {
+          return false;
+        }
       }
-
-      if (!this.player.alive || this.player.wallAttached === 0) return;
-
-      const side = this.player.wallAttached;
-      const py = this.player.positionY;
-
-      for (let i = 0; i < surfaces.length; i++) {
-        const s = surfaces[i];
-        if (!s.containsWallPoint(side, py)) continue;
-
-        if (s.type === 'iceWall') {
-          const slideSpeed = (C.SURFACES && C.SURFACES.ICE_SLIDE_SPEED) || 88;
-          this.player.positionY = Math.min(
-            C.FLOOR_Y - this.player.radius,
-            this.player.positionY + slideSpeed * dt
-          );
-          if (Math.random() < dt * 14) {
-            this.particles.spawnSparkBurst(
-              side < 0 ? C.WALL_WIDTH + 2 : C.WIDTH - C.WALL_WIDTH - 2,
-              this.player.positionY - 10,
-              -side,
-              '#b8f2ff',
-              1
-            );
-          }
-          if (Math.random() < dt * 5.5) {
-            this.particles.spawnWallSplat(
-              side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH,
-              this.player.positionY,
-              side,
-              this.player.getColorPalette().primary,
-              0.28
-            );
-          }
-        } else if (s.type === 'crackedWall') {
-          const crackDur = (C.SURFACES && C.SURFACES.CRACK_DURATION) || 1.25;
-          s.crackTimer += dt * 1.35;
-          if (s.crackTimer >= crackDur) {
-            s.broken = true;
-            s.regenTimer = 0;
-            const outDir = -side;
-            this.player.wallAttached = 0;
-            this.player.cancelAim();
-            this.player.velocityX = outDir * 95;
-            this.player.velocityY = 40;
-            this.camPunchVx += outDir * 32;
-            this.audio.playCrack();
-            if (this.particles.spawnDebris) {
-              this.particles.spawnDebris(
-                side < 0 ? C.WALL_WIDTH + 4 : C.WIDTH - C.WALL_WIDTH - 4,
-                this.player.positionY,
-                outDir,
-                '#9c6b3b',
-                9
-              );
-            }
-            this.particles.spawnSparkBurst(
-              this.player.positionX,
-              this.player.positionY,
-              outDir,
-              '#d97706',
-              8
-            );
+      if (this.activeBoss && !this.activeBoss.defeated && this.activeBoss.wallZap) {
+        const z = this.activeBoss.wallZap;
+        if ((z.warningTimer > 0 || z.activeTimer > 0) && z.side === wallSide) {
+          if (py + guardR >= z.centerY - z.halfH && py - guardR <= z.centerY + z.halfH) {
+            return false;
           }
         }
       }
+      return true;
+    }
+
+    _applyAtmosphericWallSlip(dt, onIceWall, atm) {
+      if (
+        onIceWall ||
+        !atm ||
+        atm.wallSlip <= 0 ||
+        this.state !== 'playing' ||
+        this.gameMode === 'tutorial' ||
+        !this.hasLaunchedOnce ||
+        (this.activeBoss && !this.activeBoss.defeated) ||
+        !this.player.alive ||
+        this.player.wallAttached === 0
+      ) {
+        return;
+      }
+
+      const side = this.player.wallAttached;
+      const aimMult = this.player.isAiming
+        ? C.ATMOSPHERE ? C.ATMOSPHERE.AIM_SLIP_MULTIPLIER : 0.45
+        : 1;
+      const nextY = Math.min(
+        C.FLOOR_Y - this.player.radius,
+        this.player.positionY + atm.wallSlip * aimMult * dt
+      );
+      if (nextY <= this.player.positionY) return;
+      if (!this._isWallPointSafeForSlip(this.player.positionX, nextY, side)) return;
+
+      this.player.positionY = nextY;
+      this.player.anchorY = nextY;
+
+      if (Math.random() < dt * (atm.weather === 'rain' ? 11 : 7)) {
+        const edgeX = side < 0 ? C.WALL_WIDTH + 2 : C.WIDTH - C.WALL_WIDTH - 2;
+        const microCol =
+          atm.weather === 'snow'
+            ? '#c6faff'
+            : atm.weather === 'rain'
+              ? '#74f2ff'
+              : '#d8b8ff';
+        this.particles.spawnSparkBurst(edgeX, this.player.positionY + 6, -side, microCol, 1);
+      }
+      if (atm.weather === 'rain' && Math.random() < dt * 2.5) {
+        this.particles.spawnWallSplat(
+          side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH,
+          this.player.positionY,
+          side,
+          'rgba(116, 242, 255, 0.55)',
+          0.22
+        );
+      }
+    }
+
+    _updateWallSurfaces(dt, atm = null) {
+      const surfaces = this.generator.surfaces;
+      let onIceWall = false;
+      const side = this.player.wallAttached;
+      const py = this.player.positionY;
+
+      if (surfaces) {
+        for (let i = 0; i < surfaces.length; i++) {
+          surfaces[i].update(dt);
+        }
+      }
+
+      if (!this.player.alive || side === 0) return;
+
+      if (surfaces) {
+        for (let i = 0; i < surfaces.length; i++) {
+          const s = surfaces[i];
+          if (!s.containsWallPoint(side, py)) continue;
+
+          if (s.type === 'iceWall') {
+            onIceWall = true;
+            const slideSpeed = (C.SURFACES && C.SURFACES.ICE_SLIDE_SPEED) || 88;
+            const nextY = Math.min(
+              C.FLOOR_Y - this.player.radius,
+              this.player.positionY + slideSpeed * dt
+            );
+            this.player.positionY = nextY;
+            this.player.anchorY = nextY;
+            if (Math.random() < dt * 14) {
+              this.particles.spawnSparkBurst(
+                side < 0 ? C.WALL_WIDTH + 2 : C.WIDTH - C.WALL_WIDTH - 2,
+                this.player.positionY - 10,
+                -side,
+                '#b8f2ff',
+                1
+              );
+            }
+            if (Math.random() < dt * 5.5) {
+              this.particles.spawnWallSplat(
+                side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH,
+                this.player.positionY,
+                side,
+                this.player.getColorPalette().primary,
+                0.28
+              );
+            }
+          } else if (s.type === 'crackedWall') {
+            const crackDur = (C.SURFACES && C.SURFACES.CRACK_DURATION) || 1.25;
+            s.crackTimer += dt * 1.35;
+            if (s.crackTimer >= crackDur) {
+              s.broken = true;
+              s.regenTimer = 0;
+              const outDir = -side;
+              this.player.wallAttached = 0;
+              this.player.cancelAim();
+              this.player.velocityX = outDir * 95;
+              this.player.velocityY = 40;
+              this.camPunchVx += outDir * 32;
+              this.audio.playCrack();
+              if (this.particles.spawnDebris) {
+                this.particles.spawnDebris(
+                  side < 0 ? C.WALL_WIDTH + 4 : C.WIDTH - C.WALL_WIDTH - 4,
+                  this.player.positionY,
+                  outDir,
+                  '#9c6b3b',
+                  9
+                );
+              }
+              this.particles.spawnSparkBurst(
+                this.player.positionX,
+                this.player.positionY,
+                outDir,
+                '#d97706',
+                8
+              );
+            }
+          }
+        }
+      }
+
+      this._applyAtmosphericWallSlip(dt, onIceWall, atm);
     }
 
     _checkNearMisses() {
@@ -3171,7 +3269,9 @@
         if (this.currentMeters >= themes[i].minMeters) {
           this.announcedThemeIdx = i;
           const key = themes[i].key;
-          this.themeBannerText = (tr.themes && tr.themes[key]) || key.toUpperCase();
+          const baseTitle = (tr.themes && tr.themes[key]) || key.toUpperCase();
+          const hint = tr.themePhysicsHints && tr.themePhysicsHints[key];
+          this.themeBannerText = hint ? `${baseTitle}  •  ${hint}` : baseTitle;
           this.themeBannerTimer = 2.4;
           break;
         }
@@ -3384,47 +3484,59 @@
       this.activeBoss = null;
     }
 
-    _getCurrentTheme() {
+    _getAtmosphereAtMeters(meters) {
+      const m = Math.max(0, meters || 0);
       const themes = C.THEMES;
+      let idx = 0;
+      for (let i = 0; i < themes.length - 1; i++) {
+        if (m >= themes[i + 1].minMeters) {
+          idx = i + 1;
+        }
+      }
+      const curr = themes[idx];
+      const next = themes[idx + 1];
+      let t = 0;
+      if (next) {
+        const span = 10;
+        t = clamp((m - (next.minMeters - span)) / span, 0, 1);
+      }
+      const dom = t >= 0.5 && next ? next : curr;
+      const baseSlip = next
+        ? (curr.wallSlip || 0) + ((next.wallSlip || 0) - (curr.wallSlip || 0)) * t
+        : curr.wallSlip || 0;
+      const atmCfg = C.ATMOSPHERE || {};
+      const extraStart = atmCfg.HIGH_ALT_SLIP_START_M || 1000;
+      const extraFull = atmCfg.HIGH_ALT_SLIP_FULL_M || 4000;
+      const extraMax = atmCfg.HIGH_ALT_EXTRA_SLIP || 14;
+      const highAltProgress = clamp((m - extraStart) / Math.max(1, extraFull - extraStart), 0, 1);
+      const gravityScale = next
+        ? (curr.gravityScale || 1) + ((next.gravityScale || 1) - (curr.gravityScale || 1)) * t
+        : curr.gravityScale || 1;
+      return {
+        curr,
+        next,
+        blend: t,
+        dom,
+        weather: dom.weather || 'spores',
+        wallSlip: baseSlip > 0 || m >= extraStart ? baseSlip + highAltProgress * extraMax : 0,
+        gravityScale
+      };
+    }
+
+    _getCurrentTheme() {
       const camMeters = Math.max(
         0,
         (C.START_PLAYER_Y - (this.cameraY + C.HEIGHT * 0.5)) / C.PIXELS_PER_METER
       );
-
-      let idx = 0;
-      for (let i = 0; i < themes.length - 1; i++) {
-        if (camMeters >= themes[i + 1].minMeters) {
-          idx = i + 1;
-        }
-      }
-
-      const curr = themes[idx];
-      const next = themes[idx + 1];
-      if (!next) {
-        return {
-          wallStyle: curr.wallStyle || 'stone',
-          bgStyle: curr.bgStyle || 'cavern',
-          bgTop: lerpColor(curr.bgTop, curr.bgTop, 0),
-          bgBottom: lerpColor(curr.bgBottom, curr.bgBottom, 0),
-          parallaxFar: lerpColor(curr.parallaxFar || curr.bgTop, curr.parallaxFar || curr.bgTop, 0),
-          parallaxNear: lerpColor(curr.parallaxNear || curr.bgBottom, curr.parallaxNear || curr.bgBottom, 0),
-          rayColor: lerpColor(curr.rayColor || curr.wallHighlight, curr.rayColor || curr.wallHighlight, 0),
-          wallBase: lerpColor(curr.wallBase, curr.wallBase, 0),
-          wallShadow: lerpColor(curr.wallShadow, curr.wallShadow, 0),
-          wallInnerEdge: lerpColor(curr.wallInnerEdge, curr.wallInnerEdge, 0),
-          wallHighlight: lerpColor(curr.wallHighlight, curr.wallHighlight, 0),
-          moteColor: lerpColor(curr.moteColor, curr.moteColor, 0)
-        };
-      }
-
-      const transitionSpan = 10;
-      const startBlend = next.minMeters - transitionSpan;
-      const t = clamp((camMeters - startBlend) / transitionSpan, 0, 1);
-      const domTheme = t >= 0.5 ? next : curr;
+      const atm = this._getAtmosphereAtMeters(camMeters);
+      const curr = atm.curr;
+      const next = atm.next || curr;
+      const t = atm.next ? atm.blend : 0;
 
       return {
-        wallStyle: domTheme.wallStyle || 'stone',
-        bgStyle: domTheme.bgStyle || 'cavern',
+        wallStyle: atm.dom.wallStyle || 'stone',
+        bgStyle: atm.dom.bgStyle || 'cavern',
+        weather: atm.weather,
         bgTop: lerpColor(curr.bgTop, next.bgTop, t),
         bgBottom: lerpColor(curr.bgBottom, next.bgBottom, t),
         parallaxFar: lerpColor(curr.parallaxFar || curr.bgTop, next.parallaxFar || next.bgTop, t),
@@ -4197,10 +4309,14 @@
       this._fillViewportRect(ctx);
 
       // Soft diagonal atmospheric light shafts (Alto's Odyssey / Badland inspired)
+      const stormFlash =
+        theme.weather === 'rain'
+          ? Math.pow(Math.max(0, Math.sin(this.hintTime * 1.15) * Math.sin(this.hintTime * 3.7)), 14) * 0.085
+          : 0;
       ctx.save();
       ctx.fillStyle = theme.rayColor;
       for (let i = 0; i < 3; i++) {
-        const pulse = 0.032 + 0.018 * Math.sin(this.hintTime * 0.7 + i * 2.1);
+        const pulse = 0.032 + 0.018 * Math.sin(this.hintTime * 0.7 + i * 2.1) + stormFlash;
         ctx.globalAlpha = pulse;
         const rx = 55 + i * 115 + Math.sin(this.hintTime * 0.35 + i) * 14;
         ctx.beginPath();
@@ -4341,23 +4457,91 @@
       }
       ctx.restore();
 
-      // Ambient drifting spores / motes
+      // Ambient drifting biome weather: spores (0-120m) -> snow (frost) -> embers (foundry) -> rain (storm) -> stars (cosmos)
       const moteTop = -this.padTop;
       const moteSpan = Math.max(C.HEIGHT, this.viewH);
+      const weather = theme.weather || 'spores';
+      const spanW = C.WIDTH - C.WALL_WIDTH * 2 - 16;
       ctx.save();
       for (let i = 0; i < this.ambientMotes.length; i++) {
         const m = this.ambientMotes[i];
         const baseY = (m.y / C.HEIGHT) * moteSpan;
-        const parallaxY =
-          moteTop +
-          ((((baseY - this.cameraY * 0.22 + this.hintTime * m.speedY) % moteSpan) + moteSpan) %
-            moteSpan);
-        const swayX = m.x + Math.sin(this.hintTime * 1.1 + m.driftPhase) * 6;
-        ctx.globalAlpha = m.alpha;
-        ctx.fillStyle = theme.moteColor;
-        ctx.beginPath();
-        ctx.arc(swayX, parallaxY, m.radius, 0, Math.PI * 2);
-        ctx.fill();
+
+        if (weather === 'snow') {
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.24 + this.hintTime * (m.speedY * 2.2)) % moteSpan) + moteSpan) %
+              moteSpan);
+          const wx = m.x + Math.sin(this.hintTime * 1.55 + m.driftPhase) * 14;
+          const r = m.radius * 1.25;
+          ctx.globalAlpha = Math.min(0.68, m.alpha * 1.5);
+          ctx.fillStyle = '#e6fdff';
+          ctx.beginPath();
+          ctx.arc(wx, wy, r, 0, Math.PI * 2);
+          ctx.fill();
+          if (m.radius > 2.1) {
+            ctx.strokeStyle = 'rgba(210, 252, 255, 0.55)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(wx - r * 1.7, wy);
+            ctx.lineTo(wx + r * 1.7, wy);
+            ctx.moveTo(wx, wy - r * 1.7);
+            ctx.lineTo(wx, wy + r * 1.7);
+            ctx.stroke();
+          }
+        } else if (weather === 'embers') {
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.24 - this.hintTime * (m.speedY * 2.6)) % moteSpan) + moteSpan) %
+              moteSpan);
+          const wx = m.x + Math.sin(this.hintTime * 2.2 + m.driftPhase) * 10;
+          const flicker = 0.65 + 0.35 * Math.sin(this.hintTime * 9 + m.twinklePhase);
+          ctx.globalAlpha = Math.min(0.8, m.alpha * 1.65 * flicker);
+          ctx.fillStyle = i % 3 === 0 ? '#fff3a1' : theme.moteColor;
+          ctx.beginPath();
+          ctx.arc(wx, wy, m.radius * 1.05, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (weather === 'rain') {
+          const fallY = this.hintTime * (290 + m.speedY * 7);
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.24 + fallY) % moteSpan) + moteSpan) % moteSpan);
+          const windX = this.hintTime * 44;
+          const wx =
+            C.WALL_WIDTH +
+            8 +
+            ((((m.x - C.WALL_WIDTH - 8 - windX) % spanW) + spanW) % spanW);
+          const len = m.streakLen || 16;
+          ctx.globalAlpha = Math.min(0.58, m.alpha * 1.35);
+          ctx.strokeStyle = i % 3 === 0 ? '#d8f6ff' : theme.moteColor;
+          ctx.lineWidth = m.radius > 2.1 ? 1.5 : 1.05;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(wx, wy);
+          ctx.lineTo(wx - len * 0.16, wy + len);
+          ctx.stroke();
+        } else if (weather === 'stars') {
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.14 + this.hintTime * 3) % moteSpan) + moteSpan) % moteSpan);
+          const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(this.hintTime * 3.4 + m.twinklePhase));
+          ctx.globalAlpha = Math.min(0.85, m.alpha * 1.8 * twinkle);
+          ctx.fillStyle = i % 4 === 0 ? '#c56cf0' : '#ffffff';
+          ctx.beginPath();
+          ctx.arc(m.x, wy, m.radius * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const parallaxY =
+            moteTop +
+            ((((baseY - this.cameraY * 0.22 + this.hintTime * m.speedY) % moteSpan) + moteSpan) %
+              moteSpan);
+          const swayX = m.x + Math.sin(this.hintTime * 1.1 + m.driftPhase) * 6;
+          ctx.globalAlpha = m.alpha;
+          ctx.fillStyle = theme.moteColor;
+          ctx.beginPath();
+          ctx.arc(swayX, parallaxY, m.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.restore();
     }

@@ -204,6 +204,12 @@
         foundry: 'MOLTEN FOUNDRY',
         storm: 'STORM SPIRE',
         cosmos: 'ASTRAL COSMOS'
+      },
+      themePhysicsHints: {
+        frost: 'Snow & Icy Grip',
+        foundry: 'Rising Embers',
+        storm: 'Rain & Wet Grip',
+        cosmos: 'Low Gravity'
       }
     },
     tr: {
@@ -406,6 +412,12 @@
         foundry: 'KIZGIN MAGMA',
         storm: 'FIRTINA KULESİ',
         cosmos: 'DERİN UZAY'
+      },
+      themePhysicsHints: {
+        frost: 'Kar & Kaygan Duvar',
+        foundry: 'Yükselen Kor',
+        storm: 'Yağmur & Islak Duvar',
+        cosmos: 'Hafif Yerçekimi'
       }
     }
   });

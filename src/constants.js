@@ -50,6 +50,14 @@
       CRACK_DURATION: 1.25
     }),
 
+    // Altitude biome atmosphere physics & weather scaling
+    ATMOSPHERE: Object.freeze({
+      HIGH_ALT_SLIP_START_M: 1000,
+      HIGH_ALT_SLIP_FULL_M: 4000,
+      HIGH_ALT_EXTRA_SLIP: 14,
+      AIM_SLIP_MULTIPLIER: 0.45
+    }),
+
     // Rising Floor (Magma Tide) mode tuning
     RISING_FLOOR: Object.freeze({
       START_OFFSET_Y: 95,
@@ -142,13 +150,16 @@
       UI: '"Plus Jakarta Sans", "Fredoka", -apple-system, BlinkMacSystemFont, sans-serif'
     }),
 
-    // Altitude-driven visual themes (colors, wall architecture & parallax sky style)
+    // Altitude-driven visual & atmosphere themes (colors, weather, wall grip & gravity)
     THEMES: Object.freeze([
       {
         minMeters: 0,
         key: 'cavern',
         wallStyle: 'stone',
         bgStyle: 'cavern',
+        weather: 'spores',
+        wallSlip: 0,
+        gravityScale: 1.0,
         bgTop: 0x0b1020,
         bgBottom: 0x17263f,
         parallaxFar: 0x111a2e,
@@ -165,6 +176,9 @@
         key: 'valley',
         wallStyle: 'stone',
         bgStyle: 'monolith',
+        weather: 'spores',
+        wallSlip: 0,
+        gravityScale: 1.0,
         bgTop: 0x180f2c,
         bgBottom: 0x2b1a45,
         parallaxFar: 0x201438,
@@ -181,6 +195,9 @@
         key: 'frost',
         wallStyle: 'frost',
         bgStyle: 'frost',
+        weather: 'snow',
+        wallSlip: 18,
+        gravityScale: 1.0,
         bgTop: 0x081e2b,
         bgBottom: 0x103b4a,
         parallaxFar: 0x0c2838,
@@ -197,6 +214,9 @@
         key: 'foundry',
         wallStyle: 'obsidianLava',
         bgStyle: 'foundry',
+        weather: 'embers',
+        wallSlip: 0,
+        gravityScale: 1.0,
         bgTop: 0x1a090d,
         bgBottom: 0x381512,
         parallaxFar: 0x240e12,
@@ -213,6 +233,9 @@
         key: 'storm',
         wallStyle: 'stormCoil',
         bgStyle: 'storm',
+        weather: 'rain',
+        wallSlip: 24,
+        gravityScale: 1.0,
         bgTop: 0x091628,
         bgBottom: 0x152d4a,
         parallaxFar: 0x0e2036,
@@ -229,6 +252,9 @@
         key: 'cosmos',
         wallStyle: 'astralRune',
         bgStyle: 'cosmos',
+        weather: 'stars',
+        wallSlip: 14,
+        gravityScale: 0.92,
         bgTop: 0x060612,
         bgBottom: 0x140d33,
         parallaxFar: 0x0b0920,

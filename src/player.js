@@ -69,6 +69,7 @@
       this.anchorY = this.positionY;
 
       // Slingshot state
+      this.gravityScale = 1.0;
       this.launchPower = 0;
       this.dragStrength = 0;
       this.isAiming = false;
@@ -78,6 +79,8 @@
 
       // Squash & stretch + soft-body spring physics state
       this.stretchAmount = 0;
+      this.stretchVel = 0;
+      this.snapRecoil = null;
       this.wobbleTime = 10;
       this.wobbleAmp = 0;
       this.lastImpactFlatten = 0;
@@ -217,6 +220,28 @@
       const strength = this.dragStrength;
       const power = this.launchPower;
 
+      // Capture sticky pad point for snapback recoil before detaching
+      let recoilX = this.positionX;
+      let recoilY = this.positionY;
+      if (this.wallAttached < 0) {
+        recoilX = C.WALL_WIDTH;
+      } else if (this.wallAttached > 0) {
+        recoilX = C.WIDTH - C.WALL_WIDTH;
+      } else if (this.floorAttached) {
+        recoilY = C.FLOOR_Y;
+      }
+      this.snapRecoil = {
+        x: recoilX,
+        y: recoilY,
+        dirX,
+        dirY,
+        wallSide: this.wallAttached,
+        isFloor: this.floorAttached,
+        age: 0,
+        dur: 0.15,
+        strength
+      };
+
       this.velocityX = dirX * power;
       this.velocityY = dirY * power;
 
@@ -230,8 +255,9 @@
       this.isAiming = false;
       this.aimValid = false;
       this.dragStrength = 0;
-      this.stretchAmount = 0.25 + strength * 0.25;
-      this.wobbleAmp = 0.16 + strength * 0.08;
+      this.stretchAmount = 0.28 + strength * 0.24;
+      this.stretchVel = 2.6 + strength * 2.4;
+      this.wobbleAmp = 0.18 + strength * 0.1;
       this.wobbleTime = 0;
       this.lastImpactFlatten = 0;
       this.sagOffset = 0;
@@ -254,7 +280,9 @@
       this.anchorY = this.positionY;
       this.velocityX = 0;
       this.velocityY = 0;
-      this.stretchAmount = 0;
+      this.snapRecoil = null;
+      this.stretchAmount = -clamp(impactSpeed / 1900, 0.14, 0.34);
+      this.stretchVel = -clamp(impactSpeed / 420, 0.8, 2.2);
       this.wobbleAmp = clamp(impactSpeed / 1000, 0.2, 0.45);
       this.wobbleTime = 0;
       this.lastImpactFlatten = clamp(impactSpeed / 880, 0.28, 1.0);
@@ -274,7 +302,9 @@
       this.anchorY = this.positionY;
       this.velocityX = 0;
       this.velocityY = 0;
-      this.stretchAmount = 0;
+      this.snapRecoil = null;
+      this.stretchAmount = -clamp(impactSpeed / 2000, 0.12, 0.28);
+      this.stretchVel = -1.1;
       this.wobbleAmp = clamp(impactSpeed / 1000, 0.18, 0.38);
       this.wobbleTime = 0;
       this.lastImpactFlatten = clamp(impactSpeed / 900, 0.25, 0.95);
@@ -284,6 +314,14 @@
       this.trail.length = 0;
     }
 
+    _stepMotion(x, y, vx, vy, effG, dt) {
+      return {
+        x: x + vx * dt,
+        y: y + vy * dt + 0.5 * effG * dt * dt,
+        vy: vy + effG * dt
+      };
+    }
+
     /**
      * Advances physics by one small substep dt.
      * Returns an attachment event object if the player just landed on a wall/floor.
@@ -291,9 +329,11 @@
     stepPhysics(dt) {
       if (!this.alive || this.isAttached()) return null;
 
-      this.velocityY += this.gravity * dt;
-      this.positionX += this.velocityX * dt;
-      this.positionY += this.velocityY * dt;
+      const effG = this.gravity * (this.gravityScale || 1);
+      const next = this._stepMotion(this.positionX, this.positionY, this.velocityX, this.velocityY, effG, dt);
+      this.positionX = next.x;
+      this.positionY = next.y;
+      this.velocityY = next.vy;
 
       const leftBound = C.WALL_WIDTH + this.radius;
       const rightBound = C.WIDTH - C.WALL_WIDTH - this.radius;
@@ -383,14 +423,27 @@
         }
       }
 
-      if (this.isAttached()) {
-        const targetStretch = this.isAiming && this.aimValid ? this.dragStrength * 0.52 : 0;
-        this.stretchAmount += (targetStretch - this.stretchAmount) * Math.min(1, dt * 18);
-      } else {
-        const speed = Math.hypot(this.velocityX, this.velocityY);
-        const targetStretch = clamp(speed / 1350, 0, 0.44);
-        this.stretchAmount += (targetStretch - this.stretchAmount) * Math.min(1, dt * 14);
+      // Spring-driven squash & stretch (overshoots cleanly on wall landing & launch)
+      const aimingActive = this.isAttached() && this.isAiming && this.aimValid;
+      const speed = this.isAttached() ? 0 : Math.hypot(this.velocityX, this.velocityY);
+      const targetStretch = aimingActive
+        ? this.dragStrength * 0.52
+        : this.isAttached()
+          ? 0
+          : clamp(speed / 1380, 0, 0.38);
+      const stretchK = aimingActive ? 260 : 190;
+      const stretchDamp = aimingActive ? 22 : 11.5;
+      this.stretchVel += ((targetStretch - this.stretchAmount) * stretchK - this.stretchVel * stretchDamp) * safeDt;
+      this.stretchAmount = clamp(this.stretchAmount + this.stretchVel * safeDt, -0.36, 0.62);
 
+      if (this.snapRecoil) {
+        this.snapRecoil.age += safeDt;
+        if (this.snapRecoil.age >= this.snapRecoil.dur) {
+          this.snapRecoil = null;
+        }
+      }
+
+      if (!this.isAttached()) {
         this.trailTimer += dt;
         if (this.trailTimer >= 0.018) {
           this.trailTimer = 0;
@@ -408,6 +461,11 @@
       const pal = this.getColorPalette();
       const screenX = this.positionX;
       const screenY = this.positionY - cameraY;
+
+      // Wall/floor suction pad elastic snapback immediately after launch
+      if (this.snapRecoil) {
+        this._drawSnapRecoil(ctx, cameraY, pal);
+      }
 
       // Draw trajectory preview underneath the stretched jelly while aiming
       if (this.isAttached() && this.isAiming && this.aimValid) {
@@ -436,9 +494,44 @@
       }
     }
 
+    _drawSnapRecoil(ctx, cameraY, pal) {
+      const rec = this.snapRecoil;
+      if (!rec) return;
+      const t = clamp(rec.age / rec.dur, 0, 1);
+      const shrink = 1 - t;
+      const sx = rec.x;
+      const sy = rec.y - cameraY;
+      const r = this.radius * (0.48 + rec.strength * 0.16) * shrink;
+      if (r <= 0.6) return;
+
+      ctx.save();
+      ctx.globalAlpha = 0.72 * shrink;
+      ctx.fillStyle = pal.primary;
+      ctx.beginPath();
+      if (rec.wallSide !== 0) {
+        const startAng = rec.wallSide < 0 ? -Math.PI * 0.5 : Math.PI * 0.5;
+        ctx.arc(sx, sy, r, startAng, startAng + Math.PI);
+      } else {
+        ctx.arc(sx, sy, r, Math.PI, Math.PI * 2);
+      }
+      ctx.fill();
+
+      // Elastic recoiling snap tendril
+      const whip = Math.sin(t * Math.PI) * (10 + rec.strength * 14);
+      ctx.strokeStyle = pal.secondary;
+      ctx.lineWidth = Math.max(1.5, 4.5 * shrink);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + rec.dirX * whip, sy + rec.dirY * whip);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     _drawTrajectory(ctx, cameraY, checkLandingState, pal) {
       const stepDt = 0.036;
       const steps = 16;
+      const effG = this.gravity * (this.gravityScale || 1);
       let simX = this.positionX;
       let simY = this.positionY;
       let simVx = this.aimDirX * this.launchPower;
@@ -449,9 +542,10 @@
 
       ctx.save();
       for (let i = 1; i <= steps; i++) {
-        simVy += this.gravity * stepDt;
-        simX += simVx * stepDt;
-        simY += simVy * stepDt;
+        const next = this._stepMotion(simX, simY, simVx, simVy, effG, stepDt);
+        simX = next.x;
+        simY = next.y;
+        simVy = next.vy;
 
         // Check mid-air direct sniper lock onto active Boss core!
         const midStatus = checkLandingState ? checkLandingState(simX, simY, 0) : 'safe';
@@ -600,7 +694,7 @@
       ctx.save();
       if (this.wallAttached !== 0) {
         const normalX = -this.wallAttached;
-        const scalePerpToWall = clamp(1 - wobble + idleBreath, 0.58, 1.38);
+        const scalePerpToWall = clamp(1 - wobble + this.stretchAmount * 0.45 + idleBreath, 0.62, 1.38);
         const scaleAlongWall = 1 / scalePerpToWall;
 
         ctx.translate(anchorX, screenY + sag);
@@ -614,7 +708,7 @@
         });
       } else {
         // Floor attached
-        const scaleY = clamp(1 - wobble + idleBreath, 0.62, 1.35);
+        const scaleY = clamp(1 - wobble + this.stretchAmount * 0.42 + idleBreath, 0.64, 1.35);
         const scaleX = 1 / scaleY;
         ctx.translate(screenX, anchorY);
         ctx.scale(scaleX, scaleY);
