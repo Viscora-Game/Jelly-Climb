@@ -108,6 +108,7 @@
       this.musicTempoTier = 1;
       this.currentBpm = 104;
       this.targetBpm = 104;
+      this.isBackgrounded = false;
     }
 
     setEnabled(enabled) {
@@ -120,12 +121,8 @@
       if (!this.musicEnabled) {
         this._stopMusicLoop();
         this._stopExternalTrack();
-      } else if (this.ctx && this.ctx.state === 'running' && this.musicVolume > 0.01) {
-        if (this.externalMusicBuffer) {
-          this._startExternalTrack();
-        } else {
-          this._startMusicLoop();
-        }
+      } else if (!this.isBackgrounded) {
+        this._syncMusicPlayback();
       }
     }
 
@@ -140,12 +137,8 @@
         this.musicEnabled = true;
       }
       this._applyMusicVolume();
-      if (this.musicEnabled && this.ctx && this.ctx.state === 'running') {
-        if (this.externalMusicBuffer && !this.externalSource) {
-          this._startExternalTrack();
-        } else if (!this.externalMusicBuffer && !this.musicTimerId) {
-          this._startMusicLoop();
-        }
+      if (!this.isBackgrounded) {
+        this._syncMusicPlayback();
       }
     }
 
@@ -211,28 +204,84 @@
       return base + Math.min(34, Math.max(0, this.musicTempoTier - 1) * 8);
     }
 
+    _syncMusicPlayback() {
+      if (
+        this.isBackgrounded ||
+        !this.musicEnabled ||
+        this.musicVolume <= 0.01 ||
+        !this.ctx ||
+        this.ctx.state !== 'running'
+      ) {
+        return;
+      }
+      if (this.externalMusicBuffer) {
+        this._startExternalTrack();
+      } else if (!this.musicTimerId) {
+        this._startMusicLoop();
+      }
+    }
+
+    /**
+     * Suspends Web Audio output and background music scheduler immediately when app hides.
+     */
+    suspendForBackground() {
+      this.isBackgrounded = true;
+      this.resetStretchTick();
+      this._stopMusicLoop();
+      if (!this.ctx) return;
+      try {
+        if (this.ctx.state === 'running') {
+          const p = this.ctx.suspend();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    /**
+     * Resumes Web Audio context when app returns to foreground (gesture fallback handled by unlock()).
+     */
+    resumeFromBackground() {
+      if (global.document && global.document.hidden) return;
+      this.isBackgrounded = false;
+      if (!this.ctx) return;
+      try {
+        if (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted') {
+          const p = this.ctx.resume();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              if (!this.isBackgrounded) this._syncMusicPlayback();
+            }).catch(() => {});
+          }
+        } else {
+          this._syncMusicPlayback();
+        }
+      } catch (_) {}
+    }
+
     unlock() {
       try {
+        if (this.isBackgrounded || (global.document && global.document.hidden)) {
+          return;
+        }
         if (!this.ctx) {
           const AudioCtx = global.AudioContext || global.webkitAudioContext;
           if (!AudioCtx) return;
           this.ctx = new AudioCtx();
           this._setupMusicBus();
         }
-        if (this.ctx.state === 'suspended') {
-          this.ctx.resume();
-        }
         if (!this.trackConfigChecked) {
           this.trackConfigChecked = true;
           this._checkExternalTrackConfig();
         }
-        if (this.musicEnabled) {
-          if (this.externalMusicBuffer) {
-            this._startExternalTrack();
-          } else if (!this.musicTimerId) {
-            this._startMusicLoop();
+        if (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted') {
+          const p = this.ctx.resume();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              if (!this.isBackgrounded) this._syncMusicPlayback();
+            }).catch(() => {});
           }
         }
+        this._syncMusicPlayback();
       } catch (_) {
         // Ignore audio errors on restricted environments
       }
@@ -260,7 +309,7 @@
         const arrBuf = await res.arrayBuffer();
         const decoded = await this.ctx.decodeAudioData(arrBuf);
         this.externalMusicBuffer = decoded;
-        if (this.musicEnabled && this.ctx.state === 'running') {
+        if (!this.isBackgrounded && this.musicEnabled && this.ctx.state === 'running') {
           this._stopMusicLoop();
           this._startExternalTrack();
         }
@@ -347,7 +396,7 @@
     }
 
     _startMusicLoop() {
-      if (!this.ctx || !this.musicEnabled || this.musicTimerId) return;
+      if (this.isBackgrounded || !this.ctx || !this.musicEnabled || this.musicTimerId) return;
       this._setupMusicBus();
       this.nextNoteTime = this.ctx.currentTime + 0.05;
       this.musicTimerId = global.setInterval(() => this._scheduleMusic(), 45);
@@ -370,8 +419,17 @@
     }
 
     _scheduleMusic() {
-      if (!this.musicEnabled || !this.ctx || this.ctx.state !== 'running' || !this.musicBus) {
+      if (
+        this.isBackgrounded ||
+        !this.musicEnabled ||
+        !this.ctx ||
+        this.ctx.state !== 'running' ||
+        !this.musicBus
+      ) {
         return;
+      }
+      if (this.ctx.currentTime - this.nextNoteTime > 0.25) {
+        this.nextNoteTime = this.ctx.currentTime + 0.03;
       }
       const lookahead = 0.12;
 
@@ -556,7 +614,7 @@
     }
 
     _playTone(freqStart, freqEnd, duration, type, volume, delay = 0) {
-      if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+      if (this.isBackgrounded || !this.enabled || !this.ctx || this.ctx.state !== 'running') return;
       try {
         const now = this.ctx.currentTime + delay;
         const osc = this.ctx.createOscillator();

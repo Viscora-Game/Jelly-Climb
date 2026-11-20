@@ -74,6 +74,11 @@
         wings: 'Classic 120 m'
       },
       settings: 'SETTINGS',
+      pauseTitle: 'PAUSED',
+      resume: 'RESUME',
+      restartRun: 'RESTART',
+      mainMenuBtn: 'MAIN MENU',
+      pauseHint: 'World & physics are paused',
       sound: 'Sound FX',
       music: 'Music',
       language: 'Language',
@@ -271,6 +276,11 @@
         wings: 'Klasik 120 m'
       },
       settings: 'AYARLAR',
+      pauseTitle: 'DURAKLATILDI',
+      resume: 'DEVAM ET',
+      restartRun: 'YENİDEN BAŞLA',
+      mainMenuBtn: 'ANA MENÜ',
+      pauseHint: 'Oyun ve fizik duraklatıldı',
       sound: 'Ses Efektleri',
       music: 'Müzik',
       language: 'Dil',

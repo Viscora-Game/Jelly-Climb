@@ -483,8 +483,15 @@
       } catch (_) {}
 
       var introAudio = null;
+      function stopIntroAudio() {
+        if (introAudio) {
+          try { introAudio.pause(); } catch (_) {}
+          introAudio = null;
+        }
+      }
+
       try {
-        if (localStorage.getItem('jelly_climb_sound') !== '0') {
+        if (!document.hidden && localStorage.getItem('jelly_climb_sound') !== '0') {
           introAudio = new Audio('assets/audio/cybercore_sound_2_hollywood.wav?v=25');
           introAudio.volume = 0.85;
           var p = introAudio.play();
@@ -499,12 +506,18 @@
         stage.classList.add('intro-fading');
         setTimeout(function () {
           stage.classList.add('intro-hidden');
-          if (introAudio) {
-            try { introAudio.pause(); } catch (_) {}
-            introAudio = null;
-          }
+          stopIntroAudio();
         }, fast ? 180 : 460);
       }
+
+      function onIntroBackground() {
+        if (document.hidden) {
+          stopIntroAudio();
+        }
+      }
+
+      document.addEventListener('visibilitychange', onIntroBackground);
+      window.addEventListener('pagehide', stopIntroAudio);
 
       var fadeTimer = setTimeout(function () {
         finishIntro(false);
@@ -519,19 +532,19 @@
     })();
   </script>
 
-  <script defer src="src/constants.js?v=28"></script>
-  <script defer src="src/i18n.js?v=28"></script>
-  <script defer src="src/audio.js?v=28"></script>
-  <script defer src="src/particles.js?v=28"></script>
-  <script defer src="src/accessories.js?v=28"></script>
-  <script defer src="src/abilities.js?v=28"></script>
-  <script defer src="src/collectibles.js?v=28"></script>
-  <script defer src="src/player.js?v=28"></script>
-  <script defer src="src/obstacles.js?v=28"></script>
-  <script defer src="src/bosses.js?v=28"></script>
-  <script defer src="src/levelGenerator.js?v=28"></script>
-  <script defer src="src/leaderboard.js?v=28"></script>
-  <script defer src="src/game.js?v=28"></script>
+  <script defer src="src/constants.js?v=29"></script>
+  <script defer src="src/i18n.js?v=29"></script>
+  <script defer src="src/audio.js?v=29"></script>
+  <script defer src="src/particles.js?v=29"></script>
+  <script defer src="src/accessories.js?v=29"></script>
+  <script defer src="src/abilities.js?v=29"></script>
+  <script defer src="src/collectibles.js?v=29"></script>
+  <script defer src="src/player.js?v=29"></script>
+  <script defer src="src/obstacles.js?v=29"></script>
+  <script defer src="src/bosses.js?v=29"></script>
+  <script defer src="src/levelGenerator.js?v=29"></script>
+  <script defer src="src/leaderboard.js?v=29"></script>
+  <script defer src="src/game.js?v=29"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

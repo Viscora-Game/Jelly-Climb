@@ -189,7 +189,9 @@
 
       // UI & state flags
       this.state = 'menu'; // 'menu' | 'playing' | 'dead'
-      this.activeModal = null; // null | 'modes' | 'leaderboard' | 'accessories' | 'settings' | 'privacy'
+      this.activeModal = null; // null | 'modes' | 'leaderboard' | 'accessories' | 'settings' | 'privacy' | 'pause'
+      this.settingsReturnModal = null;
+      this._isAppHidden = Boolean(global.document && global.document.hidden);
       this.confirmResetPending = false;
       this.resetStatusMsg = '';
       this.showHitboxes = false;
@@ -255,7 +257,11 @@
         settingsPrivacyBtn: null,
         settingsResetBtn: null,
         privacyOpenPageBtn: null,
-        privacyBackBtn: null
+        privacyBackBtn: null,
+        pauseResumeBtn: null,
+        pauseRestartBtn: null,
+        pauseSettingsBtn: null,
+        pauseMenuBtn: null
       };
 
       this._boundCheckLanding = this._checkLandingState.bind(this);
@@ -343,6 +349,7 @@
     _loadInt(key, fallback) {
       try {
         const raw = global.localStorage.getItem(key);
+        if (raw === null || raw === '') return fallback;
         const parsed = Number(raw);
         return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
       } catch (_) {
@@ -566,6 +573,14 @@
       this.resetStatusMsg = this.t().dataResetDone || 'Data Reset!';
       if (this.leaderboard) {
         this.leaderboard.resetAllData();
+      }
+      if (this.state !== 'menu') {
+        const msg = this.resetStatusMsg;
+        this.settingsReturnModal = null;
+        this.openMenu();
+        this.activeModal = 'settings';
+        this.modalAnim = 1;
+        this.resetStatusMsg = msg;
       }
       this.audio.playUnlock();
     }
@@ -886,16 +901,24 @@
           this._handlePrivacyTap(pt.x, pt.y);
           return;
         }
+        if (this.activeModal === 'pause') {
+          this._handlePauseTap(pt.x, pt.y);
+          return;
+        }
 
         if (this.state === 'menu') {
           this._handleMenuPointerDown(pt.x, pt.y, e.pointerId);
           return;
         }
 
-        // Top-left menu button during active play
+        // Top-left menu/pause button during active play opens Pause modal; returns to Menu when dead
         if (pointInRect(pt.x, pt.y, this.uiRects.topMenuBtn)) {
-          this.audio.playUiTap();
-          this.openMenu();
+          if (this.state === 'playing') {
+            this.pauseGame(true);
+          } else {
+            this.audio.playUiTap();
+            this.openMenu();
+          }
           return;
         }
 
@@ -1140,11 +1163,41 @@
       );
 
       global.addEventListener('blur', () => {
-        this.player.cancelAim();
-        this.audio.resetStretchTick();
-        this.pointer.isDown = false;
-        this.activePointerId = null;
-        this.pressedBtn = null;
+        this._cancelActiveInput();
+      });
+
+      const handleAppHide = () => {
+        this._isAppHidden = true;
+        this._cancelActiveInput();
+        this.audio.suspendForBackground();
+        if (this.state === 'playing' && !this.activeModal) {
+          this.pauseGame(false);
+        }
+      };
+
+      const handleAppShow = () => {
+        if (global.document && global.document.hidden) return;
+        this._isAppHidden = false;
+        this._lastTime = performance.now();
+        this.audio.resumeFromBackground();
+      };
+
+      if (global.document && typeof global.document.addEventListener === 'function') {
+        global.document.addEventListener('visibilitychange', () => {
+          if (global.document.hidden) {
+            handleAppHide();
+          } else {
+            handleAppShow();
+          }
+        });
+        global.document.addEventListener('freeze', handleAppHide);
+        global.document.addEventListener('resume', handleAppShow);
+      }
+      global.addEventListener('pagehide', handleAppHide);
+      global.addEventListener('pageshow', (e) => {
+        if (!e || e.persisted || !(global.document && global.document.hidden)) {
+          handleAppShow();
+        }
       });
 
       global.addEventListener('keydown', (e) => {
@@ -1252,7 +1305,7 @@
           return;
         }
         if (e.code === 'Escape' && this.activeModal) {
-          this.activeModal = null;
+          this._closeActiveModal();
           return;
         }
         if (this.activeModal) return;
@@ -1271,7 +1324,10 @@
             this.resetRun();
           }
         } else if (this.state === 'playing') {
-          if (e.code === 'Space') {
+          if (e.code === 'Escape' || e.code === 'KeyP') {
+            e.preventDefault();
+            this.pauseGame(true);
+          } else if (e.code === 'Space') {
             e.preventDefault();
             this._tryActivateAbility();
           } else if (e.code === 'KeyR') {
@@ -1279,6 +1335,92 @@
           }
         }
       });
+    }
+
+    _cancelActiveInput() {
+      this.player.cancelAim();
+      this.audio.resetStretchTick();
+      this.pointer.isDown = false;
+      this.activePointerId = null;
+      this.pressedBtn = null;
+      this.lbDragging = false;
+      this.wardrobeDragging = false;
+      this.musicSliderDragging = false;
+    }
+
+    pauseGame(playSound = true) {
+      if (this.state !== 'playing') return;
+      this._cancelActiveInput();
+      this.settingsReturnModal = null;
+      if (this.activeModal === 'pause') return;
+      if (playSound && !this.audio.isBackgrounded) {
+        this.audio.playUiTap();
+      }
+      this.modalAnim = 0;
+      this.activeModal = 'pause';
+    }
+
+    resumeGame(playSound = true) {
+      this.settingsReturnModal = null;
+      if (this.activeModal === 'pause') {
+        this.activeModal = null;
+      }
+      this._cancelActiveInput();
+      this._lastTime = performance.now();
+      if (playSound) {
+        this.audio.unlock();
+        this.audio.playUiTap();
+      }
+    }
+
+    _closeActiveModal() {
+      if (!this.activeModal) return;
+      if (this.activeModal === 'pause') {
+        this.resumeGame(false);
+        return;
+      }
+      if (this.activeModal === 'settings' || this.activeModal === 'privacy') {
+        this.confirmResetPending = false;
+        this.resetStatusMsg = '';
+        if (this.settingsReturnModal === 'pause' && this.state === 'playing') {
+          this.settingsReturnModal = null;
+          this.modalAnim = 0;
+          this.activeModal = 'pause';
+          return;
+        }
+        this.settingsReturnModal = null;
+      }
+      this.activeModal = null;
+    }
+
+    _handlePauseTap(px, py) {
+      if (
+        pointInRect(px, py, this.uiRects.modalCloseBtn) ||
+        pointInRect(px, py, this.uiRects.pauseResumeBtn)
+      ) {
+        this.resumeGame(true);
+        return;
+      }
+      if (pointInRect(px, py, this.uiRects.pauseRestartBtn)) {
+        this.audio.playUiTap();
+        this.settingsReturnModal = null;
+        this.resetRun();
+        return;
+      }
+      if (pointInRect(px, py, this.uiRects.pauseSettingsBtn)) {
+        this.audio.playUiTap();
+        this.settingsReturnModal = 'pause';
+        this.confirmResetPending = false;
+        this.resetStatusMsg = '';
+        this.modalAnim = 0;
+        this.activeModal = 'settings';
+        return;
+      }
+      if (pointInRect(px, py, this.uiRects.pauseMenuBtn)) {
+        this.audio.playUiTap();
+        this.settingsReturnModal = null;
+        this.openMenu();
+      }
     }
 
     _handleMenuPointerDown(px, py, pointerId) {
@@ -1399,16 +1541,12 @@
     _handleSettingsTap(px, py) {
       if (pointInRect(px, py, this.uiRects.modalCloseBtn)) {
         this.audio.playUiTap();
-        this.confirmResetPending = false;
-        this.resetStatusMsg = '';
-        this.activeModal = null;
+        this._closeActiveModal();
         return;
       }
 
       if (this.uiRects.modalPanel && !pointInRect(px, py, this.uiRects.modalPanel)) {
-        this.confirmResetPending = false;
-        this.resetStatusMsg = '';
-        this.activeModal = null;
+        this._closeActiveModal();
         return;
       }
 
@@ -1482,7 +1620,7 @@
     _handlePrivacyTap(px, py) {
       if (pointInRect(px, py, this.uiRects.modalCloseBtn)) {
         this.audio.playUiTap();
-        this.activeModal = null;
+        this._closeActiveModal();
         return;
       }
       if (pointInRect(px, py, this.uiRects.privacyBackBtn)) {
@@ -1499,7 +1637,7 @@
         return;
       }
       if (this.uiRects.modalPanel && !pointInRect(px, py, this.uiRects.modalPanel)) {
-        this.activeModal = null;
+        this._closeActiveModal();
       }
     }
 
@@ -1733,6 +1871,7 @@
       this.themeBannerTimer = 0;
       this.state = 'menu';
       this.activeModal = null;
+      this.settingsReturnModal = null;
       this.confirmResetPending = false;
       this.resetStatusMsg = '';
       this.pressedBtn = null;
@@ -1782,6 +1921,7 @@
 
       this.state = 'playing';
       this.activeModal = null;
+      this.settingsReturnModal = null;
       this.confirmResetPending = false;
       this.resetStatusMsg = '';
       this.pressedBtn = null;
@@ -1817,8 +1957,10 @@
       this._lastTime = now;
       const dt = Math.min(Math.max(rawDt, 0), C.MAX_FRAME_DT);
 
-      this.update(dt);
-      this.render();
+      if (!this._isAppHidden) {
+        this.update(dt);
+        this.render();
+      }
 
       this._rafId = global.requestAnimationFrame(this._boundLoop);
     }
@@ -1836,6 +1978,12 @@
         this.wardrobePreviewBounce = Math.max(0, this.wardrobePreviewBounce - dt * 3.2);
       }
 
+      // Advance modal spring-open animation and pause world action while modal is open
+      if (this.activeModal) {
+        this.modalAnim = Math.min(1, this.modalAnim + dt * 5.2);
+        return;
+      }
+
       if (this.themeBannerTimer > 0) {
         this.themeBannerTimer = Math.max(0, this.themeBannerTimer - dt);
       }
@@ -1848,12 +1996,6 @@
         if (this.rewardToast.timer <= 0) {
           this.rewardToast = null;
         }
-      }
-
-      // Advance modal spring-open animation and pause world action while modal is open
-      if (this.activeModal) {
-        this.modalAnim = Math.min(1, this.modalAnim + dt * 5.2);
-        return;
       }
 
       if (this.state === 'menu') {
@@ -3519,6 +3661,8 @@
         this._drawSettingsModal(ctx);
       } else if (this.activeModal === 'privacy') {
         this._drawPrivacyModal(ctx);
+      } else if (this.activeModal === 'pause') {
+        this._drawPauseModal(ctx);
       }
 
       ctx.restore();
@@ -5697,6 +5841,176 @@
         ctx.font = `600 11px ${C.FONTS.DISPLAY}`;
         ctx.fillText('Jelly Climb v1.2', C.WIDTH * 0.5, panelY + 346);
       }
+
+      ctx.restore();
+    }
+
+    _drawPauseModal(ctx) {
+      const tr = this.t();
+      const spring = this._easeOutBack(clamp(this.modalAnim, 0, 1));
+      const scale = 0.86 + 0.14 * spring;
+
+      ctx.save();
+      ctx.fillStyle = `rgba(6, 10, 20, ${0.78 * clamp(this.modalAnim * 1.5, 0, 1)})`;
+      this._fillViewportRect(ctx);
+
+      const panelW = 340;
+      const panelH = 318;
+      const panelX = (C.WIDTH - panelW) * 0.5;
+      const panelY = (C.HEIGHT - panelH) * 0.5;
+      this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
+
+      ctx.translate(C.WIDTH * 0.5, C.HEIGHT * 0.5);
+      ctx.scale(scale, scale);
+      ctx.translate(-C.WIDTH * 0.5, -C.HEIGHT * 0.5);
+
+      this._drawMonumentTablet(ctx, panelX, panelY, panelW, panelH, 26);
+
+      // Header title
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 21px ${C.FONTS.DISPLAY}`;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#091324';
+      ctx.strokeText(tr.pauseTitle || 'PAUSED', panelX + 24, panelY + 36);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(tr.pauseTitle || 'PAUSED', panelX + 24, panelY + 36);
+
+      // Close / Resume medallion
+      const closeSize = 34;
+      const closeX = panelX + panelW - closeSize - 18;
+      const closeY = panelY + 19;
+      this.uiRects.modalCloseBtn = { x: closeX, y: closeY, w: closeSize, h: closeSize };
+      this._drawCloseMedallion(ctx, closeX, closeY, closeSize);
+
+      // Mode + altitude status pill
+      const pillX = panelX + 22;
+      const pillY = panelY + 62;
+      const pillW = panelW - 44;
+      const pillH = 32;
+      ctx.fillStyle = 'rgba(10, 17, 30, 0.62)';
+      ctx.strokeStyle = 'rgba(175, 210, 255, 0.16)';
+      ctx.lineWidth = 1.2;
+      roundRectPath(ctx, pillX, pillY, pillW, pillH, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      const modeLabel =
+        this.gameMode === 'rising'
+          ? tr.modeRising || 'RISING FLOOR'
+          : this.gameMode === 'tutorial'
+            ? tr.modeTutorial || 'TUTORIAL'
+            : tr.modeClassic || 'CLASSIC';
+      const modeColor =
+        this.gameMode === 'rising' ? '#ff9f7f' : this.gameMode === 'tutorial' ? '#ffd166' : '#6effd2';
+
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = modeColor;
+      ctx.fillText(
+        `${modeLabel}  •  ${Math.floor(this.currentMeters)} m`,
+        panelX + panelW * 0.5,
+        pillY + pillH * 0.5 + 0.5,
+        pillW - 20
+      );
+
+      // Hint subtitle
+      ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillStyle = 'rgba(180, 205, 240, 0.72)';
+      ctx.fillText(
+        tr.pauseHint || 'World & physics are paused',
+        panelX + panelW * 0.5,
+        panelY + 109,
+        pillW
+      );
+
+      // Primary Emerald Resume CTA
+      const btnX = panelX + 22;
+      const btnW = panelW - 44;
+      const resY = panelY + 124;
+      const resH = 52;
+      this.uiRects.pauseResumeBtn = { x: btnX, y: resY, w: btnW, h: resH };
+
+      ctx.fillStyle = '#046c4e';
+      roundRectPath(ctx, btnX, resY + 4, btnW, resH, 26);
+      ctx.fill();
+
+      const resGrad = ctx.createLinearGradient(0, resY, 0, resY + resH);
+      resGrad.addColorStop(0, '#6effd2');
+      resGrad.addColorStop(1, '#12c48b');
+      ctx.fillStyle = resGrad;
+      roundRectPath(ctx, btnX, resY, btnW, resH, 26);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      roundRectPath(ctx, btnX + 18, resY + 4, btnW - 36, 9, 4.5);
+      ctx.fill();
+
+      ctx.font = `700 15.5px ${C.FONTS.DISPLAY}`;
+      this._drawUiRow(
+        ctx,
+        [
+          { icon: 'play', r: 5.5, color: '#06261c', gap: 8 },
+          { text: tr.resume || 'RESUME', color: '#06261c' }
+        ],
+        C.WIDTH * 0.5,
+        resY + resH * 0.5 + 1,
+        'center',
+        '#06261c',
+        btnW - 24
+      );
+
+      // Secondary row: Restart + Settings
+      const secY = panelY + 192;
+      const secH = 44;
+      const gap = 10;
+      const halfW = (btnW - gap) * 0.5;
+      const rstX = btnX;
+      const setX = btnX + halfW + gap;
+      this.uiRects.pauseRestartBtn = { x: rstX, y: secY, w: halfW, h: secH };
+      this.uiRects.pauseSettingsBtn = { x: setX, y: secY, w: halfW, h: secH };
+
+      for (const item of [
+        { x: rstX, label: tr.restartRun || 'RESTART' },
+        { x: setX, label: tr.settings || 'SETTINGS' }
+      ]) {
+        ctx.fillStyle = '#0b1322';
+        roundRectPath(ctx, item.x, secY + 3, halfW, secH, 18);
+        ctx.fill();
+
+        ctx.fillStyle = '#283c5e';
+        ctx.strokeStyle = 'rgba(180, 210, 255, 0.25)';
+        ctx.lineWidth = 1.4;
+        roundRectPath(ctx, item.x, secY, halfW, secH, 18);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#eef5ff';
+        ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(item.label, item.x + halfW * 0.5, secY + secH * 0.5 + 0.5, halfW - 14);
+      }
+
+      // Main Menu button
+      const menuY = panelY + 250;
+      const menuH = 42;
+      this.uiRects.pauseMenuBtn = { x: btnX, y: menuY, w: btnW, h: menuH };
+
+      ctx.fillStyle = '#0b111e';
+      roundRectPath(ctx, btnX, menuY + 3, btnW, menuH, 18);
+      ctx.fill();
+
+      ctx.fillStyle = '#2b1c29';
+      ctx.strokeStyle = 'rgba(255, 130, 140, 0.34)';
+      ctx.lineWidth = 1.4;
+      roundRectPath(ctx, btnX, menuY, btnW, menuH, 18);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffd2d8';
+      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(tr.mainMenuBtn || 'MAIN MENU', btnX + btnW * 0.5, menuY + menuH * 0.5 + 0.5, btnW - 20);
 
       ctx.restore();
     }
