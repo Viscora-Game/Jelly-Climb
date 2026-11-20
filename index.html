@@ -33,7 +33,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      padding: 0;
       touch-action: none;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
@@ -53,6 +53,19 @@
     @media (min-aspect-ratio: 9/16) {
       #game-canvas {
         border-radius: 14px;
+      }
+    }
+
+    @media (max-aspect-ratio: 9/16) {
+      #game-canvas {
+        width: 100vw;
+        height: 100%;
+        height: 100dvh;
+        max-width: 100vw;
+        max-height: 100dvh;
+        aspect-ratio: auto;
+        box-shadow: none;
+        border-radius: 0;
       }
     }
 
@@ -179,6 +192,19 @@
     @media (min-aspect-ratio: 9/16) {
       .intro-canvas-frame {
         border-radius: 14px;
+      }
+    }
+
+    @media (max-aspect-ratio: 9/16) {
+      .intro-canvas-frame {
+        width: 100vw;
+        height: 100%;
+        height: 100dvh;
+        max-width: 100vw;
+        max-height: 100dvh;
+        aspect-ratio: auto;
+        box-shadow: none;
+        border-radius: 0;
       }
     }
 
@@ -413,19 +439,19 @@
     })();
   </script>
 
-  <script defer src="src/constants.js?v=26"></script>
-  <script defer src="src/i18n.js?v=26"></script>
-  <script defer src="src/audio.js?v=26"></script>
-  <script defer src="src/particles.js?v=26"></script>
-  <script defer src="src/accessories.js?v=26"></script>
-  <script defer src="src/abilities.js?v=26"></script>
-  <script defer src="src/collectibles.js?v=26"></script>
-  <script defer src="src/player.js?v=26"></script>
-  <script defer src="src/obstacles.js?v=26"></script>
-  <script defer src="src/bosses.js?v=26"></script>
-  <script defer src="src/levelGenerator.js?v=26"></script>
-  <script defer src="src/leaderboard.js?v=26"></script>
-  <script defer src="src/game.js?v=26"></script>
+  <script defer src="src/constants.js?v=27"></script>
+  <script defer src="src/i18n.js?v=27"></script>
+  <script defer src="src/audio.js?v=27"></script>
+  <script defer src="src/particles.js?v=27"></script>
+  <script defer src="src/accessories.js?v=27"></script>
+  <script defer src="src/abilities.js?v=27"></script>
+  <script defer src="src/collectibles.js?v=27"></script>
+  <script defer src="src/player.js?v=27"></script>
+  <script defer src="src/obstacles.js?v=27"></script>
+  <script defer src="src/bosses.js?v=27"></script>
+  <script defer src="src/levelGenerator.js?v=27"></script>
+  <script defer src="src/leaderboard.js?v=27"></script>
+  <script defer src="src/game.js?v=27"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

@@ -195,7 +195,7 @@
       if (!this.alive) return;
       const sx = this.x;
       const sy = this.y - cameraY;
-      if (sy < -40 || sy > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40)) return;
 
       ctx.save();
       ctx.translate(sx, sy);
@@ -784,13 +784,13 @@
       ctx.lineDashOffset = -t * 28;
       ctx.globalAlpha = pulse;
 
-      if (topSy > -20 && topSy < C.HEIGHT + 20) {
+      if (JellyGame.isScreenYVisible(topSy, 20)) {
         ctx.beginPath();
         ctx.moveTo(C.WALL_WIDTH, topSy);
         ctx.lineTo(C.WIDTH - C.WALL_WIDTH, topSy);
         ctx.stroke();
       }
-      if (floorSy > -20 && floorSy < C.HEIGHT + 20) {
+      if (JellyGame.isScreenYVisible(floorSy, 20)) {
         ctx.beginPath();
         ctx.moveTo(C.WALL_WIDTH, floorSy);
         ctx.lineTo(C.WIDTH - C.WALL_WIDTH, floorSy);

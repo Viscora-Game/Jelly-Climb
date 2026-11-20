@@ -279,4 +279,10 @@
       tempoCyan: '#36f5b0'
     })
   });
+
+  JellyGame.VIEW_PAD_Y = 0;
+  JellyGame.isScreenYVisible = function (sy, margin = 40) {
+    const pad = JellyGame.VIEW_PAD_Y || 0;
+    return sy >= -margin - pad && sy <= JellyGame.CONSTANTS.HEIGHT + margin + pad;
+  };
 })(window);

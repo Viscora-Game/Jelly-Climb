@@ -60,7 +60,7 @@
     draw(ctx, cameraY) {
       if (this.collected) return;
       const sy = this.y - cameraY;
-      if (sy < -40 || sy > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40)) return;
 
       const pulse = 1 + Math.sin(this.phase * 1.6) * 0.08;
       const r = 10.5 * pulse;
@@ -159,7 +159,7 @@
     draw(ctx, cameraY) {
       if (this.collected) return;
       const sy = this.y - cameraY;
-      if (sy < -40 || sy > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40)) return;
 
       const pulse = 1 + Math.sin(this.phase * 1.8) * 0.07;
       const r = 13.5 * pulse;

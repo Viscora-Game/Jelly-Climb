@@ -152,7 +152,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy + this.height < -40 || sy - this.height > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40 + this.height)) return;
 
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const dir = this.side < 0 ? 1 : -1;
@@ -277,7 +277,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy + this.height < -40 || sy - this.height > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40 + this.height)) return;
 
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const dir = this.side < 0 ? 1 : -1;
@@ -465,7 +465,7 @@
     draw(ctx, cameraY) {
       if (!this.alive) return;
       const sy = this.y - cameraY;
-      if (sy < -40 || sy > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40)) return;
 
       const tailX = this.x - this.dir * this.length;
       const headX = this.x;
@@ -536,7 +536,7 @@
 
     _isInActiveView(cameraY) {
       const sy = this.y - cameraY;
-      return sy >= -45 && sy <= C.HEIGHT + 45;
+      return JellyGame.isScreenYVisible(sy, 45);
     }
 
     getHitboxes() {
@@ -572,7 +572,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy < -50 || sy > C.HEIGHT + 50) return;
+      if (!JellyGame.isScreenYVisible(sy, 50)) return;
 
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const dir = this.side < 0 ? 1 : -1;
@@ -682,7 +682,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy + this.height < -40 || sy - this.height > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40 + this.height)) return;
 
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const top = sy - this.height * 0.5;
@@ -751,7 +751,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy + this.height < -40 || sy - this.height > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40 + this.height)) return;
 
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const dir = this.side < 0 ? 1 : -1;
@@ -841,7 +841,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy + this.height < -40 || sy - this.height > C.HEIGHT + 40) return;
+      if (!JellyGame.isScreenYVisible(sy, 40 + this.height)) return;
 
       const wallEdgeX = this.side < 0 ? C.WALL_WIDTH : C.WIDTH - C.WALL_WIDTH;
       const top = sy - this.height * 0.5;
@@ -938,7 +938,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy < -60 || sy > C.HEIGHT + 60) return;
+      if (!JellyGame.isScreenYVisible(sy, 60)) return;
 
       const minRailX = C.WIDTH * 0.5 - this.amplitude;
       const maxRailX = C.WIDTH * 0.5 + this.amplitude;
@@ -1031,7 +1031,7 @@
 
     _isInActiveView(cameraY) {
       const sy = this.y - cameraY;
-      return sy >= -45 && sy <= C.HEIGHT + 45;
+      return JellyGame.isScreenYVisible(sy, 45);
     }
 
     update(dt, context) {
@@ -1127,7 +1127,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy < -50 || sy > C.HEIGHT + 50) return;
+      if (!JellyGame.isScreenYVisible(sy, 50)) return;
 
       const st = this._getPhaseState();
       const leftX = C.WALL_WIDTH;
@@ -1218,7 +1218,7 @@
 
     draw(ctx, cameraY) {
       const sy = this.y - cameraY;
-      if (sy < -60 || sy > C.HEIGHT + 60) return;
+      if (!JellyGame.isScreenYVisible(sy, 60)) return;
 
       ctx.save();
       ctx.translate(this.x, sy);

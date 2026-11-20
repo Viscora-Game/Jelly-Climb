@@ -80,6 +80,10 @@
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d', { alpha: false });
       this.dpr = 1;
+      this.viewW = C.WIDTH;
+      this.viewH = C.HEIGHT;
+      this.padTop = 0;
+      this.padBottom = 0;
 
       this.audio = new JellyGame.SoundFX();
       this.particles = new JellyGame.ParticleSystem();
@@ -672,19 +676,35 @@
     _setupResize() {
       const updateSize = () => {
         this.dpr = Math.min(global.devicePixelRatio || 1, 2);
-        this.canvas.width = C.WIDTH * this.dpr;
-        this.canvas.height = C.HEIGHT * this.dpr;
+        const rect = this.canvas.getBoundingClientRect();
+        const aspect =
+          rect.width > 10 && rect.height > 10 ? rect.height / rect.width : C.HEIGHT / C.WIDTH;
+        this.viewW = C.WIDTH;
+        this.viewH = Math.max(C.HEIGHT, C.WIDTH * aspect);
+        this.padTop = (this.viewH - C.HEIGHT) * 0.5;
+        this.padBottom = this.viewH - C.HEIGHT - this.padTop;
+        JellyGame.VIEW_PAD_Y = Math.ceil(Math.max(this.padTop, this.padBottom)) + 60;
+        this.canvas.width = Math.round(this.viewW * this.dpr);
+        this.canvas.height = Math.round(this.viewH * this.dpr);
       };
       updateSize();
+      if (typeof global.requestAnimationFrame === 'function') {
+        global.requestAnimationFrame(updateSize);
+      }
       global.addEventListener('resize', updateSize);
+      global.addEventListener('orientationchange', updateSize);
     }
 
     _toLogicalPoint(clientX, clientY) {
       const rect = this.canvas.getBoundingClientRect();
       return {
-        x: ((clientX - rect.left) / rect.width) * C.WIDTH,
-        y: ((clientY - rect.top) / rect.height) * C.HEIGHT
+        x: ((clientX - rect.left) / rect.width) * this.viewW,
+        y: ((clientY - rect.top) / rect.height) * this.viewH - this.padTop
       };
+    }
+
+    _fillViewportRect(ctx) {
+      ctx.fillRect(-20, -this.padTop - 20, this.viewW + 40, this.viewH + 40);
     }
 
     _setupNicknameDomOverlay() {
@@ -3340,6 +3360,7 @@
 
       ctx.save();
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.translate(0, this.padTop);
 
       let shakeX = 0;
       let shakeY = 0;
@@ -3440,12 +3461,12 @@
       if (this.chronoRewindAnim) {
         ctx.save();
         ctx.fillStyle = 'rgba(72, 219, 251, 0.14)';
-        ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+        this._fillViewportRect(ctx);
         ctx.restore();
       } else if (this.angelReviveAnim) {
         ctx.save();
         ctx.fillStyle = 'rgba(255, 209, 102, 0.13)';
-        ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+        this._fillViewportRect(ctx);
         ctx.restore();
       }
 
@@ -3838,13 +3859,14 @@
     }
 
     _drawRisingFloor(ctx) {
+      const viewBottom = C.HEIGHT + this.padBottom;
       const sy = this.risingFloorY - this.cameraY;
-      if (sy > C.HEIGHT + 120) return;
+      if (sy > viewBottom + 120) return;
 
       const leftX = C.WALL_WIDTH;
       const rightX = C.WIDTH - C.WALL_WIDTH;
       const spanW = rightX - leftX;
-      const clampTopY = Math.max(-20, sy);
+      const clampTopY = Math.max(-this.padTop - 20, sy);
 
       ctx.save();
       // Ambient upward magma heat glow above the wave crest
@@ -3856,7 +3878,7 @@
 
       // Animated dual-sine magma crest path
       ctx.beginPath();
-      ctx.moveTo(leftX, C.HEIGHT + 40);
+      ctx.moveTo(leftX, viewBottom + 40);
       const segs = 24;
       for (let i = 0; i <= segs; i++) {
         const u = i / segs;
@@ -3866,10 +3888,10 @@
           Math.cos(u * Math.PI * 7 - this.hintTime * 3.6) * 2.5;
         ctx.lineTo(wx, clampTopY + wave);
       }
-      ctx.lineTo(rightX, C.HEIGHT + 40);
+      ctx.lineTo(rightX, viewBottom + 40);
       ctx.closePath();
 
-      const lavaGrad = ctx.createLinearGradient(0, clampTopY, 0, Math.max(clampTopY + 180, C.HEIGHT));
+      const lavaGrad = ctx.createLinearGradient(0, clampTopY, 0, Math.max(clampTopY + 180, viewBottom));
       lavaGrad.addColorStop(0, '#ffbe3b');
       lavaGrad.addColorStop(0.18, '#ff5e36');
       lavaGrad.addColorStop(0.55, '#d62828');
@@ -3915,11 +3937,12 @@
       ctx.save();
       // Bottom danger heat vignette when magma is close
       if (urgency > 0.05) {
-        const vig = ctx.createLinearGradient(0, C.HEIGHT - 110, 0, C.HEIGHT);
+        const botY = C.HEIGHT + this.padBottom;
+        const vig = ctx.createLinearGradient(0, botY - 120, 0, botY);
         vig.addColorStop(0, 'rgba(255, 56, 56, 0)');
         vig.addColorStop(1, `rgba(255, 65, 45, ${0.12 + urgency * 0.35})`);
         ctx.fillStyle = vig;
-        ctx.fillRect(0, C.HEIGHT - 110, C.WIDTH, 110);
+        ctx.fillRect(-10, botY - 120, C.WIDTH + 20, 140);
       }
 
       // Bottom-center proximity pill
@@ -3995,11 +4018,13 @@
     }
 
     _drawBackground(ctx, theme) {
-      const grad = ctx.createLinearGradient(0, 0, 0, C.HEIGHT);
+      const viewTop = -this.padTop;
+      const viewBottom = C.HEIGHT + this.padBottom;
+      const grad = ctx.createLinearGradient(0, viewTop, 0, viewBottom);
       grad.addColorStop(0, theme.bgTop);
       grad.addColorStop(1, theme.bgBottom);
       ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       // Soft diagonal atmospheric light shafts (Alto's Odyssey / Badland inspired)
       ctx.save();
@@ -4009,10 +4034,10 @@
         ctx.globalAlpha = pulse;
         const rx = 55 + i * 115 + Math.sin(this.hintTime * 0.35 + i) * 14;
         ctx.beginPath();
-        ctx.moveTo(rx, 0);
-        ctx.lineTo(rx + 64, 0);
-        ctx.lineTo(rx - 40, C.HEIGHT);
-        ctx.lineTo(rx - 104, C.HEIGHT);
+        ctx.moveTo(rx, viewTop - 10);
+        ctx.lineTo(rx + 64, viewTop - 10);
+        ctx.lineTo(rx - 40, viewBottom + 10);
+        ctx.lineTo(rx - 104, viewBottom + 10);
         ctx.closePath();
         ctx.fill();
       }
@@ -4021,9 +4046,10 @@
       // Far parallax architectural silhouettes varying cleanly by biome (Monument Valley inspired)
       const farSpan = 340;
       const farOffset = ((-this.cameraY * 0.12) % farSpan + farSpan) % farSpan;
+      const farStart = farOffset - farSpan * Math.ceil(this.padTop / farSpan + 1);
       const bgStyle = theme.bgStyle || 'cavern';
       ctx.save();
-      for (let y = farOffset - farSpan; y < C.HEIGHT + farSpan; y += farSpan) {
+      for (let y = farStart; y < viewBottom + farSpan; y += farSpan) {
         ctx.fillStyle = theme.parallaxFar;
         if (bgStyle === 'frost') {
           // Sharp jagged frost mountain spires & floating ice shards
@@ -4123,9 +4149,10 @@
       // Near parallax framing ribs
       const nearSpan = 240;
       const nearOffset = ((-this.cameraY * 0.25) % nearSpan + nearSpan) % nearSpan;
+      const nearStart = nearOffset - nearSpan * Math.ceil(this.padTop / nearSpan + 1);
       ctx.save();
       ctx.fillStyle = theme.parallaxNear;
-      for (let y = nearOffset - nearSpan; y < C.HEIGHT + nearSpan; y += nearSpan) {
+      for (let y = nearStart; y < C.HEIGHT + this.padBottom + nearSpan; y += nearSpan) {
         ctx.beginPath();
         ctx.moveTo(C.WALL_WIDTH, y + 40);
         ctx.lineTo(C.WALL_WIDTH + 24, y + 56);
@@ -4145,12 +4172,16 @@
       ctx.restore();
 
       // Ambient drifting spores / motes
+      const moteTop = -this.padTop;
+      const moteSpan = Math.max(C.HEIGHT, this.viewH);
       ctx.save();
       for (let i = 0; i < this.ambientMotes.length; i++) {
         const m = this.ambientMotes[i];
+        const baseY = (m.y / C.HEIGHT) * moteSpan;
         const parallaxY =
-          (((m.y - this.cameraY * 0.22 + this.hintTime * m.speedY) % C.HEIGHT) + C.HEIGHT) %
-          C.HEIGHT;
+          moteTop +
+          ((((baseY - this.cameraY * 0.22 + this.hintTime * m.speedY) % moteSpan) + moteSpan) %
+            moteSpan);
         const swayX = m.x + Math.sin(this.hintTime * 1.1 + m.driftPhase) * 6;
         ctx.globalAlpha = m.alpha;
         ctx.fillStyle = theme.moteColor;
@@ -4164,8 +4195,8 @@
     _drawAltitudeMarkers(ctx) {
       const stepMeters = 10;
       const stepPx = stepMeters * C.PIXELS_PER_METER;
-      const topWorldY = this.cameraY;
-      const bottomWorldY = this.cameraY + C.HEIGHT;
+      const topWorldY = this.cameraY - this.padTop;
+      const bottomWorldY = this.cameraY + C.HEIGHT + this.padBottom;
 
       const minMarkerIdx = Math.max(
         1,
@@ -4181,7 +4212,7 @@
       for (let idx = minMarkerIdx; idx <= maxMarkerIdx; idx++) {
         const wy = C.START_PLAYER_Y - idx * stepPx;
         const sy = wy - this.cameraY;
-        if (sy < -20 || sy > C.HEIGHT + 20) continue;
+        if (sy < -this.padTop - 20 || sy > C.HEIGHT + this.padBottom + 20) continue;
 
         // Diegetic architectural cross-wire + carved distance plaque
         ctx.strokeStyle = 'rgba(200, 225, 255, 0.06)';
@@ -4207,22 +4238,26 @@
 
     _drawWallsAndFloor(ctx, theme) {
       const w = C.WALL_WIDTH;
+      const viewTop = -this.padTop;
+      const viewBottom = C.HEIGHT + this.padBottom;
+      const fullH = Math.max(C.HEIGHT, this.viewH);
 
       ctx.fillStyle = theme.wallBase;
-      ctx.fillRect(-28, -28, w + 28, C.HEIGHT + 56);
-      ctx.fillRect(C.WIDTH - w, -28, w + 28, C.HEIGHT + 56);
+      ctx.fillRect(-28, viewTop - 28, w + 28, fullH + 56);
+      ctx.fillRect(C.WIDTH - w, viewTop - 28, w + 28, fullH + 56);
 
       ctx.fillStyle = theme.wallShadow;
-      ctx.fillRect(-28, -28, w * 0.44 + 28, C.HEIGHT + 56);
-      ctx.fillRect(C.WIDTH - w * 0.44, -28, w * 0.44 + 28, C.HEIGHT + 56);
+      ctx.fillRect(-28, viewTop - 28, w * 0.44 + 28, fullH + 56);
+      ctx.fillRect(C.WIDTH - w * 0.44, viewTop - 28, w * 0.44 + 28, fullH + 56);
 
       // Biome-specific architectural wall detailing scrolling with camera
       const wallStyle = theme.wallStyle || 'stone';
       const grooveSpacing = 56;
       const offset = ((-this.cameraY % grooveSpacing) + grooveSpacing) % grooveSpacing;
+      const grooveStart = offset - grooveSpacing * Math.ceil(this.padTop / grooveSpacing + 1);
 
       ctx.save();
-      for (let y = offset - grooveSpacing; y < C.HEIGHT + grooveSpacing; y += grooveSpacing) {
+      for (let y = grooveStart; y < viewBottom + grooveSpacing; y += grooveSpacing) {
         if (wallStyle === 'frost') {
           // Crystalline diagonal ice fracture veins + frosty sheen
           ctx.strokeStyle = 'rgba(184, 242, 255, 0.24)';
@@ -4290,12 +4325,12 @@
       }
 
       ctx.fillStyle = theme.wallInnerEdge;
-      ctx.fillRect(w - 4.5, 0, 4.5, C.HEIGHT);
-      ctx.fillRect(C.WIDTH - w, 0, 4.5, C.HEIGHT);
+      ctx.fillRect(w - 4.5, viewTop - 20, 4.5, fullH + 40);
+      ctx.fillRect(C.WIDTH - w, viewTop - 20, 4.5, fullH + 40);
 
       ctx.fillStyle = theme.wallHighlight;
-      ctx.fillRect(w - 1.5, 0, 1.5, C.HEIGHT);
-      ctx.fillRect(C.WIDTH - w, 0, 1.5, C.HEIGHT);
+      ctx.fillRect(w - 1.5, viewTop - 20, 1.5, fullH + 40);
+      ctx.fillRect(C.WIDTH - w, viewTop - 20, 1.5, fullH + 40);
 
       // Bioluminescent wall contact glow matching the jelly's active color palette!
       if (this.player.alive && this.player.wallAttached !== 0) {
@@ -4313,10 +4348,10 @@
       ctx.restore();
 
       const floorScreenY = C.FLOOR_Y - this.cameraY;
-      if (floorScreenY < C.HEIGHT + 40) {
+      if (floorScreenY < viewBottom + 40) {
         ctx.save();
         ctx.fillStyle = theme.wallBase;
-        ctx.fillRect(w, floorScreenY, C.WIDTH - w * 2, C.HEIGHT - floorScreenY + 20);
+        ctx.fillRect(w, floorScreenY, C.WIDTH - w * 2, viewBottom - floorScreenY + 30);
 
         ctx.fillStyle = 'rgba(6, 10, 20, 0.35)';
         ctx.fillRect(w, floorScreenY + 4, C.WIDTH - w * 2, 4);
@@ -4715,7 +4750,7 @@
 
       ctx.save();
       ctx.fillStyle = `rgba(6, 10, 20, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       const panelW = 368;
       const panelH = 312;
@@ -5434,7 +5469,7 @@
 
       ctx.save();
       ctx.fillStyle = `rgba(6, 10, 20, ${0.72 * clamp(this.modalAnim * 1.5, 0, 1)})`;
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       const panelW = 364;
       const panelH = 392;
@@ -5655,7 +5690,7 @@
 
       ctx.save();
       ctx.fillStyle = `rgba(6, 10, 20, ${0.76 * clamp(this.modalAnim * 1.5, 0, 1)})`;
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       const panelW = 392;
       const panelH = 476;
@@ -6598,7 +6633,7 @@
       ctx.globalAlpha = rawT;
 
       ctx.fillStyle = 'rgba(6, 10, 20, 0.68)';
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       const cardW = 316;
       const cardH = 304;
@@ -6815,7 +6850,7 @@
 
       ctx.save();
       ctx.fillStyle = `rgba(6, 10, 20, ${0.74 * clamp(this.modalAnim * 1.5, 0, 1)})`;
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       const panelW = 396;
       const panelH = 642;
@@ -7749,7 +7784,7 @@
 
       ctx.save();
       ctx.fillStyle = `rgba(6, 10, 20, ${0.76 * clamp(this.modalAnim * 1.5, 0, 1)})`;
-      ctx.fillRect(0, 0, C.WIDTH, C.HEIGHT);
+      this._fillViewportRect(ctx);
 
       const panelW = 396;
       const panelH = 622;
