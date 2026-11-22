@@ -223,6 +223,7 @@
       this.hudGemPulse = 0;
       this.meterMilestonePulse = 0;
       this.wardrobePreviewBounce = 0;
+      this.profilePillBounce = 0;
 
       // Interactive UI hit rects (in logical 450x800 coordinates)
       this.uiRects = {
@@ -236,6 +237,7 @@
         menuAccBtn: null,
         menuLbBtn: null,
         menuSetBtn: null,
+        menuProfileBtn: null,
         retryBtn: null,
         deathShopBtn: null,
         deathLbBtn: null,
@@ -820,6 +822,7 @@
               }
             });
         }
+        this.profilePillBounce = 1;
         this.audio.playUnlock();
         closeOverlay();
       });
@@ -1516,7 +1519,9 @@
     }
 
     _handleMenuPointerDown(px, py, pointerId) {
-      if (pointInRect(px, py, this.uiRects.menuPlayBtn)) {
+      if (pointInRect(px, py, this.uiRects.menuProfileBtn)) {
+        this.pressedBtn = 'profile';
+      } else if (pointInRect(px, py, this.uiRects.menuPlayBtn)) {
         this.pressedBtn = 'play';
       } else if (pointInRect(px, py, this.uiRects.menuAccBtn)) {
         this.pressedBtn = 'accessories';
@@ -1536,7 +1541,10 @@
     }
 
     _activateMenuButton(btnId, px, py) {
-      if (btnId === 'play' && pointInRect(px, py, this.uiRects.menuPlayBtn)) {
+      if (btnId === 'profile' && pointInRect(px, py, this.uiRects.menuProfileBtn)) {
+        this.audio.playUiTap();
+        this._openNicknameEditor();
+      } else if (btnId === 'play' && pointInRect(px, py, this.uiRects.menuPlayBtn)) {
         this.audio.playUiTap();
         this.modalAnim = 0;
         this.activeModal = 'modes';
@@ -2125,6 +2133,9 @@
       }
       if (this.wardrobePreviewBounce > 0) {
         this.wardrobePreviewBounce = Math.max(0, this.wardrobePreviewBounce - dt * 3.2);
+      }
+      if (this.profilePillBounce > 0) {
+        this.profilePillBounce = Math.max(0, this.profilePillBounce - dt * 3.5);
       }
 
       // Advance modal spring-open animation and pause world action while modal is open
@@ -5448,6 +5459,9 @@
       const ink = (Art && Art.PALETTE.INK) || '#1b1136';
       ctx.save();
 
+      // 0. Compact Top-Right Profile Pill with Quick Pencil Edit Badge
+      this._drawMenuProfilePill(ctx);
+
       // 1. Hand-lettered Cartoon Logo at top (echoing store icon)
       if (Art) {
         Art.drawCartoonLogo(ctx, C.WIDTH * 0.5, 134, 0.96, this.hintTime);
@@ -5592,6 +5606,146 @@
         this.pressedBtn === 'settings',
         false
       );
+
+      ctx.restore();
+    }
+
+    _drawMenuProfilePill(ctx) {
+      if (!this.leaderboard) {
+        this.uiRects.menuProfileBtn = null;
+        return;
+      }
+      const Art = JellyGame.Art;
+      const ink = (Art && Art.PALETTE.INK) || '#1b1136';
+      const nick = this.leaderboard.nickname || 'JELLY';
+      const isDefaultNick = /^JELLY-[A-Z0-9]{4}$/i.test(nick);
+      const isPressed = this.pressedBtn === 'profile';
+
+      ctx.save();
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+      const measuredW = ctx.measureText(nick).width;
+
+      const pillH = 38;
+      const pillW = clamp(Math.ceil(measuredW + 84), 118, 194);
+      const pillX = C.WIDTH - 14 - pillW;
+      const pillY = 14;
+      const pillR = pillH * 0.5;
+
+      // Generous invisible touch hitbox so thumbs never miss the mini profile pill
+      this.uiRects.menuProfileBtn = {
+        x: pillX - 6,
+        y: pillY - 6,
+        w: pillW + 12,
+        h: pillH + 12
+      };
+
+      const cx = pillX + pillW * 0.5;
+      const cy = pillY + pillH * 0.5;
+      const saveBounce = 1 + Math.sin(this.profilePillBounce * Math.PI) * 0.14;
+      const pressDy = isPressed ? 2.2 : 0;
+
+      ctx.translate(cx, cy + pressDy);
+      ctx.scale(saveBounce, saveBounce);
+      ctx.translate(-cx, -cy);
+
+      // Chunky 3D comic bottom lip shadow
+      ctx.fillStyle = ink;
+      roundRectPath(ctx, pillX, pillY + (isPressed ? 1.5 : 3.5), pillW, pillH, pillR);
+      ctx.fill();
+
+      // Tactile deep-violet capsule body matching menu medallions & HUD pills
+      const bodyGrad = ctx.createLinearGradient(pillX, pillY, pillX, pillY + pillH);
+      bodyGrad.addColorStop(0, isPressed ? '#443582' : '#3a2c70');
+      bodyGrad.addColorStop(1, isPressed ? '#2c2059' : '#251a4e');
+      ctx.fillStyle = bodyGrad;
+      ctx.strokeStyle = isPressed ? '#6affc9' : isDefaultNick ? '#ffd147' : '#fff4d6';
+      ctx.lineWidth = 2.4;
+      roundRectPath(ctx, pillX, pillY, pillW, pillH, pillR);
+      ctx.fill();
+      ctx.stroke();
+
+      // Outer ink crisping ring
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.6;
+      roundRectPath(ctx, pillX - 1, pillY - 1, pillW + 2, pillH + 2, pillR + 1);
+      ctx.stroke();
+
+      // Subtle glossy upper bevel sheen
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.13)';
+      roundRectPath(ctx, pillX + 8, pillY + 3, pillW - 16, 10, 5);
+      ctx.fill();
+
+      // Left circular mini Jelly avatar badge (live color + skin + accessories!)
+      const avCx = pillX + 19;
+      const avCy = pillY + pillH * 0.5;
+      ctx.fillStyle = '#d9f2ff';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(avCx, avCy, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      this._drawMiniJellyPreview(
+        ctx,
+        avCx,
+        avCy + 1,
+        9.2,
+        this.equippedAccessory,
+        this.equippedColor,
+        false
+      );
+
+      // Middle crisp player nickname (clamped cleanly before pencil button)
+      const textStartX = pillX + 37;
+      const maxNickW = pillW - 76;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = ink;
+      ctx.strokeText(nick, textStartX, avCy + 0.5, maxNickW);
+      ctx.fillStyle = '#fff8eb';
+      ctx.fillText(nick, textStartX, avCy + 0.5, maxNickW);
+
+      // Right circular sunny-gold Pencil Edit Badge (gently pulses for default JELLY-XXXX name!)
+      const penCx = pillX + pillW - 18.5;
+      const penCy = avCy;
+      const penPulse = isDefaultNick ? 1 + Math.sin(this.hintTime * 4.4) * 0.08 : 1;
+
+      ctx.save();
+      ctx.translate(penCx, penCy);
+      ctx.scale(penPulse, penPulse);
+
+      if (isDefaultNick) {
+        const glowA = 0.25 + 0.2 * Math.sin(this.hintTime * 4.4);
+        ctx.fillStyle = `rgba(255, 209, 71, ${glowA})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, 15.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const penGrad = ctx.createLinearGradient(0, -12, 0, 12);
+      penGrad.addColorStop(0, '#ffe875');
+      penGrad.addColorStop(1, '#ff9f1c');
+      ctx.fillStyle = penGrad;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Tiny glossy highlight dot on pencil medallion
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(-3.5, -5.5, 3.2, 1.8, -0.45, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Crisp dark ink pencil icon inside gold badge
+      this._drawUiIcon(ctx, 'pencil', 0.2, 0.4, 5.8, '#fffdf5');
+      ctx.restore();
 
       ctx.restore();
     }

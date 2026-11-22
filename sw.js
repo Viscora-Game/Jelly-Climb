@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'jelly-climb-twa-v38';
+const CACHE_NAME = 'jelly-climb-twa-v39';
 const CORE_ASSETS = [
   '/',
   '/index.html',
