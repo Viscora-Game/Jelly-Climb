@@ -1022,10 +1022,10 @@
               this.openLeaderboard(this.gameMode === 'rising' ? 'rising' : 'classic');
             } else if (pointInRect(pt.x, pt.y, this.uiRects.deathMenuBtn)) {
               this.audio.playUiTap();
-              this.openMenu();
+              this._exitDeathWithInterstitial(() => this.openMenu());
             } else {
               this.audio.playUiTap();
-              this.resetRun();
+              this._exitDeathWithInterstitial(() => this.resetRun());
             }
           }
           return;
@@ -1416,7 +1416,7 @@
         if (this.state === 'dead' && this.deathTimer >= 0.38) {
           if (e.code === 'Space' || e.code === 'KeyR' || e.code === 'Enter') {
             e.preventDefault();
-            this.resetRun();
+            this._exitDeathWithInterstitial(() => this.resetRun());
           }
         } else if (this.state === 'playing') {
           if (e.code === 'Escape' || e.code === 'KeyP') {
@@ -3920,6 +3920,32 @@
       } finally {
         this.adBusy = false;
       }
+    }
+
+    async _exitDeathWithInterstitial(afterFn) {
+      if (this.adBusy) return;
+      const Ads = JellyGame.Ads;
+      if (
+        this.gameMode === 'tutorial' ||
+        !Ads ||
+        !Ads.isEnabled() ||
+        typeof Ads.maybeShowInterstitialAfterRun !== 'function'
+      ) {
+        if (typeof afterFn === 'function') afterFn();
+        return;
+      }
+
+      this.adBusy = true;
+      try {
+        await Ads.maybeShowInterstitialAfterRun({
+          skipBecauseRewarded: Boolean(this.adReviveUsedThisRun || this.adDoubleUsedThisRun)
+        });
+      } catch (_) {
+        // Never block restarting or returning to menu if an ad fails
+      } finally {
+        this.adBusy = false;
+      }
+      if (typeof afterFn === 'function') afterFn();
     }
 
     render() {
