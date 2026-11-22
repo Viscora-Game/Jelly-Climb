@@ -36,6 +36,22 @@
       cost: 0,
       milestone: Object.freeze({ stat: 'bestRising', target: 60, bonusDrops: 20 })
     },
+    {
+      id: 'slimeCrown',
+      name: 'Slime Tacı',
+      slot: 'head',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bossesDefeated', target: 1, bonusDrops: 35 })
+    },
+    {
+      id: 'pharaoh',
+      name: 'Firavun Başlığı',
+      slot: 'head',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bestClassic', target: 500, bonusDrops: 50 })
+    },
 
     // --- FACE / EYEWEAR (6 Drop Shop + 1 Skill Milestone) ---
     { id: 'glasses', name: 'Havalı Gözlük', slot: 'face', unlockType: 'drops', cost: 20 },
@@ -70,8 +86,81 @@
       unlockType: 'milestone',
       cost: 0,
       milestone: Object.freeze({ stat: 'bestClassic', target: 120, bonusDrops: 30 })
+    },
+    {
+      id: 'seraphWings',
+      name: 'İlahi Kanatlar',
+      slot: 'back',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bossesDefeated', target: 5, bonusDrops: 80 })
+    },
+
+    // --- BODY SKINS (High-Altitude Sport Ball Milestone Skins!) ---
+    {
+      id: 'soccer',
+      name: 'Futbol Topu',
+      slot: 'skin',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bestClassic', target: 750, bonusDrops: 60 })
+    },
+    {
+      id: 'basketball',
+      name: 'Basketbol Topu',
+      slot: 'skin',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bestClassic', target: 1250, bonusDrops: 80 })
+    },
+    {
+      id: 'tennis',
+      name: 'Tenis Topu',
+      slot: 'skin',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bestClassic', target: 1500, bonusDrops: 100 })
+    },
+    {
+      id: 'eightBall',
+      name: 'Bilardo 8 Topu',
+      slot: 'skin',
+      unlockType: 'milestone',
+      cost: 0,
+      milestone: Object.freeze({ stat: 'bestClassic', target: 2000, bonusDrops: 125 })
     }
   ]);
+
+  const SKIN_PALETTES = Object.freeze({
+    soccer: Object.freeze({
+      light: '#ffffff',
+      primary: '#f4f6fa',
+      secondary: '#c2cde0',
+      rim: '#1d1738',
+      glow: 'rgba(255, 255, 255, 0.45)'
+    }),
+    basketball: Object.freeze({
+      light: '#ffc366',
+      primary: '#ff7a1a',
+      secondary: '#c44208',
+      rim: '#1b1136',
+      glow: 'rgba(255, 136, 42, 0.48)'
+    }),
+    tennis: Object.freeze({
+      light: '#f5ff8f',
+      primary: '#d4f528',
+      secondary: '#8aba0c',
+      rim: '#1b1136',
+      glow: 'rgba(212, 245, 40, 0.5)'
+    }),
+    eightBall: Object.freeze({
+      light: '#645896',
+      primary: '#231c3d',
+      secondary: '#110d24',
+      rim: '#fff8eb',
+      glow: 'rgba(156, 138, 255, 0.52)'
+    })
+  });
 
   const BY_ID = Object.create(null);
   for (let i = 0; i < ACCESSORIES.length; i++) {
@@ -81,7 +170,8 @@
   const BY_SLOT = Object.freeze({
     head: Object.freeze(ACCESSORIES.filter((a) => a.slot === 'head')),
     face: Object.freeze(ACCESSORIES.filter((a) => a.slot === 'face')),
-    back: Object.freeze(ACCESSORIES.filter((a) => a.slot === 'back'))
+    back: Object.freeze(ACCESSORIES.filter((a) => a.slot === 'back')),
+    skin: Object.freeze(ACCESSORIES.filter((a) => a.slot === 'skin'))
   });
 
   const SHOP_ACCESSORIES = Object.freeze(
@@ -100,14 +190,14 @@
   }
 
   /**
-   * Parses string ("crown+glasses+wings", "crown") or object into clean { head, face, back } slots.
+   * Parses string ("crown+glasses+wings+soccer", "crown") or object into clean { head, face, back, skin } slots.
    */
   function normalizeSlots(raw) {
-    const slots = { head: 'none', face: 'none', back: 'none' };
+    const slots = { head: 'none', face: 'none', back: 'none', skin: 'none' };
     if (!raw || raw === 'none') return slots;
 
     if (typeof raw === 'object' && !Array.isArray(raw)) {
-      for (const slotName of ['head', 'face', 'back']) {
+      for (const slotName of ['head', 'face', 'back', 'skin']) {
         const item = getById(raw[slotName]);
         if (item.id !== 'none' && item.slot === slotName) {
           slots[slotName] = item.id;
@@ -120,7 +210,10 @@
       const parts = raw.split('+');
       for (let i = 0; i < parts.length; i++) {
         const item = getById(parts[i].trim());
-        if (item.id !== 'none' && (item.slot === 'head' || item.slot === 'face' || item.slot === 'back')) {
+        if (
+          item.id !== 'none' &&
+          (item.slot === 'head' || item.slot === 'face' || item.slot === 'back' || item.slot === 'skin')
+        ) {
           slots[item.slot] = item.id;
         }
       }
@@ -129,7 +222,7 @@
   }
 
   /**
-   * Serializes { head, face, back } into canonical string (<= 29 chars, compatible with leaderboard DB).
+   * Serializes { head, face, back, skin } into canonical string (compatible with leaderboard DB).
    */
   function serializeSlots(slotsInput) {
     const slots = normalizeSlots(slotsInput);
@@ -137,7 +230,17 @@
     if (slots.head !== 'none') active.push(slots.head);
     if (slots.face !== 'none') active.push(slots.face);
     if (slots.back !== 'none') active.push(slots.back);
+    if (slots.skin !== 'none') active.push(slots.skin);
     return active.length > 0 ? active.join('+') : 'none';
+  }
+
+  function getActiveSkin(spec) {
+    const slots = normalizeSlots(spec);
+    return slots.skin !== 'none' ? slots.skin : null;
+  }
+
+  function getSkinPalette(skinId) {
+    return (skinId && SKIN_PALETTES[skinId]) || null;
   }
 
   function getMilestoneCurrent(acc, stats = {}) {
@@ -147,6 +250,7 @@
     if (key === 'bestRising') return Math.max(0, stats.bestRisingMeters || 0);
     if (key === 'bestTempo') return Math.max(1, stats.bestTempo || 1);
     if (key === 'totalCloseCalls') return Math.max(0, stats.totalCloseCalls || 0);
+    if (key === 'bossesDefeated') return Math.max(0, stats.bossesDefeated || 0);
     return 0;
   }
 
@@ -307,6 +411,53 @@
         ctx.moveTo(2, -1);
         ctx.quadraticCurveTo(8, -6, 12.5, -7);
         ctx.stroke();
+        ctx.restore();
+      }
+    } else if (id === 'seraphWings') {
+      // Multi-tiered radiant white & gold Seraphim Wings (Boss Slayer 5x reward)
+      const flap = Math.sin(time * (4.6 + speedRatio * 14)) * (0.14 + speedRatio * 0.34);
+
+      for (const side of [-1, 1]) {
+        ctx.save();
+        ctx.translate(side * (r * 0.85), -2);
+        ctx.scale(side, 1);
+        ctx.rotate(-0.24 + flap);
+
+        // Soft golden heavenly aura behind wing
+        ctx.fillStyle = 'rgba(255, 232, 138, 0.32)';
+        ctx.beginPath();
+        ctx.ellipse(9, -3, 12, 8, -0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Main pearl-white feathered wing silhouette with crisp comic ink outline
+        const swg = ctx.createLinearGradient(0, -13, 18, 9);
+        swg.addColorStop(0, '#ffffff');
+        swg.addColorStop(0.55, '#fff6d4');
+        swg.addColorStop(1, '#ffd147');
+        ctx.fillStyle = swg;
+        ctx.strokeStyle = '#1b1136';
+        ctx.lineWidth = 1.5;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-1, -1.5);
+        ctx.quadraticCurveTo(9, -15.5, 19, -12.5);
+        ctx.quadraticCurveTo(17, -6.5, 12.5, -4);
+        ctx.quadraticCurveTo(17, -2.5, 14, 1.5);
+        ctx.quadraticCurveTo(11, 2.5, 8.5, 3);
+        ctx.quadraticCurveTo(11, 6.5, 5.5, 8);
+        ctx.quadraticCurveTo(1.5, 7, -1, 3.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Golden filigree trim along upper wing crest
+        ctx.strokeStyle = '#ffbe2e';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(1, -2);
+        ctx.quadraticCurveTo(9, -10.5, 16, -10);
+        ctx.stroke();
+
         ctx.restore();
       }
 
@@ -729,6 +880,114 @@
       ctx.beginPath();
       ctx.arc(0, -3.8, 2.2, 0, Math.PI * 2);
       ctx.fill();
+    } else if (id === 'slimeCrown') {
+      // Wobbly bioluminescent emerald-lime goo crown (First Boss Slayer reward)
+      ctx.translate(eyeOffsetX * 0.25, -r + 2.2);
+      const wobble = Math.sin(time * 5.2) * 0.9;
+
+      const sGrad = ctx.createLinearGradient(-11, -14, 11, 1);
+      sGrad.addColorStop(0, '#c6ff8c');
+      sGrad.addColorStop(0.5, '#3ef28c');
+      sGrad.addColorStop(1, '#0d9458');
+      ctx.fillStyle = sGrad;
+      ctx.strokeStyle = '#1b1136';
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-10.5, 0.5);
+      ctx.quadraticCurveTo(-12.5, -5.5, -11, -10.5 + wobble * 0.4);
+      ctx.quadraticCurveTo(-7.5, -4, -4.5, -5.5);
+      ctx.quadraticCurveTo(-2, -14 - wobble * 0.5, 0, -14.2 - wobble * 0.5);
+      ctx.quadraticCurveTo(2, -14 - wobble * 0.5, 4.5, -5.5);
+      ctx.quadraticCurveTo(7.5, -4, 11, -10.5 - wobble * 0.4);
+      ctx.quadraticCurveTo(12.5, -5.5, 10.5, 0.5);
+      ctx.quadraticCurveTo(5, 2.2, 0, 1.2);
+      ctx.quadraticCurveTo(-5, 2.4, -10.5, 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Glossy slime pearl droplet tips + golden core gem
+      ctx.fillStyle = '#e2ffbd';
+      ctx.beginPath();
+      ctx.arc(-9.2, -8.5 + wobble * 0.3, 1.5, 0, Math.PI * 2);
+      ctx.arc(0, -11.4 - wobble * 0.4, 1.7, 0, Math.PI * 2);
+      ctx.arc(9.2, -8.5 - wobble * 0.3, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffe156';
+      ctx.strokeStyle = '#1b1136';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, -6.8);
+      ctx.lineTo(2.4, -3.6);
+      ctx.lineTo(0, -0.6);
+      ctx.lineTo(-2.4, -3.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (id === 'pharaoh') {
+      // Sculpted Golden & Lapis Pharaoh Nemes Headdress (Desert 500m reward)
+      ctx.translate(eyeOffsetX * 0.22, -r + 3.5);
+      const ink = '#1b1136';
+
+      // Striped Nemes side lappets & royal crown dome
+      const pGrad = ctx.createLinearGradient(0, -13, 0, 6);
+      pGrad.addColorStop(0, '#ffe875');
+      pGrad.addColorStop(0.55, '#f5b027');
+      pGrad.addColorStop(1, '#c97610');
+      ctx.fillStyle = pGrad;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-14.5, 5.5);
+      ctx.quadraticCurveTo(-15.5, -5.5, -10.5, -10.5);
+      ctx.quadraticCurveTo(0, -14.5, 10.5, -10.5);
+      ctx.quadraticCurveTo(15.5, -5.5, 14.5, 5.5);
+      ctx.lineTo(10, 4.5);
+      ctx.quadraticCurveTo(10.5, -2.5, 8.2, -5.2);
+      ctx.quadraticCurveTo(0, -7.2, -8.2, -5.2);
+      ctx.quadraticCurveTo(-10.5, -2.5, -10, 4.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Royal Lapis-Blue horizontal Nemes stripes
+      ctx.strokeStyle = '#1f49a8';
+      ctx.lineWidth = 2.0;
+      for (const sy of [-8.8, -5.6]) {
+        ctx.beginPath();
+        ctx.moveTo(-10.5, sy);
+        ctx.quadraticCurveTo(0, sy - 2.2, 10.5, sy);
+        ctx.stroke();
+      }
+      for (const side of [-1, 1]) {
+        for (const ly of [-1.8, 1.4]) {
+          ctx.beginPath();
+          ctx.moveTo(side * 10.4, ly);
+          ctx.lineTo(side * 14.2, ly + 0.8);
+          ctx.stroke();
+        }
+      }
+
+      // Golden Uraeus (royal cobra crest) & ruby jewel on brow
+      ctx.fillStyle = '#fff2a6';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(0, -13.5);
+      ctx.quadraticCurveTo(3.2, -10.5, 2.2, -6.5);
+      ctx.lineTo(-2.2, -6.5);
+      ctx.quadraticCurveTo(-3.2, -10.5, 0, -13.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff4757';
+      ctx.beginPath();
+      ctx.arc(0, -8.8, 1.3, 0, Math.PI * 2);
+      ctx.fill();
     } else if (id === 'halo') {
       const bob = Math.sin(time * 3.8) * 1.6;
       ctx.translate(eyeOffsetX * 0.2, -r - 7.5 + bob);
@@ -893,6 +1152,8 @@
     beanie: { rScale: 1, scale: 1.04, ox: 0, oy: 19.2 },
     wizard: { rScale: 1, scale: 0.96, ox: 0, oy: 18.5 },
     crown: { rScale: 1, scale: 1.15, ox: 0, oy: 19.2 },
+    slimeCrown: { rScale: 1, scale: 1.12, ox: 0, oy: 19.0 },
+    pharaoh: { rScale: 1, scale: 0.96, ox: 0, oy: 15.8 },
     halo: { rScale: 1, scale: 1.06, ox: 0, oy: 22.0 },
     horns: { rScale: 1, scale: 1.08, ox: 0, oy: 15.2 },
 
@@ -908,15 +1169,234 @@
     // Back items
     cape: { rScale: 0.85, scale: 0.92, ox: 0, oy: -12.0 },
     jetpack: { rScale: 0.46, scale: 1.14, ox: 0, oy: -4.2 },
-    wings: { rScale: 0.42, scale: 0.78, ox: 0, oy: 4.5 }
+    wings: { rScale: 0.42, scale: 0.78, ox: 0, oy: 4.5 },
+    seraphWings: { rScale: 0.42, scale: 0.72, ox: 0, oy: 4.5 }
   });
 
   /**
-   * Renders a large, centered standalone showcase icon of an accessory for Wardrobe cards
-   * so every item fits cleanly inside its display medallion at a glance.
+   * Draws cel-shaded storybook cartoon sport-ball body textures INSIDE an already-clipped
+   * soft-body silhouette of radius `r` (Soccer Ball, Basketball, Tennis Ball).
+   */
+  function drawBodySkin(ctx, skinId, r, standalone = false) {
+    const ink = '#1b1136';
+    const pal = SKIN_PALETTES[skinId];
+    if (!pal) return false;
+
+    ctx.save();
+    // Base sphere fill + 2-tone cel lighting (upper-left highlight + lower-right crescent shadow)
+    ctx.fillStyle = pal.primary;
+    ctx.fillRect(-r * 1.4, -r * 1.4, r * 2.8, r * 2.8);
+
+    ctx.fillStyle = pal.light;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.28, -r * 0.32, r * 0.72, r * 0.56, -0.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = pal.primary;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.08, -r * 0.1, r * 0.88, r * 0.78, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (skinId === 'soccer') {
+      // Classic pentagon soccer panel helper
+      const drawPent = (px, py, pr, rot) => {
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = rot + (i * Math.PI * 2) / 5 - Math.PI * 0.5;
+          const vx = px + Math.cos(a) * pr;
+          const vy = py + Math.sin(a) * pr;
+          if (i === 0) ctx.moveTo(vx, vy);
+          else ctx.lineTo(vx, vy);
+        }
+        ctx.closePath();
+        ctx.fill();
+      };
+
+      // Subtle panel stitching seams
+      ctx.strokeStyle = 'rgba(27, 17, 54, 0.32)';
+      ctx.lineWidth = Math.max(1.1, r * 0.07);
+      if (standalone) {
+        const pR = r * 0.34;
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = (i * Math.PI * 2) / 5 - Math.PI * 0.5;
+          ctx.moveTo(Math.cos(a) * pR, Math.sin(a) * pR);
+          ctx.lineTo(Math.cos(a) * r * 1.15, Math.sin(a) * r * 1.15);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#20193b';
+        drawPent(0, 0, pR, 0);
+        drawPent(-r * 0.86, -r * 0.48, r * 0.32, 0.4);
+        drawPent(r * 0.86, -r * 0.48, r * 0.32, -0.4);
+        drawPent(0, -r * 0.96, r * 0.3, Math.PI);
+        drawPent(-r * 0.74, r * 0.78, r * 0.3, -0.3);
+        drawPent(r * 0.74, r * 0.78, r * 0.3, 0.3);
+      } else {
+        // Worn mode: pentagons frame the perimeter cleanly so Jelly's eyes & smile sit on crisp white!
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.72, -r * 0.42);
+        ctx.lineTo(0, -r * 0.76);
+        ctx.lineTo(r * 0.72, -r * 0.42);
+        ctx.moveTo(-r * 0.82, r * 0.52);
+        ctx.lineTo(0, r * 0.86);
+        ctx.lineTo(r * 0.82, r * 0.52);
+        ctx.stroke();
+
+        ctx.fillStyle = '#20193b';
+        drawPent(0, -r * 0.92, r * 0.32, Math.PI);
+        drawPent(-r * 0.9, -r * 0.38, r * 0.3, 0.4);
+        drawPent(r * 0.9, -r * 0.38, r * 0.3, -0.4);
+        drawPent(-r * 0.78, r * 0.74, r * 0.32, -0.3);
+        drawPent(r * 0.78, r * 0.74, r * 0.32, 0.3);
+        drawPent(0, r * 0.96, r * 0.28, 0);
+      }
+    } else if (skinId === 'basketball') {
+      // Subtle pebbled leather specular stipples
+      ctx.fillStyle = 'rgba(255, 224, 152, 0.32)';
+      for (const [dx, dy] of [
+        [-0.42, -0.46],
+        [-0.18, -0.58],
+        [-0.56, -0.14],
+        [0.36, -0.42]
+      ]) {
+        ctx.beginPath();
+        ctx.arc(dx * r, dy * r, Math.max(0.8, r * 0.055), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Bold inked basketball seam ribs (slightly sleeker when worn so face reads super crisply!)
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = standalone ? Math.max(1.5, r * 0.105) : Math.max(1.3, r * 0.082);
+      ctx.lineCap = 'round';
+      // Vertical meridian seam
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 1.05);
+      ctx.quadraticCurveTo(r * 0.06, 0, 0, r * 1.05);
+      ctx.stroke();
+
+      // Equator seam (lowered cleanly below smile when worn)
+      const eqY = standalone ? 0 : r * 0.42;
+      ctx.beginPath();
+      ctx.moveTo(-r * 1.05, eqY - r * 0.08);
+      ctx.quadraticCurveTo(0, eqY + r * 0.14, r * 1.05, eqY - r * 0.08);
+      ctx.stroke();
+
+      // Signature twin side curved basketball ribs
+      ctx.beginPath();
+      ctx.arc(-r * 1.08, 0, r * 0.66, -Math.PI * 0.44, Math.PI * 0.44);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(r * 1.08, 0, r * 0.66, Math.PI * 0.56, Math.PI * 1.44);
+      ctx.stroke();
+    } else if (skinId === 'tennis') {
+      // Soft fuzzy felt sheen dots
+      ctx.fillStyle = 'rgba(255, 255, 224, 0.36)';
+      for (const [dx, dy] of [
+        [-0.36, -0.42],
+        [0.14, -0.56],
+        [-0.16, 0.44]
+      ]) {
+        ctx.beginPath();
+        ctx.arc(dx * r, dy * r, Math.max(0.9, r * 0.06), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Signature sweeping double-curve chalk-white tennis seams with crisp ink edge
+      const traceTennisSeams = () => {
+        ctx.beginPath();
+        ctx.arc(-r * 1.08, 0, r * 0.78, -Math.PI * 0.46, Math.PI * 0.46);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(r * 1.08, 0, r * 0.78, Math.PI * 0.54, Math.PI * 1.46);
+        ctx.stroke();
+      };
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(27, 17, 54, 0.58)';
+      ctx.lineWidth = Math.max(2.6, r * 0.22);
+      traceTennisSeams();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1.5, r * 0.125);
+      traceTennisSeams();
+    } else if (skinId === 'eightBall') {
+      // Polished lacquered billiard 8-ball with subtle bright rim gleam so it pops on dark biomes
+      ctx.strokeStyle = 'rgba(214, 204, 255, 0.32)';
+      ctx.lineWidth = Math.max(1.4, r * 0.12);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.88, Math.PI * 0.85, Math.PI * 1.75);
+      ctx.stroke();
+
+      // Iconic crisp ivory-white 8-Ball number disc
+      // (Centered in showcase card; tucked cleanly on upper-right brow when worn so eyes & smile have 0 overlap!)
+      const discX = standalone ? 0 : r * 0.38;
+      const discY = standalone ? 0 : -r * 0.46;
+      const discR = standalone ? r * 0.48 : r * 0.32;
+      ctx.save();
+      ctx.translate(discX, discY);
+      if (!standalone) ctx.rotate(0.22);
+      ctx.fillStyle = '#fffdf7';
+      ctx.strokeStyle = 'rgba(27, 17, 54, 0.5)';
+      ctx.lineWidth = Math.max(1, r * 0.06);
+      ctx.beginPath();
+      ctx.arc(0, 0, discR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Bold comic "8" inside the white billiard disc
+      ctx.fillStyle = '#181130';
+      ctx.font = `800 ${Math.max(8, Math.round(discR * 1.52))}px "Fredoka", "Arial Rounded MT Bold", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('8', 0, discR * 0.08);
+      ctx.restore();
+    }
+
+    // Unified lower-right cel-shadow crescent so every sport ball feels 3D & storybook-painted
+    ctx.fillStyle = skinId === 'soccer' ? 'rgba(92, 108, 152, 0.28)' : 'rgba(27, 17, 54, 0.18)';
+    ctx.beginPath();
+    ctx.arc(r * 0.34, r * 0.38, r * 0.98, 0, Math.PI * 2);
+    ctx.arc(-r * 0.16, -r * 0.2, r * 0.82, 0, Math.PI * 2, true);
+    ctx.fill();
+
+    ctx.restore();
+    return true;
+  }
+
+  /**
+   * Renders a large, centered standalone showcase icon of an accessory or sport-ball skin
+   * for Wardrobe cards so every item fits cleanly inside its display medallion at a glance.
    */
   function drawStandaloneCardIcon(ctx, acc, cx, cy, r = 14.5, time = 0) {
     if (!acc || acc.id === 'none') return;
+    if (acc.slot === 'skin' && SKIN_PALETTES[acc.id]) {
+      const ballR = r * 1.08;
+      const ink = '#1b1136';
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, ballR, 0, Math.PI * 2);
+      if (typeof ctx.clip === 'function') ctx.clip();
+      drawBodySkin(ctx, acc.id, ballR, true);
+      ctx.restore();
+
+      // Glossy top-left comic highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.beginPath();
+      ctx.ellipse(-ballR * 0.34, -ballR * 0.36, ballR * 0.24, ballR * 0.13, -0.55, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Thick comic ink rim
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, ballR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     const fit = CARD_ICON_FIT[acc.id] || { rScale: 1, scale: 1.15, ox: 0, oy: 0 };
     const ratio = r / 14.5;
     const cardR = r * fit.rScale;
@@ -936,6 +1416,9 @@
     MILESTONE_LIST: MILESTONE_ACCESSORIES,
     normalizeSlots,
     serializeSlots,
+    getActiveSkin,
+    getSkinPalette,
+    drawBodySkin,
     drawAccessory,
     drawStandaloneCardIcon,
     getMilestoneProgress,

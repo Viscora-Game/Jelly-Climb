@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'jelly-climb-twa-v37';
+const CACHE_NAME = 'jelly-climb-twa-v38';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -14,10 +14,13 @@ const CORE_ASSETS = [
   '/src/constants.js',
   '/src/cartoonArt.js',
   '/src/i18n.js',
+  '/src/haptics.js',
   '/src/audio.js',
   '/src/particles.js',
   '/src/accessories.js',
   '/src/abilities.js',
+  '/src/missions.js',
+  '/src/ads.js',
   '/src/collectibles.js',
   '/src/player.js',
   '/src/obstacles.js',

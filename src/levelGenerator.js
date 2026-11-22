@@ -18,6 +18,7 @@
   } = JellyGame.Obstacles;
   const Collectible = JellyGame.Collectible;
   const ShieldCollectible = JellyGame.ShieldCollectible;
+  const MagnetCollectible = JellyGame.MagnetCollectible;
 
   function randRange(min, max) {
     return min + Math.random() * (max - min);
@@ -394,6 +395,18 @@
       const minX = C.WALL_WIDTH + 85;
       const maxX = C.WIDTH - C.WALL_WIDTH - 85;
       const roll = Math.random();
+
+      if (
+        MagnetCollectible &&
+        this.chunkCount > 5 &&
+        this.chunkCount % 11 === 0 &&
+        roll < 0.72
+      ) {
+        const mx =
+          hazardSide < 0 ? randRange(C.WIDTH * 0.46, maxX) : randRange(minX, C.WIDTH * 0.54);
+        this.collectibles.push(new MagnetCollectible(mx, centerY));
+        return;
+      }
 
       if (
         ShieldCollectible &&

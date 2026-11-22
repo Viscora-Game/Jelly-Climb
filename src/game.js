@@ -17,6 +17,7 @@
     SOUND: 'jelly_climb_sound',
     MUSIC: 'jelly_climb_music',
     MUSIC_VOLUME: 'jelly_climb_music_vol',
+    HAPTICS: 'jelly_climb_haptics',
     TUTORIAL_DONE: 'jelly_climb_onboarding_v2_done',
     GAME_MODE: 'jelly_climb_mode',
     BEST_TEMPO: 'jelly_climb_best_tempo',
@@ -182,10 +183,20 @@
       this.soundEnabled = this._loadBool(STORAGE_KEYS.SOUND, true);
       this.musicEnabled = this._loadBool(STORAGE_KEYS.MUSIC, true);
       this.musicVolume = clamp(this._loadInt(STORAGE_KEYS.MUSIC_VOLUME, 70), 0, 100) / 100;
+      this.hapticsEnabled = this._loadBool(STORAGE_KEYS.HAPTICS, true);
       this.musicSliderDragging = false;
       this.audio.setEnabled(this.soundEnabled);
       this.audio.setMusicVolume(this.musicVolume);
       this.audio.setMusicEnabled(this.musicEnabled && this.musicVolume > 0.01);
+      if (JellyGame.Haptics) {
+        JellyGame.Haptics.setEnabled(this.hapticsEnabled);
+      }
+
+      // Super Magnet power-up & dormant Native Ad state
+      this.magnetTimer = 0;
+      this.adReviveUsedThisRun = false;
+      this.adDoubleUsedThisRun = false;
+      this.adBusy = false;
 
       // UI & state flags
       this.state = 'menu'; // 'menu' | 'playing' | 'dead'
@@ -229,6 +240,8 @@
         deathShopBtn: null,
         deathLbBtn: null,
         deathMenuBtn: null,
+        deathAdReviveBtn: null,
+        deathAdDoubleBtn: null,
         modalPanel: null,
         modalCloseBtn: null,
         lbTabClassicBtn: null,
@@ -246,9 +259,12 @@
         abilityOrbBtn: null,
         shopCards: [],
         powerCards: [],
+        missionClaimBtns: [],
         colorSwatches: [],
         soundOnBtn: null,
         soundOffBtn: null,
+        hapticsOnBtn: null,
+        hapticsOffBtn: null,
         musicToggleBtn: null,
         musicSliderTrack: null,
         musicSliderHit: null,
@@ -390,12 +406,12 @@
 
     _loadEquippedSlots() {
       const accMod = JellyGame.Accessories;
-      const base = { head: 'none', face: 'none', back: 'none' };
+      const base = { head: 'none', face: 'none', back: 'none', skin: 'none' };
       try {
         const rawSlots = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED_SLOTS);
         if (rawSlots && accMod) {
           const normalized = accMod.normalizeSlots(JSON.parse(rawSlots));
-          for (const slot of ['head', 'face', 'back']) {
+          for (const slot of ['head', 'face', 'back', 'skin']) {
             if (normalized[slot] !== 'none' && this.unlockedAccessories.has(normalized[slot])) {
               base[slot] = normalized[slot];
             }
@@ -405,7 +421,7 @@
         const legacy = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED);
         if (legacy && accMod) {
           const normalized = accMod.normalizeSlots(legacy);
-          for (const slot of ['head', 'face', 'back']) {
+          for (const slot of ['head', 'face', 'back', 'skin']) {
             if (normalized[slot] !== 'none' && this.unlockedAccessories.has(normalized[slot])) {
               base[slot] = normalized[slot];
             }
@@ -450,7 +466,11 @@
     _loadEquippedColor() {
       try {
         const id = global.localStorage.getItem(STORAGE_KEYS.EQUIPPED_COLOR);
-        if (id && this.unlockedColors.has(id)) return id;
+        const valid =
+          id &&
+          this.unlockedColors.has(id) &&
+          (!C.JELLY_COLORS || C.JELLY_COLORS.some((c) => c.id === id));
+        if (valid) return id;
       } catch (_) {}
       return 'mint';
     }
@@ -557,7 +577,7 @@
       this.gameMode = 'tutorial';
       this.gems = 0;
       this.unlockedAccessories = new Set(['none']);
-      this.equippedSlots = { head: 'none', face: 'none', back: 'none' };
+      this.equippedSlots = { head: 'none', face: 'none', back: 'none', skin: 'none' };
       this.equippedAccessory = 'none';
       this.unlockedColors = new Set(['mint']);
       this.equippedColor = 'mint';
@@ -573,6 +593,9 @@
       this.resetStatusMsg = this.t().dataResetDone || 'Data Reset!';
       if (this.leaderboard) {
         this.leaderboard.resetAllData();
+      }
+      if (JellyGame.Missions) {
+        JellyGame.Missions.resetAll();
       }
       if (this.state !== 'menu') {
         const msg = this.resetStatusMsg;
@@ -590,8 +613,26 @@
         bestMeters: this.bestMeters,
         bestRisingMeters: this.bestRisingMeters,
         bestTempo: this.bestTempo,
-        totalCloseCalls: this.totalCloseCalls
+        totalCloseCalls: this.totalCloseCalls,
+        bossesDefeated: this.bossesDefeated
       };
+    }
+
+    _recordMissionProgress(type, value = 1) {
+      if (this.gameMode === 'tutorial' || this.isQaWarpRun || !JellyGame.Missions) return;
+      const newlyDone = JellyGame.Missions.recordProgress(type, value);
+      if (newlyDone && newlyDone.length > 0) {
+        const m = newlyDone[0];
+        this.rewardToast = {
+          kind: 'mission',
+          mission: m,
+          bonusDrops: m.reward || 0,
+          timer: 3.0,
+          maxTimer: 3.0
+        };
+        this.audio.playUnlock();
+        if (JellyGame.Haptics) JellyGame.Haptics.closeCall();
+      }
     }
 
     /**
@@ -643,7 +684,8 @@
     }
 
     _hasWardrobeBadge() {
-      return this.unseenRewards.size > 0 || this._hasAffordableUnlock();
+      const unclaimedMissions = JellyGame.Missions ? JellyGame.Missions.getUnclaimedCount() : 0;
+      return this.unseenRewards.size > 0 || unclaimedMissions > 0 || this._hasAffordableUnlock();
     }
 
     _hasAffordableUnlock() {
@@ -963,7 +1005,13 @@
 
         if (this.state === 'dead') {
           if (this.deathTimer >= 0.38) {
-            if (pointInRect(pt.x, pt.y, this.uiRects.deathShopBtn)) {
+            if (pointInRect(pt.x, pt.y, this.uiRects.deathAdReviveBtn)) {
+              this.audio.playUiTap();
+              this._triggerAdRevive();
+            } else if (pointInRect(pt.x, pt.y, this.uiRects.deathAdDoubleBtn)) {
+              this.audio.playUiTap();
+              this._triggerAdDoubleDrops();
+            } else if (pointInRect(pt.x, pt.y, this.uiRects.deathShopBtn)) {
               this.audio.playUiTap();
               this._openAccessoriesDrawer();
             } else if (pointInRect(pt.x, pt.y, this.uiRects.deathLbBtn)) {
@@ -1232,6 +1280,7 @@
           return;
         }
         const isLocalQa =
+          !global.JELLY_NATIVE_RELEASE &&
           global.location &&
           (global.location.hostname === '127.0.0.1' || global.location.hostname === 'localhost');
         if (isLocalQa && e.code === 'KeyH') {
@@ -1244,9 +1293,20 @@
           this.hudGemPulse = 1;
           return;
         }
+        if (isLocalQa && e.code === 'KeyK') {
+          e.preventDefault();
+          const skins = ['soccer', 'basketball', 'tennis', 'eightBall', 'none'];
+          this._qaSkinIdx = this._qaSkinIdx === undefined ? 0 : (this._qaSkinIdx + 1) % skins.length;
+          const sk = skins[this._qaSkinIdx];
+          if (sk !== 'none') this.unlockedAccessories.add(sk);
+          this.equippedSlots.skin = sk;
+          this._saveEquippedSlots();
+          this.wardrobePreviewBounce = 1;
+          return;
+        }
         if (isLocalQa && e.code === 'KeyT') {
           e.preventDefault();
-          const showcaseMeters = [260, 520, 820, 1200, 2100, 2600];
+          const showcaseMeters = [265, 508, 620, 815, 1170, 1580, 2100, 2508, 2660];
           this._qaThemeIdx =
             this._qaThemeIdx === undefined ? 0 : (this._qaThemeIdx + 1) % showcaseMeters.length;
           const m = showcaseMeters[this._qaThemeIdx];
@@ -1592,6 +1652,19 @@
         this.soundEnabled = false;
         this.audio.setEnabled(false);
         this._saveBool(STORAGE_KEYS.SOUND, false);
+      } else if (pointInRect(px, py, this.uiRects.hapticsOnBtn)) {
+        this.hapticsEnabled = true;
+        if (JellyGame.Haptics) {
+          JellyGame.Haptics.setEnabled(true);
+          JellyGame.Haptics.tap();
+        }
+        this._saveBool(STORAGE_KEYS.HAPTICS, true);
+        this.audio.playUiTap();
+      } else if (pointInRect(px, py, this.uiRects.hapticsOffBtn)) {
+        this.hapticsEnabled = false;
+        if (JellyGame.Haptics) JellyGame.Haptics.setEnabled(false);
+        this._saveBool(STORAGE_KEYS.HAPTICS, false);
+        this.audio.playUiTap();
       } else if (pointInRect(px, py, this.uiRects.musicSliderHit)) {
         this._setMusicVolumeFromSliderX(px);
         this.audio.playUiTap();
@@ -1713,7 +1786,7 @@
 
     _toggleEquipGearItem(acc) {
       const slot = acc.slot;
-      if (slot !== 'head' && slot !== 'face' && slot !== 'back') return;
+      if (slot !== 'head' && slot !== 'face' && slot !== 'back' && slot !== 'skin') return;
       if (this.equippedSlots[slot] === acc.id) {
         this.equippedSlots[slot] = 'none';
       } else {
@@ -1763,6 +1836,10 @@
           if (!pointInRect(px, py, sw.rect)) continue;
           const col = sw.color;
           if (this.unlockedColors.has(col.id)) {
+            if (this.equippedSlots && this.equippedSlots.skin && this.equippedSlots.skin !== 'none') {
+              this.equippedSlots.skin = 'none';
+              this._saveEquippedSlots();
+            }
             this.equippedColor = col.id;
             this.player.equippedColor = col.id;
             this._saveEquippedColor(col.id);
@@ -1774,6 +1851,10 @@
             this._saveInt(STORAGE_KEYS.GEMS, this.gems);
             this.unlockedColors.add(col.id);
             this._saveUnlockedColors();
+            if (this.equippedSlots && this.equippedSlots.skin && this.equippedSlots.skin !== 'none') {
+              this.equippedSlots.skin = 'none';
+              this._saveEquippedSlots();
+            }
             this.equippedColor = col.id;
             this.player.equippedColor = col.id;
             this._saveEquippedColor(col.id);
@@ -1789,6 +1870,24 @@
 
       if (this.uiRects.wardrobeWell && !pointInRect(px, py, this.uiRects.wardrobeWell)) {
         return;
+      }
+
+      if (this.wardrobeTab === 'rewards' && this.uiRects.missionClaimBtns && JellyGame.Missions) {
+        for (let i = 0; i < this.uiRects.missionClaimBtns.length; i++) {
+          const btn = this.uiRects.missionClaimBtns[i];
+          if (!pointInRect(px, py, btn.rect)) continue;
+          const reward = JellyGame.Missions.claimMission(btn.missionId);
+          if (reward > 0) {
+            this.gems += reward;
+            this.hudGemPulse = 1;
+            this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+            this.wardrobePreviewBounce = 1;
+            if (this.audio.playMissionClaim) this.audio.playMissionClaim();
+            else this.audio.playUnlock();
+            if (JellyGame.Haptics) JellyGame.Haptics.closeCall();
+          }
+          return;
+        }
       }
 
       if (this.wardrobeTab === 'powers' && this.uiRects.powerCards) {
@@ -1900,6 +1999,7 @@
       this.tempoTier = 1;
       this.tempoTimer = 0;
       this.slowMoTimer = 0;
+      this.magnetTimer = 0;
       this.themeBannerTimer = 0;
       this.state = 'menu';
       this.activeModal = null;
@@ -1909,6 +2009,7 @@
       this.pressedBtn = null;
       this.pointer.isDown = false;
       this.activePointerId = null;
+      if (this.audio.setBossIntensity) this.audio.setBossIntensity(false);
       this.audio.setMusicContext('menu', this.gameMode, 1);
     }
 
@@ -1929,6 +2030,11 @@
       this.bossWarnedIndex = -1;
       this.bossWarningTimer = 0;
       this.isQaWarpRun = false;
+      this.magnetTimer = 0;
+      this.adReviveUsedThisRun = false;
+      this.adDoubleUsedThisRun = false;
+      this.adBusy = false;
+      if (this.audio.setBossIntensity) this.audio.setBossIntensity(false);
       this._syncRunAbilityState();
 
       this.cameraY = C.START_CAMERA_Y;
@@ -2105,6 +2211,12 @@
       if (this.abilityCooldown > 0 && this.hasLaunchedOnce) {
         this.abilityCooldown = Math.max(0, this.abilityCooldown - simDt);
       }
+      if (this.magnetTimer > 0) {
+        this.magnetTimer = Math.max(0, this.magnetTimer - simDt);
+      }
+      if (this.audio && this.audio.setBossIntensity) {
+        this.audio.setBossIntensity(Boolean(this.activeBoss && !this.activeBoss.defeated));
+      }
       this._recordChronoSnapshot(simDt, false);
 
       // Tempo countdown while attached to a wall (pauses fairly while airborne)
@@ -2158,12 +2270,16 @@
         this.player.updateVisuals(simDt);
 
         if (this.player.positionY < this.highestY) {
+          const prevMeters = this.currentMeters;
           const prevDecade = Math.floor(this.currentMeters / 10);
           this.highestY = this.player.positionY;
           this.currentMeters = Math.max(
             0,
             Math.floor((C.START_PLAYER_Y - this.highestY) / C.PIXELS_PER_METER)
           );
+          if (this.currentMeters > prevMeters) {
+            this._recordMissionProgress('climbMeters', this.currentMeters - prevMeters);
+          }
           if (Math.floor(this.currentMeters / 10) > prevDecade) {
             this.meterMilestonePulse = 1;
           }
@@ -2708,6 +2824,12 @@
       if (this.equippedAbility !== 'angel' || this.angelCharges <= 0) return false;
       if (this.angelReviveAnim || this.chronoRewindAnim) return false;
 
+      const Ab = JellyGame.Abilities;
+      const lvl = this.getAbilityLevel('angel');
+      const spec = Ab && Ab.getAngelSpec
+        ? Ab.getAngelSpec(lvl)
+        : { charges: 1, grantShield: lvl >= 2, rescueLift: 36, invulnSec: 1.5, shockwave: lvl >= 7 };
+
       this.angelCharges -= 1;
       const p = this.player;
       p.cancelAim();
@@ -2718,12 +2840,21 @@
       p.velocityX = 0;
       p.velocityY = 0;
       p.hp = Math.max(1, p.hp);
-      p.invulnTimer = 1.6;
+      p.invulnTimer = spec.invulnSec;
       this.hitStopTimer = 0.06;
-      this.shakeMag = Math.max(this.shakeMag, 6.0);
+      this.shakeMag = Math.max(this.shakeMag, spec.shockwave ? 8.5 : 6.0);
       this.projectiles.length = 0;
 
-      const baseTargetY = isLava ? Math.min(p.positionY, this.risingFloorY - 145) : p.positionY - 36;
+      // Lv 7+ Divine Shockwave pushes back active boss cooldown & blasts golden radiance!
+      if (spec.shockwave && this.activeBoss && !this.activeBoss.defeated) {
+        this.activeBoss.attackTimer = Math.min(this.activeBoss.attackTimer || 0, -1.2);
+        this.activeBoss.wallZap = null;
+      }
+
+      const rescueLift = spec.rescueLift || 36;
+      const baseTargetY = isLava
+        ? Math.min(p.positionY - rescueLift * 0.4, this.risingFloorY - 145 - rescueLift * 0.35)
+        : p.positionY - rescueLift;
       const safeSpot = this._findNearestSafeWallSpot(baseTargetY);
       if (this.gameMode === 'rising') {
         this.risingFloorY = Math.max(this.risingFloorY, safeSpot.y + 150);
@@ -2731,26 +2862,32 @@
 
       if (this.audio.playAngelRevive) this.audio.playAngelRevive();
       else this.audio.playUnlock();
+      if (JellyGame.Haptics) JellyGame.Haptics.revive();
 
-      this._spawnShockwaveRing(p.positionX, p.positionY, 100, '#ffd166', 4.2);
-      this._spawnShockwaveRing(p.positionX, p.positionY, 64, '#fff5bd', 2.5);
-      this.particles.spawnCollectBurst(p.positionX, p.positionY, 4);
+      this._spawnShockwaveRing(p.positionX, p.positionY, spec.shockwave ? 165 : 100, '#ffd166', spec.shockwave ? 5.2 : 4.2);
+      this._spawnShockwaveRing(p.positionX, p.positionY, spec.shockwave ? 112 : 64, '#fff5bd', 2.8);
+      this.particles.spawnCollectBurst(p.positionX, p.positionY, spec.shockwave ? 6 : 4);
       this.particles.spawnFloatingLabel(
         p.positionX,
         p.positionY - 28,
-        this.t().powerTriggerAngel || 'GUARDIAN ANGEL!',
-        '#ffd166',
+        spec.grantShield
+          ? this.t().powerTriggerAngelShield || 'SHIELDED REVIVE!'
+          : this.t().powerTriggerAngel || 'GUARDIAN ANGEL!',
+        spec.grantShield ? '#74f2ff' : '#ffd166',
         16
       );
 
       this.angelReviveAnim = {
         elapsed: 0,
-        duration: 1.15,
+        duration: 1.12,
         startX: p.positionX,
         startY: p.positionY,
         endX: safeSpot.x,
         endY: safeSpot.y,
-        side: safeSpot.side
+        side: safeSpot.side,
+        grantShield: spec.grantShield,
+        invulnSec: spec.invulnSec,
+        shockwave: spec.shockwave
       };
       return true;
     }
@@ -2767,7 +2904,7 @@
 
       this.player.positionX = anim.startX + (anim.endX - anim.startX) * ease;
       this.player.positionY = anim.startY + (anim.endY - anim.startY) * ease + arcLift;
-      this.player.invulnTimer = 1.5;
+      this.player.invulnTimer = anim.invulnSec || 1.5;
 
       if (Math.random() < 0.55) {
         this.particles.spawnSparkBurst(
@@ -2786,12 +2923,17 @@
         this.player.floorAttached = false;
         this.player.velocityX = 0;
         this.player.velocityY = 0;
-        this.player.invulnTimer = 1.5;
+        this.player.invulnTimer = anim.invulnSec || 1.5;
         this.player.hp = Math.max(1, this.player.hp);
+        // Lv 2+ Guardian Angel grants a 1-hit Post-Revive Bubble Shield!
+        if (anim.grantShield) {
+          this.player.hasShield = true;
+          this.audio.playShieldGain();
+        }
         this.tempoTimer = C.TEMPO.WINDOW_SEC;
         this.angelReviveAnim = null;
-        this._spawnShockwaveRing(anim.endX, anim.endY, 84, '#ffd166', 3.4);
-        this._spawnShockwaveRing(anim.endX, anim.endY, 52, '#fff5bd', 2.2);
+        this._spawnShockwaveRing(anim.endX, anim.endY, anim.shockwave ? 116 : 84, anim.grantShield ? '#74f2ff' : '#ffd166', 3.6);
+        this._spawnShockwaveRing(anim.endX, anim.endY, 56, '#fff5bd', 2.4);
       }
     }
 
@@ -2828,9 +2970,12 @@
 
       this.hasLaunchedOnce = true;
       this._recordRunMaxTempo();
+      this._recordMissionProgress('launches', 1);
+      if (this.tempoTier >= 2) this._recordMissionProgress('reachTempo', this.tempoTier);
       this.audio.setMusicContext(this.state, this.gameMode, this.tempoTier);
 
       this.audio.playLaunch(shot.strength, this.tempoTier);
+      if (JellyGame.Haptics) JellyGame.Haptics.launch();
       this.camPunchVx -= shot.dirX * (22 + shot.strength * 30);
       this.camPunchVy -= shot.dirY * (22 + shot.strength * 30);
       this.particles.spawnLaunchBurst(
@@ -2915,6 +3060,9 @@
       }
 
       this.audio.playStick(evt.impactSpeed);
+      if (JellyGame.Haptics) {
+        JellyGame.Haptics.land(clamp(evt.impactSpeed / 1000, 0.2, 1));
+      }
       if (evt.impactSpeed > 900) {
         this.shakeMag = Math.max(this.shakeMag, 2.2);
       }
@@ -3145,8 +3293,10 @@
         this._saveInt(STORAGE_KEYS.GEMS, this.gems);
         this._saveInt(STORAGE_KEYS.TOTAL_CLOSE_CALLS, this.totalCloseCalls);
         this._syncMilestoneUnlocks();
+        this._recordMissionProgress('closeCalls', 1);
         this.slowMoTimer = 0.12;
         this.audio.playCloseCall();
+        if (JellyGame.Haptics) JellyGame.Haptics.closeCall();
         this.particles.spawnFloatingLabel(
           this.player.positionX,
           this.player.positionY - 22,
@@ -3171,6 +3321,7 @@
       this.player.velocityY = isLavaBounce ? -840 : -580;
       this.shakeMag = 5.5;
       this.audio.playShieldBreak();
+      if (JellyGame.Haptics) JellyGame.Haptics.shield();
       this.particles.spawnSparkBurst(
         this.player.positionX,
         this.player.positionY,
@@ -3224,21 +3375,38 @@
 
     _updateAndCheckCollectibles(dt) {
       const items = this.generator.collectibles;
+      const magnetActive = this.magnetTimer > 0;
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.collected) continue;
-        item.update(dt, this.player);
+        item.update(dt, this.player, magnetActive);
         if (item.checkPickup(this.player)) {
           item.collected = true;
           if (item.itemType === 'shield') {
             this.player.hasShield = true;
             this.audio.playShieldGain();
+            if (JellyGame.Haptics) JellyGame.Haptics.shield();
             this.particles.spawnSparkBurst(item.x, item.y, 0, '#74f2ff', 10);
             this.particles.spawnFloatingLabel(
               item.x,
               item.y - 14,
               this.t().shieldGain || 'SHIELD!',
               '#74f2ff',
+              15
+            );
+          } else if (item.itemType === 'magnet') {
+            this.magnetTimer = 7.0;
+            if (this.audio.playMagnetGain) this.audio.playMagnetGain();
+            else this.audio.playShieldGain();
+            if (JellyGame.Haptics) JellyGame.Haptics.shield();
+            this._spawnShockwaveRing(item.x, item.y, 78, '#ff6b81', 3.2);
+            this._spawnShockwaveRing(item.x, item.y, 48, '#ffe875', 2.2);
+            this.particles.spawnSparkBurst(item.x, item.y, 0, '#ffe875', 12);
+            this.particles.spawnFloatingLabel(
+              item.x,
+              item.y - 16,
+              this.t().magnetGain || 'SUPER MAGNET!',
+              '#ffe875',
               15
             );
           } else {
@@ -3249,7 +3417,9 @@
             this.player.wobbleAmp = Math.max(this.player.wobbleAmp, 0.14);
             this.player.wobbleTime = 0;
             this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+            this._recordMissionProgress('collectGems', amount);
             this.audio.playCollect(amount > 1);
+            if (JellyGame.Haptics) JellyGame.Haptics.collect();
             this.particles.spawnCollectBurst(item.x, item.y, amount);
           }
         }
@@ -3459,6 +3629,7 @@
       } else {
         this.hitStopTimer = slamEvt.isCrit ? 0.036 : 0.022;
         this.shakeMag = Math.max(this.shakeMag, slamEvt.isCrit ? 6.0 : 4.2);
+        if (JellyGame.Haptics) JellyGame.Haptics.bossHit(slamEvt.isCrit);
       }
     }
 
@@ -3469,6 +3640,7 @@
 
       this.hitStopTimer = 0.075;
       this.shakeMag = 10.0;
+      if (JellyGame.Haptics) JellyGame.Haptics.revive();
       this.gems += gemsReward;
       this.runGemsEarned += gemsReward;
       this.hudGemPulse = 1;
@@ -3477,6 +3649,9 @@
       this.bossesDefeated += 1;
       this.runBossesDefeated += 1;
       this._saveInt(STORAGE_KEYS.BOSSES_DEFEATED, this.bossesDefeated);
+      this._syncMilestoneUnlocks();
+      this._recordMissionProgress('defeatBoss', 1);
+      if (this.audio.setBossIntensity) this.audio.setBossIntensity(false);
 
       // Normal climb returns to 1 Heart + fresh Bubble Shield bonus
       this.player.maxHp = 1;
@@ -3567,6 +3742,9 @@
         key: atm.dom.key || 'cavern',
         wallStyle: atm.dom.wallStyle || 'stone',
         bgStyle: atm.dom.bgStyle || 'cavern',
+        bgStyleFrom: curr.bgStyle || 'canopy',
+        bgStyleTo: next.bgStyle || curr.bgStyle || 'canopy',
+        bgBlend: t,
         weather: atm.weather,
         bgTop: lerpColor(curr.bgTop, next.bgTop, t),
         bgBottom: lerpColor(curr.bgBottom, next.bgBottom, t),
@@ -3659,10 +3837,78 @@
       this.pointer.isDown = false;
       this.activePointerId = null;
       this.audio.resetStretchTick();
+      if (this.audio.setBossIntensity) this.audio.setBossIntensity(false);
       this.audio.setMusicContext('dead', this.gameMode, 1);
       this.audio.playPop();
+      if (JellyGame.Haptics) JellyGame.Haptics.death();
       this.particles.spawnPopBurst(this.player.positionX, this.player.positionY);
       this._submitCurrentRunScore();
+    }
+
+    async _triggerAdRevive() {
+      const Ads = JellyGame.Ads;
+      if (!Ads || !Ads.canShowRewarded('revive') || this.adReviveUsedThisRun || this.adBusy) return;
+      this.adBusy = true;
+      try {
+        const res = await Ads.showRewarded('revive');
+        if (res && res.rewarded && this.state === 'dead') {
+          this.adReviveUsedThisRun = true;
+          const p = this.player;
+          const safeSpot = this._findNearestSafeWallSpot(p.positionY - 64);
+          this.state = 'playing';
+          this.deathTimer = 0;
+          p.alive = true;
+          p.hp = Math.max(1, p.maxHp || 1);
+          p.hasShield = true;
+          p.invulnTimer = 2.0;
+          p.positionX = safeSpot.x;
+          p.positionY = safeSpot.y;
+          p.wallAttached = safeSpot.side;
+          p.floorAttached = false;
+          p.velocityX = 0;
+          p.velocityY = 0;
+          this.projectiles.length = 0;
+          if (this.gameMode === 'rising') {
+            this.risingFloorY = Math.max(this.risingFloorY, safeSpot.y + 170);
+          }
+          this.audio.setMusicContext('playing', this.gameMode, 1);
+          if (this.audio.playAngelRevive) this.audio.playAngelRevive();
+          if (JellyGame.Haptics) JellyGame.Haptics.revive();
+          this._spawnShockwaveRing(safeSpot.x, safeSpot.y, 92, '#74f2ff', 3.6);
+        }
+      } finally {
+        this.adBusy = false;
+      }
+    }
+
+    async _triggerAdDoubleDrops() {
+      const Ads = JellyGame.Ads;
+      if (
+        !Ads ||
+        !Ads.canShowRewarded('doubleDrops') ||
+        this.adDoubleUsedThisRun ||
+        this.runGemsEarned <= 0 ||
+        this.adBusy
+      ) {
+        return;
+      }
+      this.adBusy = true;
+      try {
+        const res = await Ads.showRewarded('doubleDrops');
+        if (res && res.rewarded && this.state === 'dead') {
+          this.adDoubleUsedThisRun = true;
+          const bonus = this.runGemsEarned;
+          this.gems += bonus;
+          this.runGemsEarned += bonus;
+          this.hudGemPulse = 1;
+          this._saveInt(STORAGE_KEYS.GEMS, this.gems);
+          if (this.audio.playMissionClaim) this.audio.playMissionClaim();
+          else this.audio.playUnlock();
+          if (JellyGame.Haptics) JellyGame.Haptics.closeCall();
+        }
+      } finally {
+        this.adBusy = false;
+      }
     }
 
     render() {
@@ -4431,27 +4677,66 @@
         );
       }
 
-      // Handcrafted painterly biome backdrops (offscreen-cached seamless 720px vista tiles)
-      const bgStyle = theme.bgStyle || 'canopy';
-      const biomeFade =
-        bgStyle === 'canopy'
-          ? 0
-          : bgStyle === 'monolith'
-            ? clamp((camMeters - 102) / 16, 0, 1)
-            : 1;
-      if (biomeFade > 0.01 && Art && Art.drawBiomeBackdrop) {
-        Art.drawBiomeBackdrop(
-          ctx,
-          bgStyle,
-          C.WIDTH,
-          C.HEIGHT,
-          this.padTop,
-          this.padBottom,
-          C.WALL_WIDTH,
-          this.cameraY,
-          this.hintTime,
-          biomeFade
-        );
+      // Handcrafted 3-layer painterly biome backdrops (Sky Anchors -> Grounded Horizon Vistas -> Seamless 720px Architecture)
+      const bgFrom = theme.bgStyleFrom || theme.bgStyle || 'canopy';
+      const bgTo = theme.bgStyleTo || bgFrom;
+      const bgBlend = theme.bgBlend || 0;
+      if (Art && Art.drawBiomeBackdrop) {
+        if (bgFrom !== bgTo && bgBlend > 0.005) {
+          if (bgFrom !== 'canopy') {
+            Art.drawBiomeBackdrop(
+              ctx,
+              bgFrom,
+              C.WIDTH,
+              C.HEIGHT,
+              this.padTop,
+              this.padBottom,
+              C.WALL_WIDTH,
+              this.cameraY,
+              this.hintTime,
+              1 - bgBlend,
+              camMeters
+            );
+          }
+          if (bgTo !== 'canopy') {
+            Art.drawBiomeBackdrop(
+              ctx,
+              bgTo,
+              C.WIDTH,
+              C.HEIGHT,
+              this.padTop,
+              this.padBottom,
+              C.WALL_WIDTH,
+              this.cameraY,
+              this.hintTime,
+              bgBlend,
+              camMeters
+            );
+          }
+        } else {
+          const activeBg = bgFrom;
+          const biomeFade =
+            activeBg === 'canopy'
+              ? 0
+              : activeBg === 'monolith'
+                ? clamp((camMeters - 102) / 16, 0, 1)
+                : 1;
+          if (biomeFade > 0.01) {
+            Art.drawBiomeBackdrop(
+              ctx,
+              activeBg,
+              C.WIDTH,
+              C.HEIGHT,
+              this.padTop,
+              this.padBottom,
+              C.WALL_WIDTH,
+              this.cameraY,
+              this.hintTime,
+              biomeFade,
+              camMeters
+            );
+          }
+        }
       }
 
       // Ambient drifting biome weather: spores (0-120m) -> snow (frost) -> embers (foundry) -> rain (storm) -> stars (cosmos)
@@ -6073,7 +6358,7 @@
       this._fillViewportRect(ctx);
 
       const panelW = 364;
-      const panelH = 398;
+      const panelH = 458;
       const panelX = (C.WIDTH - panelW) * 0.5;
       const panelY = (C.HEIGHT - panelH) * 0.5;
       this.uiRects.modalPanel = { x: panelX, y: panelY, w: panelW, h: panelH };
@@ -6193,21 +6478,21 @@
       ctx.textAlign = 'right';
       ctx.fillText(`${Math.round(effMusicRatio * 100)}%`, segX + segW - 2, row2Y + 0.5);
 
-      // Row 3: Language well + comic globe icon
+      // Row 3: Haptics / Vibration well + comic pulse icon
       const row3Y = panelY + 222;
       if (Art) {
         Art.drawCartoonCard(ctx, panelX + 18, row3Y - 25, panelW - 36, 50, 'cream', 16);
       }
 
-      this._drawGlobeIcon(ctx, panelX + 42, row3Y);
+      this._drawHapticsIcon(ctx, panelX + 42, row3Y, this.hapticsEnabled);
 
       ctx.textAlign = 'left';
       ctx.fillStyle = ink;
       ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(tr.language || 'Language', panelX + 64, row3Y + 0.5);
+      ctx.fillText(tr.haptics || 'Haptics', panelX + 64, row3Y + 0.5);
 
-      this.uiRects.langEnBtn = { x: segX, y: row3Y - segH * 0.5, w: segW * 0.5, h: segH };
-      this.uiRects.langTrBtn = { x: segX + segW * 0.5, y: row3Y - segH * 0.5, w: segW * 0.5, h: segH };
+      this.uiRects.hapticsOnBtn = { x: segX, y: row3Y - segH * 0.5, w: segW * 0.5, h: segH };
+      this.uiRects.hapticsOffBtn = { x: segX + segW * 0.5, y: row3Y - segH * 0.5, w: segW * 0.5, h: segH };
 
       this._drawSegmentedControl(
         ctx,
@@ -6215,13 +6500,40 @@
         row3Y - segH * 0.5,
         segW,
         segH,
+        tr.on || 'ON',
+        tr.off || 'OFF',
+        this.hapticsEnabled
+      );
+
+      // Row 4: Language well + comic globe icon
+      const row4Y = panelY + 284;
+      if (Art) {
+        Art.drawCartoonCard(ctx, panelX + 18, row4Y - 25, panelW - 36, 50, 'cream', 16);
+      }
+
+      this._drawGlobeIcon(ctx, panelX + 42, row4Y);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = ink;
+      ctx.font = `700 14.5px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(tr.language || 'Language', panelX + 64, row4Y + 0.5);
+
+      this.uiRects.langEnBtn = { x: segX, y: row4Y - segH * 0.5, w: segW * 0.5, h: segH };
+      this.uiRects.langTrBtn = { x: segX + segW * 0.5, y: row4Y - segH * 0.5, w: segW * 0.5, h: segH };
+
+      this._drawSegmentedControl(
+        ctx,
+        segX,
+        row4Y - segH * 0.5,
+        segW,
+        segH,
         'English',
         'Türkçe',
         this.lang === 'en'
       );
 
-      // Row 4: Play Store Compliance — Privacy & Terms + Data Reset cartoon buttons
-      const btnY = panelY + 278;
+      // Row 5: Play Store Compliance — Privacy & Terms + Data Reset cartoon buttons
+      const btnY = panelY + 340;
       const btnH = 42;
       const gap = 10;
       const halfBtnW = (panelW - 36 - gap) * 0.5;
@@ -6251,11 +6563,11 @@
       if (this.resetStatusMsg) {
         ctx.fillStyle = '#6affc9';
         ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
-        ctx.fillText(this.resetStatusMsg, C.WIDTH * 0.5, panelY + 354);
+        ctx.fillText(this.resetStatusMsg, C.WIDTH * 0.5, panelY + 416);
       } else {
         ctx.fillStyle = 'rgba(255, 248, 235, 0.56)';
         ctx.font = `600 11.5px ${C.FONTS.DISPLAY}`;
-        ctx.fillText('Jelly Climb v1.2.2', C.WIDTH * 0.5, panelY + 356);
+        ctx.fillText('Jelly Climb v1.3.0', C.WIDTH * 0.5, panelY + 418);
       }
 
       ctx.restore();
@@ -6599,6 +6911,35 @@
       }
     }
 
+    _drawHapticsIcon(ctx, x, y, isOn) {
+      const ink = '#1b1136';
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = isOn ? '#ffd147' : '#b8b0cc';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, -6, -9.5, 12, 19, 3.2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = isOn ? '#36f5b0' : '#7b7096';
+      roundRectPath(ctx, -3.8, -6.5, 7.6, 11, 1.5);
+      ctx.fill();
+
+      if (isOn) {
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(side * 9.5, -5.5);
+          ctx.quadraticCurveTo(side * 12, 0, side * 9.5, 5.5);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
     _drawSegmentedControl(ctx, x, y, w, h, leftLabel, rightLabel, isLeftActive) {
       const Art = JellyGame.Art;
       const ink = (Art && Art.PALETTE.INK) || '#1b1136';
@@ -6801,6 +7142,55 @@
           nextCol,
           pillW - 14
         );
+      }
+
+      // Active Super Magnet power-up countdown pill + pulsing magnetic halo around player
+      if (this.state === 'playing' && this.magnetTimer > 0) {
+        const mRatio = clamp(this.magnetTimer / 7.0, 0, 1);
+        const mpW = 114;
+        const mpH = 22;
+        const mpX = (C.WIDTH - mpW) * 0.5;
+        const mpY = (activeBest > 0 ? 94 : 80);
+
+        ctx.fillStyle = ink;
+        roundRectPath(ctx, mpX, mpY + 2, mpW, mpH, 11);
+        ctx.fill();
+
+        ctx.fillStyle = '#2d1448';
+        ctx.strokeStyle = '#ff6b81';
+        ctx.lineWidth = 2;
+        roundRectPath(ctx, mpX, mpY, mpW, mpH, 11);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 107, 129, 0.36)';
+        roundRectPath(ctx, mpX + 2, mpY + 2, (mpW - 4) * mRatio, mpH - 4, 9);
+        ctx.fill();
+
+        ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+        this._drawUiRow(
+          ctx,
+          [
+            { icon: 'spark', r: 4.2, color: '#ffe875', gap: 4 },
+            { text: `${this.magnetTimer.toFixed(1)}s`, color: '#fff8eb' }
+          ],
+          C.WIDTH * 0.5,
+          mpY + mpH * 0.5 + 0.5,
+          'center',
+          '#fff8eb',
+          mpW - 12
+        );
+
+        // Subtle magnetic ripple ring around Jelly in world coordinates
+        const pSy = this.player.positionY - this.cameraY;
+        const pulseR = 30 + ((this.hintTime * 55) % 34);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 224, 110, 0.42)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.player.positionX, pSy, pulseR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       }
 
       // Top-right tactile collectible & avatar capsule (bounces on pickup!)
@@ -7305,7 +7695,7 @@
 
     _drawRewardToast(ctx) {
       const toast = this.rewardToast;
-      if (!toast || !toast.accessory) return;
+      if (!toast || (!toast.accessory && toast.kind !== 'mission')) return;
       const tr = this.t();
       const Art = JellyGame.Art;
       const ink = (Art && Art.PALETTE.INK) || '#1b1136';
@@ -7328,16 +7718,32 @@
         Art.drawCartoonCard(ctx, x, y, w, h, 'gold', 27);
       }
 
-      this._drawMiniJellyPreview(ctx, x + 30, y + h * 0.5, 14, toast.accessory.id);
+      let headLabel = `${tr.rewardUnlockedToast || 'UNLOCKED'}!`;
+      let bodyLabel = '';
+      if (toast.kind === 'mission' && toast.mission) {
+        headLabel = tr.missionCompletedToast || 'DAILY MISSION DONE!';
+        const tpl = (tr.missionLabels && tr.missionLabels[toast.mission.type]) || toast.mission.type;
+        bodyLabel = tpl.replace('{n}', String(toast.mission.target));
+        // Cozy star-check medallion on left
+        ctx.fillStyle = '#15c98a';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(x + 30, y + h * 0.5, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        this._drawUiIcon(ctx, 'check', x + 30, y + h * 0.5, 6.5, ink);
+      } else {
+        this._drawMiniJellyPreview(ctx, x + 30, y + h * 0.5, 14, toast.accessory.id);
+        bodyLabel = (tr.accNames && tr.accNames[toast.accessory.id]) || toast.accessory.name;
+      }
 
-      const accName =
-        (tr.accNames && tr.accNames[toast.accessory.id]) || toast.accessory.name;
       ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
       this._drawUiRow(
         ctx,
         [
           { icon: 'trophy', r: 4.8, color: '#ff9f1c', gap: 5 },
-          { text: `${tr.rewardUnlockedToast || 'UNLOCKED'}!`, color: '#b0390c' }
+          { text: headLabel, color: '#b0390c' }
         ],
         x + 54,
         y + 17.5,
@@ -7348,8 +7754,8 @@
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = ink;
-      ctx.font = `700 13.5px ${C.FONTS.DISPLAY}`;
-      ctx.fillText(accName, x + 54, y + 36);
+      ctx.font = `700 13px ${C.FONTS.DISPLAY}`;
+      ctx.fillText(bodyLabel, x + 54, y + 36, w - 128);
 
       if (toast.bonusDrops > 0) {
         ctx.fillStyle = ink;
@@ -7386,10 +7792,26 @@
       ctx.fillStyle = 'rgba(17, 10, 38, 0.72)';
       this._fillViewportRect(ctx);
 
+      const Ads = JellyGame.Ads;
+      const showAdRevive = Boolean(
+        Ads && Ads.isEnabled() && Ads.canShowRewarded('revive') && !this.adReviveUsedThisRun
+      );
+      const showAdDouble = Boolean(
+        Ads &&
+          Ads.isEnabled() &&
+          Ads.canShowRewarded('doubleDrops') &&
+          !this.adDoubleUsedThisRun &&
+          this.runGemsEarned > 0
+      );
+      const hasAdRow = showAdRevive || showAdDouble;
+      const adExtraH = hasAdRow ? 50 : 0;
+      this.uiRects.deathAdReviveBtn = null;
+      this.uiRects.deathAdDoubleBtn = null;
+
       const cardW = 318;
-      const cardH = 310;
+      const cardH = 310 + adExtraH;
       const cardX = (C.WIDTH - cardW) * 0.5;
-      const cardY = C.HEIGHT * 0.285;
+      const cardY = C.HEIGHT * 0.285 - adExtraH * 0.4;
 
       ctx.translate(C.WIDTH * 0.5, cardY + cardH * 0.5);
       ctx.scale(scale, scale);
@@ -7452,11 +7874,48 @@
             ];
       this._drawUiRow(ctx, runStatParts, C.WIDTH * 0.5, cardY + 110, 'center', ink, 250);
 
-      // Primary Tactile PLAY AGAIN Cushion Button
+      // Optional Dormant Rewarded Ad Row (strictly hidden unless JellyGame.Ads.CONFIG.ENABLED === true)
       const btnW = 258;
-      const btnH = 50;
       const btnX = (C.WIDTH - btnW) * 0.5;
-      const retryY = cardY + 146;
+      let nextBtnY = cardY + 146;
+      if (hasAdRow) {
+        const adH = 40;
+        const adGap = 8;
+        if (showAdRevive && showAdDouble) {
+          const hw = (btnW - adGap) * 0.5;
+          this.uiRects.deathAdReviveBtn = { x: btnX, y: nextBtnY, w: hw, h: adH };
+          this.uiRects.deathAdDoubleBtn = { x: btnX + hw + adGap, y: nextBtnY, w: hw, h: adH };
+          if (Art) {
+            Art.drawCartoonButton(ctx, btnX, nextBtnY, hw, adH, 'gold', 18);
+            Art.drawCartoonButton(ctx, btnX + hw + adGap, nextBtnY, hw, adH, 'orange', 18);
+          }
+          ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = ink;
+          ctx.fillText(tr.adReviveBtn || 'REVIVE (AD)', btnX + hw * 0.5, nextBtnY + adH * 0.5 + 0.5, hw - 10);
+          ctx.fillText(tr.adDoubleBtn || '2X DROPS (AD)', btnX + hw + adGap + hw * 0.5, nextBtnY + adH * 0.5 + 0.5, hw - 10);
+        } else {
+          const isRev = showAdRevive;
+          if (isRev) this.uiRects.deathAdReviveBtn = { x: btnX, y: nextBtnY, w: btnW, h: adH };
+          else this.uiRects.deathAdDoubleBtn = { x: btnX, y: nextBtnY, w: btnW, h: adH };
+          if (Art) {
+            Art.drawCartoonButton(ctx, btnX, nextBtnY, btnW, adH, isRev ? 'gold' : 'orange', 18);
+          }
+          ctx.font = `700 12.5px ${C.FONTS.DISPLAY}`;
+          ctx.textAlign = 'center';
+          ctx.fillStyle = ink;
+          ctx.fillText(
+            isRev ? tr.adReviveBtn || 'REVIVE (AD)' : tr.adDoubleBtn || '2X DROPS (AD)',
+            C.WIDTH * 0.5,
+            nextBtnY + adH * 0.5 + 0.5
+          );
+        }
+        nextBtnY += adH + 10;
+      }
+
+      // Primary Tactile PLAY AGAIN Cushion Button
+      const btnH = 50;
+      const retryY = nextBtnY;
       this.uiRects.retryBtn = { x: btnX, y: retryY, w: btnW, h: btnH };
 
       if (Art) {
@@ -7477,7 +7936,7 @@
       );
 
       // Secondary Tactile Action Row: Accessories (left) & Leaderboard (right)
-      const shopY = cardY + 208;
+      const shopY = retryY + 62;
       const shopH = 42;
       const halfGap = 10;
       const halfW = (btnW - halfGap) * 0.5;
@@ -7530,7 +7989,7 @@
       );
 
       // Quiet Tactile Menu Pill
-      const menuY = cardY + 260;
+      const menuY = shopY + 52;
       const menuH = 34;
       this.uiRects.deathMenuBtn = { x: btnX, y: menuY, w: btnW, h: menuH };
 
@@ -7718,12 +8177,13 @@
       const swStartX = stageX + 114;
       const swY = stageY + 61;
       const swSpacing = 48;
+      const hasBodySkin = Boolean(this.equippedSlots && this.equippedSlots.skin && this.equippedSlots.skin !== 'none');
 
       for (let i = 0; i < colors.length; i++) {
         const col = colors[i];
         const sx = swStartX + i * swSpacing;
         const unlocked = this.unlockedColors.has(col.id);
-        const equipped = this.equippedColor === col.id;
+        const equipped = !hasBodySkin && this.equippedColor === col.id;
         this.uiRects.colorSwatches.push({
           color: col,
           rect: { x: sx - 18, y: swY - 18, w: 36, h: 38 }
@@ -7820,7 +8280,8 @@
           ctx.fillText(tb.label, tx + oneTabW * 0.5, tabBarY + (tabH - 2) * 0.5 + (isOn ? 0.5 : 2), oneTabW - 6);
         }
 
-        if (tb.key === 'rewards' && this.unseenRewards.size > 0 && !isOn) {
+        const unclaimedMissions = JellyGame.Missions ? JellyGame.Missions.getUnclaimedCount() : 0;
+        if (tb.key === 'rewards' && (this.unseenRewards.size > 0 || unclaimedMissions > 0) && !isOn) {
           ctx.fillStyle = '#ff4757';
           ctx.strokeStyle = ink;
           ctx.lineWidth = 1.4;
@@ -7860,6 +8321,7 @@
       this.uiRects.wardrobeWell = { x: wellX, y: wellY, w: wellW, h: wellH };
       this.uiRects.shopCards = [];
       this.uiRects.powerCards = [];
+      this.uiRects.missionClaimBtns = [];
 
       ctx.fillStyle = '#191138';
       ctx.strokeStyle = ink;
@@ -7914,7 +8376,15 @@
       const cardW = (wellW - padX * 2 - gapX) / cols;
       const cardH = 124;
       const rows = Math.ceil(tabItems.length / cols);
-      const totalH = rows * cardH + Math.max(0, rows - 1) * gapY + padY * 2;
+
+      const dailyList =
+        isRewardsTab && JellyGame.Missions ? JellyGame.Missions.getMissions() : [];
+      const mRowH = 48;
+      const mGap = 7;
+      const missionsBlockH =
+        dailyList.length > 0 ? 22 + dailyList.length * mRowH + (dailyList.length - 1) * mGap + 28 : 0;
+
+      const totalH = missionsBlockH + rows * cardH + Math.max(0, rows - 1) * gapY + padY * 2;
       const maxScroll = Math.max(0, totalH - wellH);
       if (this.wardrobeScrollY > maxScroll) this.wardrobeScrollY = maxScroll;
       if (this.wardrobeScrollY < 0) this.wardrobeScrollY = 0;
@@ -7923,12 +8393,155 @@
       roundRectPath(ctx, wellX + 2, wellY + 2, wellW - 4, wellH - 4, 16);
       if (typeof ctx.clip === 'function') ctx.clip();
 
+      // Section 1 (GOALS tab): Daily 3 Mini Missions with one-tap Claim buttons
+      if (dailyList.length > 0) {
+        let curY = wellY + padY - this.wardrobeScrollY;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffe875';
+        ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(tr.dailyMissionsTitle || 'DAILY MISSIONS', wellX + padX + 2, curY + 8);
+        curY += 22;
+
+        const mW = wellW - padX * 2;
+        for (let i = 0; i < dailyList.length; i++) {
+          const m = dailyList[i];
+          const done = m.progress >= m.target;
+          const claimable = done && !m.claimed;
+          if (curY + mRowH >= wellY && curY <= wellY + wellH) {
+            if (Art) {
+              Art.drawCartoonCard(
+                ctx,
+                wellX + padX,
+                curY,
+                mW,
+                mRowH,
+                m.claimed ? 'mint' : claimable ? 'gold' : 'cream',
+                14
+              );
+            }
+
+            // Left cartoon icon badge
+            const icX = wellX + padX + 20;
+            const icY = curY + mRowH * 0.5;
+            ctx.fillStyle = '#253978';
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(icX, icY, 13, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            this._drawUiIcon(ctx, m.icon || 'star', icX, icY, 5.2, '#ffe875');
+
+            // Mission text + progress bar
+            const tpl = (tr.missionLabels && tr.missionLabels[m.type]) || m.type;
+            const mText = tpl.replace('{n}', String(m.target));
+            const txtX = wellX + padX + 40;
+            const btnW = 76;
+            const barW = mW - 40 - btnW - 14;
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = ink;
+            ctx.font = `700 11.5px ${C.FONTS.DISPLAY}`;
+            ctx.fillText(mText, txtX, curY + 15.5, barW);
+
+            // Progress bar track
+            const barY = curY + 29;
+            ctx.fillStyle = 'rgba(27, 17, 54, 0.16)';
+            roundRectPath(ctx, txtX, barY, barW - 36, 8, 4);
+            ctx.fill();
+            const ratio = clamp(m.progress / Math.max(1, m.target), 0, 1);
+            if (ratio > 0) {
+              ctx.fillStyle = done ? '#15c98a' : '#ff9f1c';
+              roundRectPath(ctx, txtX, barY, Math.max(6, (barW - 36) * ratio), 8, 4);
+              ctx.fill();
+            }
+            ctx.fillStyle = '#5a4a82';
+            ctx.font = `700 9.5px ${C.FONTS.DISPLAY}`;
+            ctx.textAlign = 'right';
+            ctx.fillText(`${Math.min(m.progress, m.target)}/${m.target}`, txtX + barW, barY + 4.5);
+
+            // Right Claim / Reward pill
+            const bx = wellX + padX + mW - btnW - 7;
+            const by = curY + 9;
+            const bh = mRowH - 18;
+            if (claimable) {
+              if (Art) Art.drawCartoonButton(ctx, bx, by, btnW, bh, 'green', 12);
+              ctx.font = `700 10.5px ${C.FONTS.DISPLAY}`;
+              this._drawUiRow(
+                ctx,
+                [
+                  { text: `${tr.missionClaim || 'CLAIM'}`, color: ink, gap: 3 },
+                  { text: `+${m.reward}`, color: ink }
+                ],
+                bx + btnW * 0.5,
+                by + bh * 0.5 + 0.5,
+                'center',
+                ink,
+                btnW - 8
+              );
+              this.uiRects.missionClaimBtns.push({
+                missionId: m.id,
+                rect: { x: bx, y: by, w: btnW, h: bh }
+              });
+            } else if (m.claimed) {
+              ctx.fillStyle = 'rgba(9, 117, 80, 0.16)';
+              ctx.strokeStyle = '#097550';
+              ctx.lineWidth = 1.6;
+              roundRectPath(ctx, bx, by, btnW, bh, 12);
+              ctx.fill();
+              ctx.stroke();
+              ctx.font = `700 10px ${C.FONTS.DISPLAY}`;
+              this._drawUiRow(
+                ctx,
+                [
+                  { icon: 'check', r: 4, color: '#097550', gap: 3 },
+                  { text: tr.missionDone || 'DONE', color: '#097550' }
+                ],
+                bx + btnW * 0.5,
+                by + bh * 0.5 + 0.5,
+                'center',
+                '#097550'
+              );
+            } else {
+              ctx.fillStyle = '#fff2c2';
+              ctx.strokeStyle = ink;
+              ctx.lineWidth = 1.6;
+              roundRectPath(ctx, bx, by, btnW, bh, 12);
+              ctx.fill();
+              ctx.stroke();
+              ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+              this._drawUiRow(
+                ctx,
+                [
+                  { text: `+${m.reward}`, color: '#b0390c', gap: 3 },
+                  { icon: 'gem', r: 4 }
+                ],
+                bx + btnW * 0.5,
+                by + bh * 0.5 + 0.5,
+                'center',
+                '#b0390c'
+              );
+            }
+          }
+          curY += mRowH + mGap;
+        }
+
+        // Section 2 header divider: Milestone Rewards
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffe875';
+        ctx.font = `700 11px ${C.FONTS.DISPLAY}`;
+        ctx.fillText(tr.milestonesSectionTitle || 'MILESTONE REWARDS', wellX + padX + 2, curY + 9);
+      }
+
       for (let i = 0; i < tabItems.length; i++) {
         const acc = tabItems[i];
         const col = i % cols;
         const row = Math.floor(i / cols);
         const cx = wellX + padX + col * (cardW + gapX);
-        const cy = wellY + padY + row * (cardH + gapY) - this.wardrobeScrollY;
+        const cy = wellY + padY + missionsBlockH + row * (cardH + gapY) - this.wardrobeScrollY;
 
         if (cy + cardH < wellY || cy > wellY + wellH) continue;
 
@@ -8027,13 +8640,19 @@
       ctx.font = `600 9.5px ${C.FONTS.UI}`;
       ctx.fillText(pDesc, cx + 10, cy + 79, cardW - 20);
 
-      // Cooldown / Charges Progression Line
+      // Cooldown / Charges & Meaningful Per-Level Perk Progression Line
       let statText = '';
       if (ab.id === 'angel') {
-        const curCh = Ab.getCharges('angel', Math.max(1, lvl));
-        const unit = curCh > 1 ? tr.powerRevivesUnit || 'revives' : tr.powerReviveUnit || 'revive';
-        const nextMilestone = lvl < 5 ? 'Lv.5 → 2' : lvl < 10 ? 'Lv.10 → 3' : tr.powerMaxed || 'MAX';
-        statText = `${curCh} ${unit} • ${nextMilestone}`;
+        const spec = Ab && Ab.getAngelSpec ? Ab.getAngelSpec(Math.max(1, lvl)) : { charges: 1, grantShield: false, shockwave: false };
+        const unit = spec.charges > 1 ? tr.powerRevivesUnit || 'revives' : tr.powerReviveUnit || 'revive';
+        let curSummary = `${spec.charges} ${unit}`;
+        if (lvl >= 2 && spec.grantShield) curSummary += tr.angelTagShield || '+Shield';
+        if (lvl >= 7 && spec.shockwave) curSummary += tr.angelTagWave || '+Wave';
+        const nextPerk =
+          lvl >= 10
+            ? tr.powerMaxed || 'MAX'
+            : (tr.angelNextPerks && tr.angelNextPerks[Math.max(2, lvl + 1)]) || `Lv.${lvl + 1}`;
+        statText = lvl >= 10 ? `${curSummary} • MAX` : `${curSummary} • ${nextPerk}`;
       } else {
         const curCd = Ab.getCooldown(ab.id, Math.max(1, lvl));
         const nxtCd = lvl > 0 && lvl < 10 ? Ab.getCooldown(ab.id, lvl + 1) : null;
@@ -8968,7 +9587,12 @@
         ctx.restore();
       }
 
-      // Cel-shaded cartoon Jelly body with thick ink outline
+      const activeSkin =
+        JellyGame.Accessories && JellyGame.Accessories.getActiveSkin && accessoryId && accessoryId !== 'none'
+          ? JellyGame.Accessories.getActiveSkin(accessoryId)
+          : null;
+
+      // Cel-shaded cartoon Jelly (or Sport Ball Skin!) body with thick ink outline
       ctx.fillStyle = pal.primary;
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -8979,21 +9603,25 @@
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       if (typeof ctx.clip === 'function') ctx.clip();
 
-      ctx.fillStyle = pal.light;
-      ctx.beginPath();
-      ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.72, r * 0.56, -0.35, 0, Math.PI * 2);
-      ctx.fill();
+      if (activeSkin && JellyGame.Accessories.drawBodySkin) {
+        JellyGame.Accessories.drawBodySkin(ctx, activeSkin, r, false);
+      } else {
+        ctx.fillStyle = pal.light;
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.72, r * 0.56, -0.35, 0, Math.PI * 2);
+        ctx.fill();
 
-      ctx.fillStyle = pal.primary;
-      ctx.beginPath();
-      ctx.ellipse(-r * 0.08, -r * 0.1, r * 0.88, r * 0.78, -0.25, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.fillStyle = pal.primary;
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.08, -r * 0.1, r * 0.88, r * 0.78, -0.25, 0, Math.PI * 2);
+        ctx.fill();
 
-      ctx.fillStyle = pal.secondary;
-      ctx.beginPath();
-      ctx.arc(r * 0.34, r * 0.38, r * 0.98, 0, Math.PI * 2);
-      ctx.arc(-r * 0.16, -r * 0.2, r * 0.82, 0, Math.PI * 2, true);
-      ctx.fill();
+        ctx.fillStyle = pal.secondary;
+        ctx.beginPath();
+        ctx.arc(r * 0.34, r * 0.38, r * 0.98, 0, Math.PI * 2);
+        ctx.arc(-r * 0.16, -r * 0.2, r * 0.82, 0, Math.PI * 2, true);
+        ctx.fill();
+      }
       ctx.restore();
 
       ctx.strokeStyle = ink;
@@ -9012,21 +9640,38 @@
       ctx.fill();
 
       // Cute comic eyes, cheeks, brows & smile scaled cleanly to preview size
+      const isDarkSkin = activeSkin === 'eightBall';
+      const faceInk = isDarkSkin ? '#fff8eb' : ink;
       ctx.save();
       ctx.scale(eyeScale, eyeScale);
       for (const side of [-1, 1]) {
         const ex = side * 5.3;
-        ctx.fillStyle = ink;
-        ctx.beginPath();
-        ctx.arc(ex, 0.4, 2.9, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(ex - 0.9, -0.5, 1.05, 0, Math.PI * 2);
-        ctx.fill();
+        if (isDarkSkin) {
+          ctx.fillStyle = '#fffdf7';
+          ctx.beginPath();
+          ctx.arc(ex, 0.4, 3.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = ink;
+          ctx.beginPath();
+          ctx.arc(ex, 0.4, 1.75, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(ex - 0.65, -0.45, 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = ink;
+          ctx.beginPath();
+          ctx.arc(ex, 0.4, 2.9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(ex - 0.9, -0.5, 1.05, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         if (determined) {
-          ctx.strokeStyle = ink;
+          ctx.strokeStyle = faceInk;
           ctx.lineWidth = 2.0;
           ctx.lineCap = 'round';
           ctx.beginPath();
@@ -9036,13 +9681,13 @@
         }
       }
 
-      ctx.fillStyle = 'rgba(255, 118, 150, 0.35)';
+      ctx.fillStyle = isDarkSkin ? 'rgba(255, 118, 150, 0.52)' : 'rgba(255, 118, 150, 0.35)';
       ctx.beginPath();
       ctx.ellipse(-8.2, 3.2, 2.2, 1.2, 0, 0, Math.PI * 2);
       ctx.ellipse(8.2, 3.2, 2.2, 1.2, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = ink;
+      ctx.strokeStyle = faceInk;
       ctx.lineWidth = 1.8;
       ctx.lineCap = 'round';
       if (determined) {

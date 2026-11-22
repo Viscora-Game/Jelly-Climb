@@ -44,9 +44,15 @@
       maxLevel: 10,
       primaryColor: '#ffd166',
       accentColor: '#fff3b0',
-      unlockCost: 350,
-      upgradeCosts: Object.freeze([220, 300, 400, 550, 650, 700, 900, 1150, 1600]),
-      chargesByLevel: Object.freeze([1, 1, 1, 1, 2, 2, 2, 2, 2, 3])
+      unlockCost: 300,
+      upgradeCosts: Object.freeze([140, 195, 260, 340, 440, 560, 700, 880, 1100]),
+      chargesByLevel: Object.freeze([1, 1, 1, 1, 2, 2, 2, 2, 2, 3]),
+      // Meaningful per-level progression: Lv 2+ grants 1-hit Post-Revive Shield,
+      // higher rescue ascent, longer grace invulnerability, and Lv 7+ Divine Shockwave!
+      shieldOnReviveByLevel: Object.freeze([false, true, true, true, true, true, true, true, true, true]),
+      rescueLiftByLevel: Object.freeze([36, 52, 92, 128, 140, 178, 192, 224, 258, 296]),
+      invulnSecByLevel: Object.freeze([1.4, 1.6, 1.9, 2.3, 2.5, 2.8, 3.1, 3.4, 3.7, 4.2]),
+      shockwaveByLevel: Object.freeze([false, false, false, false, false, false, true, true, true, true])
     }
   ]);
 
@@ -78,6 +84,22 @@
     if (lvl <= 0) return 0;
     const idx = Math.max(0, Math.min(def.chargesByLevel.length - 1, lvl - 1));
     return def.chargesByLevel[idx];
+  }
+
+  function getAngelSpec(level) {
+    const def = getById('angel');
+    const lvl = clampLevel(level);
+    if (!def || lvl <= 0) {
+      return { charges: 0, grantShield: false, rescueLift: 36, invulnSec: 1.4, shockwave: false };
+    }
+    const idx = Math.max(0, Math.min(9, lvl - 1));
+    return {
+      charges: def.chargesByLevel ? def.chargesByLevel[idx] : 1,
+      grantShield: Boolean(def.shieldOnReviveByLevel && def.shieldOnReviveByLevel[idx]),
+      rescueLift: def.rescueLiftByLevel ? def.rescueLiftByLevel[idx] : 36,
+      invulnSec: def.invulnSecByLevel ? def.invulnSecByLevel[idx] : 1.5,
+      shockwave: Boolean(def.shockwaveByLevel && def.shockwaveByLevel[idx])
+    };
   }
 
   function getNextUpgradeCost(id, currentLevel) {
@@ -261,6 +283,7 @@
     clampLevel,
     getCooldown,
     getCharges,
+    getAngelSpec,
     getNextUpgradeCost,
     drawIcon
   });

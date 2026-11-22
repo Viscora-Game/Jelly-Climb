@@ -1922,11 +1922,27 @@
   }
 
   // ============================================================================
-  // HANDCRAFTED PAINTERLY BIOME BACKDROP TILES (Offscreen Cached, Seamless 720px)
+  // HANDCRAFTED PAINTERLY 3-LAYER BIOME BACKDROPS (Zero Floating Objects!)
+  //   Layer 1: Sky-fixed celestial bodies & atmosphere (never repeats vertically)
+  //   Layer 2: Non-repeating biome-entry horizon vistas (scroll out cleanly as you climb)
+  //   Layer 3: Seamless 450x720 offscreen tile — strictly wall-rooted or 0..720 continuous
   // ============================================================================
   const BIOME_TILE_W = 450;
   const BIOME_TILE_H = 720;
   const _biomeTileCache = Object.create(null);
+  let _cosmosPlanetCache = null;
+  let _cosmosMoonCache = null;
+
+  const BIOME_BASE_METERS = Object.freeze({
+    monolith: 115,
+    slime: 250,
+    desert: 500,
+    foundry: 800,
+    frost: 1150,
+    storm: 1550,
+    cosmos: 2000,
+    heaven: 2500
+  });
 
   /**
    * Draws a soft organic multi-puff cartoon cloud silhouette with directional shading
@@ -2147,7 +2163,648 @@
   }
 
   /**
-   * Builds and caches a seamless 450x720 painterly offscreen backdrop tile for a given biome style.
+   * Paints a solid, sculpted rocky cave shelf jutting out from either the left (side = -1)
+   * or right (side = 1) canyon wall so mushrooms, runes, or hanging flora visibly grow ON stone.
+   */
+  function paintCavernRockShelf(ctx, wallW, side, shelfY, reachW, thickness, topCol, bodyCol, rimCol, deepCol = 'rgba(6, 28, 26, 0.92)') {
+    const W = BIOME_TILE_W;
+    ctx.save();
+    if (side < 0) {
+      const x0 = wallW - 4;
+      const tipX = wallW + reachW;
+      const g = ctx.createLinearGradient(x0, shelfY, x0, shelfY + thickness);
+      g.addColorStop(0, topCol);
+      g.addColorStop(0.35, bodyCol);
+      g.addColorStop(1, deepCol);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x0, shelfY - 6);
+      ctx.quadraticCurveTo(x0 + reachW * 0.55, shelfY - 3, tipX, shelfY + 5);
+      ctx.quadraticCurveTo(tipX + 4, shelfY + 15, tipX - 10, shelfY + 22);
+      ctx.quadraticCurveTo(x0 + reachW * 0.52, shelfY + thickness * 0.62, x0 + reachW * 0.22, shelfY + thickness);
+      ctx.lineTo(x0, shelfY + thickness + 10);
+      ctx.closePath();
+      ctx.fill();
+
+      // Sunlit / mossy upper crust rim
+      ctx.strokeStyle = rimCol;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x0 + 4, shelfY - 4);
+      ctx.quadraticCurveTo(x0 + reachW * 0.55, shelfY - 1, tipX - 2, shelfY + 6);
+      ctx.stroke();
+    } else {
+      const x0 = W - wallW + 4;
+      const tipX = W - wallW - reachW;
+      const g = ctx.createLinearGradient(x0, shelfY, x0, shelfY + thickness);
+      g.addColorStop(0, topCol);
+      g.addColorStop(0.35, bodyCol);
+      g.addColorStop(1, deepCol);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x0, shelfY - 6);
+      ctx.quadraticCurveTo(x0 - reachW * 0.55, shelfY - 3, tipX, shelfY + 5);
+      ctx.quadraticCurveTo(tipX - 4, shelfY + 15, tipX + 10, shelfY + 22);
+      ctx.quadraticCurveTo(x0 - reachW * 0.52, shelfY + thickness * 0.62, x0 - reachW * 0.22, shelfY + thickness);
+      ctx.lineTo(x0, shelfY + thickness + 10);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = rimCol;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x0 - 4, shelfY - 4);
+      ctx.quadraticCurveTo(x0 - reachW * 0.55, shelfY - 1, tipX + 2, shelfY + 6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Isolated offscreen sprite for the Cosmos Ringed Nebula Planet (sky-fixed Layer 1).
+   */
+  function getCosmosPlanetSprite() {
+    if (_cosmosPlanetCache) return _cosmosPlanetCache;
+    if (typeof document === 'undefined') return null;
+    try {
+      const cvs = document.createElement('canvas');
+      cvs.width = 168;
+      cvs.height = 108;
+      const ctx = cvs.getContext('2d');
+      if (!ctx) return null;
+
+      ctx.save();
+      ctx.translate(84, 54);
+
+      // Soft astral aura behind planet
+      const aura = ctx.createRadialGradient(0, 0, 18, 0, 0, 52);
+      aura.addColorStop(0, 'rgba(218, 128, 255, 0.26)');
+      aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(0, 0, 52, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Back half of golden ring
+      ctx.save();
+      ctx.rotate(-0.32);
+      ctx.strokeStyle = 'rgba(255, 224, 130, 0.5)';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 68, 17, 0, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Cel-shaded planet globe
+      const pg = ctx.createLinearGradient(-32, -32, 32, 32);
+      pg.addColorStop(0, '#f5c2ff');
+      pg.addColorStop(0.55, '#8642cc');
+      pg.addColorStop(1, '#2a115c');
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.arc(0, 0, 34, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, 34, 0, Math.PI * 2);
+      if (typeof ctx.clip === 'function') ctx.clip();
+      ctx.fillStyle = 'rgba(255, 224, 255, 0.26)';
+      ctx.fillRect(-36, -15, 72, 7.5);
+      ctx.fillRect(-36, 4, 72, 5.5);
+      ctx.fillStyle = 'rgba(20, 6, 52, 0.46)';
+      ctx.beginPath();
+      ctx.arc(15, 15, 36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Front half of golden ring
+      ctx.save();
+      ctx.rotate(-0.32);
+      ctx.strokeStyle = 'rgba(255, 234, 152, 0.78)';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 68, 17, 0, 0, Math.PI);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.restore();
+      _cosmosPlanetCache = cvs;
+      return cvs;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Isolated offscreen sprite for the Cosmos Crescent Moon (uses destination-out ONLY inside
+   * its own blank transparent canvas so it never punches through the main sky canvas).
+   */
+  function getCosmosMoonSprite() {
+    if (_cosmosMoonCache) return _cosmosMoonCache;
+    if (typeof document === 'undefined') return null;
+    try {
+      const cvs = document.createElement('canvas');
+      cvs.width = 128;
+      cvs.height = 128;
+      const ctx = cvs.getContext('2d');
+      if (!ctx) return null;
+
+      ctx.save();
+      ctx.translate(64, 64);
+
+      // Cut crescent cleanly on an isolated sub-layer first, then layer soft lunar glow behind
+      const disc = document.createElement('canvas');
+      disc.width = 64;
+      disc.height = 64;
+      const dctx = disc.getContext('2d');
+      if (dctx) {
+        dctx.translate(32, 32);
+        dctx.fillStyle = 'rgba(255, 244, 198, 0.76)';
+        dctx.beginPath();
+        dctx.arc(0, 0, 24, 0, Math.PI * 2);
+        dctx.fill();
+        dctx.globalCompositeOperation = 'destination-out';
+        dctx.beginPath();
+        dctx.arc(11, -7, 21, 0, Math.PI * 2);
+        dctx.fill();
+      }
+
+      const mg = ctx.createRadialGradient(0, 0, 8, 0, 0, 58);
+      mg.addColorStop(0, 'rgba(255, 240, 185, 0.28)');
+      mg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.arc(0, 0, 58, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.drawImage(disc, -32, -32);
+      ctx.restore();
+      _cosmosMoonCache = cvs;
+      return cvs;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * LAYER 1 — Sky-Fixed Celestial Backdrop.
+   * Sun, Aurora Borealis, Cosmos Nebula/Planet/Moon, Heaven Sun-Gate Halo stay serenely
+   * poised in the deep sky and NEVER repeat vertically like wallpaper.
+   */
+  function drawBiomeSkyAnchors(ctx, bgStyle, width, height, padTop, padBottom, time, fadeAlpha) {
+    ctx.save();
+    ctx.globalAlpha = fadeAlpha;
+
+    if (bgStyle === 'monolith') {
+      // Soft twilight dusk orb high in the violet sky grounding sunset cliff rims
+      const mx = width * 0.52;
+      const my = height * 0.22;
+      const halo = ctx.createRadialGradient(mx, my, 10, mx, my, 130);
+      halo.addColorStop(0, 'rgba(255, 216, 168, 0.28)');
+      halo.addColorStop(0.45, 'rgba(198, 140, 255, 0.14)');
+      halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(mx, my, 130, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 232, 200, 0.22)';
+      ctx.beginPath();
+      ctx.arc(mx, my, 24, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (bgStyle === 'slime') {
+      // Cavernous emerald-mint bioluminescent skylight filtering gently from high above
+      const sg = ctx.createRadialGradient(width * 0.5, height * 0.18, 12, width * 0.5, height * 0.22, 185);
+      sg.addColorStop(0, 'rgba(92, 255, 178, 0.18)');
+      sg.addColorStop(0.55, 'rgba(32, 165, 124, 0.08)');
+      sg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.arc(width * 0.5, height * 0.2, 185, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (bgStyle === 'desert') {
+      // Radiant Desert Sun poised serenely in the golden sky (never repeats!)
+      const sx = width * 0.62;
+      const sy = height * 0.22;
+      const pulse = 1 + Math.sin(time * 0.9) * 0.03;
+      const sunG = ctx.createRadialGradient(sx, sy, 12, sx, sy, 132 * pulse);
+      sunG.addColorStop(0, 'rgba(255, 248, 202, 0.62)');
+      sunG.addColorStop(0.32, 'rgba(255, 214, 118, 0.28)');
+      sunG.addColorStop(0.7, 'rgba(255, 168, 86, 0.08)');
+      sunG.addColorStop(1, 'rgba(255, 160, 80, 0)');
+      ctx.fillStyle = sunG;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 132 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 248, 210, 0.48)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 29, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (bgStyle === 'foundry') {
+      // Deep rising lava-sea ember underglow radiating up from the abyss below
+      const pulse = 0.22 + 0.05 * Math.sin(time * 1.6);
+      const fg = ctx.createRadialGradient(width * 0.5, height + padBottom + 20, 20, width * 0.5, height * 0.92, 260);
+      fg.addColorStop(0, `rgba(255, 132, 46, ${pulse})`);
+      fg.addColorStop(0.55, 'rgba(218, 56, 36, 0.11)');
+      fg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.arc(width * 0.5, height * 0.92, 260, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (bgStyle === 'frost') {
+      // Undulating Northern Aurora Borealis curtains shimmering in the high arctic sky
+      const wave1 = Math.sin(time * 0.55) * 18;
+      const wave2 = Math.cos(time * 0.42) * 16;
+      for (const [ay, wv, cTop, cMid] of [
+        [height * 0.22, wave1, 'rgba(96, 198, 255, 0.04)', 'rgba(92, 255, 214, 0.26)'],
+        [height * 0.34, wave2, 'rgba(176, 148, 255, 0.04)', 'rgba(130, 232, 255, 0.22)']
+      ]) {
+        const ag = ctx.createLinearGradient(0, ay - 75, 0, ay + 75);
+        ag.addColorStop(0, cTop);
+        ag.addColorStop(0.48, cMid);
+        ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = ag;
+        ctx.beginPath();
+        ctx.moveTo(0, ay - 20 + wv * 0.4);
+        ctx.bezierCurveTo(width * 0.3, ay - 82 - wv, width * 0.68, ay + 34 + wv, width, ay - 32 - wv * 0.4);
+        ctx.lineTo(width, ay + 74 - wv * 0.3);
+        ctx.bezierCurveTo(width * 0.65, ay + 112 + wv, width * 0.32, ay + 10 - wv, 0, ay + 72 + wv * 0.3);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (bgStyle === 'storm') {
+      // Distant high-altitude storm illumination pulsing subtly behind the citadel
+      const flash = Math.pow(Math.max(0, Math.sin(time * 1.15) * Math.sin(time * 3.7)), 12);
+      const sg = ctx.createRadialGradient(width * 0.5, height * 0.26, 10, width * 0.5, height * 0.26, 180);
+      sg.addColorStop(0, `rgba(128, 242, 255, ${0.18 + flash * 0.28})`);
+      sg.addColorStop(0.6, 'rgba(54, 118, 214, 0.07)');
+      sg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.arc(width * 0.5, height * 0.26, 180, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (bgStyle === 'cosmos') {
+      // Sweeping sky-fixed painterly nebula clouds
+      for (const [nx, ny, rx, ry, rot, c1] of [
+        [width * 0.44, height * 0.26, 175, 74, -0.35, 'rgba(197, 108, 240, 0.22)'],
+        [width * 0.60, height * 0.32, 145, 58, -0.24, 'rgba(84, 214, 255, 0.14)'],
+        [width * 0.56, height * 0.66, 185, 76, 0.3, 'rgba(218, 112, 255, 0.18)'],
+        [width * 0.34, height * 0.72, 130, 54, 0.2, 'rgba(255, 198, 112, 0.12)']
+      ]) {
+        ctx.save();
+        ctx.translate(nx, ny);
+        ctx.rotate(rot);
+        const ng = ctx.createRadialGradient(0, 0, 8, 0, 0, rx);
+        ng.addColorStop(0, c1);
+        ng.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = ng;
+        ctx.scale(1, ry / rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Sky-fixed hand-shaded Ringed Nebula Planet + Crescent Moon (zero vertical repetition!)
+      const planet = getCosmosPlanetSprite();
+      if (planet) {
+        const py = height * 0.24 + Math.sin(time * 0.5) * 2.5;
+        ctx.drawImage(planet, width * 0.66 - planet.width * 0.5, py - planet.height * 0.5);
+      }
+      const moon = getCosmosMoonSprite();
+      if (moon) {
+        const my = height * 0.61 + Math.cos(time * 0.45) * 2;
+        ctx.drawImage(moon, width * 0.30 - moon.width * 0.5, my - moon.height * 0.5);
+      }
+    } else if (bgStyle === 'heaven') {
+      // Radiant Golden Celestial Sun-Gate Halo glowing serenely in the high sky
+      const hx = width * 0.5;
+      const hy = height * 0.23;
+      const pulse = 1 + Math.sin(time * 1.1) * 0.03;
+
+      const hg = ctx.createRadialGradient(hx, hy, 12, hx, hy, 170 * pulse);
+      hg.addColorStop(0, 'rgba(255, 253, 232, 0.64)');
+      hg.addColorStop(0.38, 'rgba(255, 230, 142, 0.28)');
+      hg.addColorStop(0.75, 'rgba(255, 214, 110, 0.08)');
+      hg.addColorStop(1, 'rgba(255, 214, 110, 0)');
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 170 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Gentle rotating golden sunburst beams
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(time * 0.06);
+      ctx.fillStyle = 'rgba(255, 248, 198, 0.14)';
+      for (let i = 0; i < 8; i++) {
+        ctx.rotate(Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-10, -150);
+        ctx.lineTo(10, -150);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Delicate twin golden concentric halo rings
+      ctx.strokeStyle = 'rgba(255, 236, 152, 0.48)';
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 74, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 252, 224, 0.34)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 92, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Radiant 4-point celestial star emblem at halo center
+      ctx.fillStyle = 'rgba(255, 252, 220, 0.85)';
+      ctx.beginPath();
+      ctx.moveTo(hx, hy - 22);
+      ctx.lineTo(hx + 6, hy - 6);
+      ctx.lineTo(hx + 22, hy);
+      ctx.lineTo(hx + 6, hy + 6);
+      ctx.lineTo(hx, hy + 22);
+      ctx.lineTo(hx - 6, hy + 6);
+      ctx.lineTo(hx - 22, hy);
+      ctx.lineTo(hx - 6, hy - 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * LAYER 2 — Non-Repeating Biome-Entry Horizon Vistas.
+   * Grounded landmarks (Desert Pyramids & Dunes, Heaven Golden Cloud Sea, Valley Monolith Ridge,
+   * Foundry Caldera Rim, Frost Alpine Peaks, Storm Thunderhead Deck) anchor solidly to the bottom
+   * at biome entry and scroll smoothly down out of view as the player ascends — NEVER repeating!
+   */
+  function drawBiomeHorizonVista(ctx, bgStyle, width, height, padBottom, wallWidth, camMeters, time, fadeAlpha) {
+    if (camMeters === null || camMeters === undefined) return;
+    const baseM = BIOME_BASE_METERS[bgStyle];
+    if (baseM === undefined) return;
+
+    const deltaM = Math.max(-10, camMeters - baseM);
+    const horizonY = height * 0.74 + deltaM * 7.2;
+    const cullLimit = height + padBottom + 230;
+    if (horizonY > cullLimit) return;
+
+    const bottomFillY = Math.max(height + padBottom + 140, horizonY + 360);
+    const W = width;
+
+    ctx.save();
+    ctx.globalAlpha = fadeAlpha;
+
+    if (bgStyle === 'monolith') {
+      // Distant twilight mountain ridge + standing ancient monolith silhouettes rooted on ground
+      ctx.fillStyle = 'rgba(42, 22, 86, 0.62)';
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY - 26);
+      ctx.quadraticCurveTo(W * 0.28, horizonY - 82, W * 0.52, horizonY - 38);
+      ctx.quadraticCurveTo(W * 0.78, horizonY - 94, W, horizonY - 24);
+      ctx.lineTo(W, bottomFillY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Iconic ancient standing monoliths firmly planted into the mountain ridge
+      ctx.fillStyle = 'rgba(36, 18, 76, 0.74)';
+      for (const [mx, mh, mw] of [
+        [W * 0.34, 128, 34],
+        [W * 0.64, 152, 42]
+      ]) {
+        const baseY = horizonY - 12;
+        ctx.beginPath();
+        ctx.moveTo(mx - mw * 0.58, baseY + 30);
+        ctx.lineTo(mx - mw * 0.42, baseY - mh * 0.92);
+        ctx.lineTo(mx + mw * 0.1, baseY - mh);
+        ctx.lineTo(mx + mw * 0.44, baseY - mh * 0.88);
+        ctx.lineTo(mx + mw * 0.6, baseY + 30);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Nearer misty violet ridge crest covering the monolith roots cleanly
+      const rg = ctx.createLinearGradient(0, horizonY - 18, 0, bottomFillY);
+      rg.addColorStop(0, 'rgba(56, 31, 108, 0.84)');
+      rg.addColorStop(1, 'rgba(34, 17, 68, 0.94)');
+      ctx.fillStyle = rg;
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY + 8);
+      ctx.quadraticCurveTo(W * 0.36, horizonY - 32, W * 0.66, horizonY + 10);
+      ctx.quadraticCurveTo(W * 0.86, horizonY - 18, W, horizonY + 12);
+      ctx.lineTo(W, bottomFillY);
+      ctx.closePath();
+      ctx.fill();
+    } else if (bgStyle === 'desert') {
+      // Grand 2-tone stone-coursed Sandstone Pyramids resting solidly on wall-to-wall Golden Dunes
+      const drawSandPyramid = (px, baseY, halfW, pyrH) => {
+        const peakX = px;
+        const peakY = baseY - pyrH;
+        const ridgeX = px + halfW * 0.14;
+
+        // Sunlit golden-ochre left face
+        const lg = ctx.createLinearGradient(px - halfW, baseY, peakX, peakY);
+        lg.addColorStop(0, 'rgba(244, 166, 84, 0.78)');
+        lg.addColorStop(1, 'rgba(255, 228, 152, 0.88)');
+        ctx.fillStyle = lg;
+        ctx.beginPath();
+        ctx.moveTo(px - halfW, baseY + 40);
+        ctx.lineTo(peakX, peakY);
+        ctx.lineTo(ridgeX, baseY + 40);
+        ctx.closePath();
+        ctx.fill();
+
+        // Deep warm terracotta shadow right face
+        const rg = ctx.createLinearGradient(peakX, peakY, px + halfW, baseY);
+        rg.addColorStop(0, 'rgba(156, 62, 36, 0.84)');
+        rg.addColorStop(1, 'rgba(116, 42, 26, 0.76)');
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.moveTo(peakX, peakY);
+        ctx.lineTo(px + halfW, baseY + 40);
+        ctx.lineTo(ridgeX, baseY + 40);
+        ctx.closePath();
+        ctx.fill();
+
+        // Subtle carved sandstone stone courses
+        ctx.strokeStyle = 'rgba(110, 42, 24, 0.24)';
+        ctx.lineWidth = 1.2;
+        for (let row = 1; row <= 5; row++) {
+          const f = row / 6;
+          const ry = peakY + pyrH * f;
+          ctx.beginPath();
+          ctx.moveTo(peakX - halfW * f, ry);
+          ctx.lineTo(peakX + halfW * f, ry);
+          ctx.stroke();
+        }
+      };
+
+      drawSandPyramid(W * 0.37, horizonY + 8, 108, 142);
+      drawSandPyramid(W * 0.69, horizonY + 20, 82, 104);
+
+      // Far rolling dune ridge wrapping cleanly behind foreground dunes
+      ctx.fillStyle = 'rgba(208, 114, 54, 0.66)';
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY - 12);
+      ctx.bezierCurveTo(W * 0.28, horizonY - 40, W * 0.64, horizonY + 12, W, horizonY - 18);
+      ctx.lineTo(W, bottomFillY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Sweeping foreground wind-sculpted golden sand dune filling solidly down past viewport bottom
+      const duneGrad = ctx.createLinearGradient(0, horizonY - 12, 0, bottomFillY);
+      duneGrad.addColorStop(0, 'rgba(242, 152, 74, 0.86)');
+      duneGrad.addColorStop(0.32, 'rgba(196, 94, 46, 0.92)');
+      duneGrad.addColorStop(1, 'rgba(132, 48, 28, 0.96)');
+      ctx.fillStyle = duneGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY + 6);
+      ctx.bezierCurveTo(W * 0.34, horizonY - 26, W * 0.58, horizonY + 34, W, horizonY - 2);
+      ctx.lineTo(W, bottomFillY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Crisp sunlit golden dune crest rim
+      ctx.strokeStyle = 'rgba(255, 236, 174, 0.56)';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY + 6);
+      ctx.bezierCurveTo(W * 0.34, horizonY - 26, W * 0.58, horizonY + 34, W, horizonY - 2);
+      ctx.stroke();
+    } else if (bgStyle === 'foundry') {
+      // Glowing molten caldera lake spanning organically wall-to-wall, framed by jagged volcanic ridges
+      const mg = ctx.createLinearGradient(0, horizonY - 18, 0, bottomFillY);
+      mg.addColorStop(0, 'rgba(255, 168, 68, 0.62)');
+      mg.addColorStop(0.18, 'rgba(235, 76, 36, 0.84)');
+      mg.addColorStop(0.5, 'rgba(136, 26, 32, 0.94)');
+      mg.addColorStop(1, 'rgba(52, 12, 22, 0.98)');
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY + 8);
+      ctx.bezierCurveTo(W * 0.28, horizonY - 10, W * 0.68, horizonY + 18, W, horizonY + 4);
+      ctx.lineTo(W, bottomFillY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bright incandescent magma crest rim
+      ctx.strokeStyle = 'rgba(255, 224, 120, 0.55)';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY + 8);
+      ctx.bezierCurveTo(W * 0.28, horizonY - 10, W * 0.68, horizonY + 18, W, horizonY + 4);
+      ctx.stroke();
+
+      // Jagged volcanic basalt caldera shoulders hugging left & right edges smoothly into the magma lake
+      ctx.fillStyle = 'rgba(42, 13, 22, 0.86)';
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY - 62);
+      ctx.lineTo(W * 0.17, horizonY - 26);
+      ctx.lineTo(W * 0.30, horizonY + 14);
+      ctx.quadraticCurveTo(W * 0.16, horizonY + 34, 0, horizonY + 46);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(W, bottomFillY);
+      ctx.lineTo(W, horizonY - 66);
+      ctx.lineTo(W * 0.82, horizonY - 24);
+      ctx.lineTo(W * 0.69, horizonY + 16);
+      ctx.quadraticCurveTo(W * 0.84, horizonY + 36, W, horizonY + 48);
+      ctx.closePath();
+      ctx.fill();
+    } else if (bgStyle === 'frost') {
+      // Sunlit snow-capped alpine glacier mountain range spanning wall-to-wall
+      const peaks = [
+        [W * 0.24, horizonY + 18, 128, 126],
+        [W * 0.54, horizonY + 24, 146, 148],
+        [W * 0.82, horizonY + 16, 122, 118]
+      ];
+      for (const [px, by, hw, ph] of peaks) {
+        // Moonlit icy-white left slope
+        ctx.fillStyle = 'rgba(184, 244, 255, 0.44)';
+        ctx.beginPath();
+        ctx.moveTo(px - hw, by + 60);
+        ctx.lineTo(px, by - ph);
+        ctx.lineTo(px + hw * 0.12, by + 60);
+        ctx.closePath();
+        ctx.fill();
+        // Deep glacier-teal right slope
+        ctx.fillStyle = 'rgba(18, 74, 112, 0.72)';
+        ctx.beginPath();
+        ctx.moveTo(px, by - ph);
+        ctx.lineTo(px + hw, by + 60);
+        ctx.lineTo(px + hw * 0.12, by + 60);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Solid snowy glacier valley floor filling cleanly down past viewport bottom
+      const fg = ctx.createLinearGradient(0, horizonY, 0, bottomFillY);
+      fg.addColorStop(0, 'rgba(32, 108, 146, 0.84)');
+      fg.addColorStop(1, 'rgba(14, 56, 88, 0.96)');
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.moveTo(0, bottomFillY);
+      ctx.lineTo(0, horizonY + 14);
+      ctx.quadraticCurveTo(W * 0.35, horizonY - 12, W * 0.68, horizonY + 18);
+      ctx.quadraticCurveTo(W * 0.86, horizonY + 2, W, horizonY + 16);
+      ctx.lineTo(W, bottomFillY);
+      ctx.closePath();
+      ctx.fill();
+    } else if (bgStyle === 'storm') {
+      // Rolling wall-to-wall thunderhead cumulus cloud deck with silver-cyan linings
+      const drift = Math.sin(time * 0.35) * 6;
+      paintPainterlyCloudBank(ctx, W * 0.2 + drift, horizonY - 4, 1.38, '#88d8ff', '#2d5292', '#14254c', 0.78);
+      paintPainterlyCloudBank(ctx, W * 0.8 - drift, horizonY + 2, 1.42, '#88d8ff', '#2b4d88', '#14254c', 0.78);
+      paintPainterlyCloudBank(ctx, W * 0.5 + drift * 0.5, horizonY + 12, 1.56, '#a4e4ff', '#315896', '#162954', 0.88);
+
+      const sg = ctx.createLinearGradient(0, horizonY + 10, 0, bottomFillY);
+      sg.addColorStop(0, 'rgba(22, 41, 84, 0.88)');
+      sg.addColorStop(1, 'rgba(12, 24, 54, 0.98)');
+      ctx.fillStyle = sg;
+      ctx.fillRect(0, horizonY + 18, W, bottomFillY - horizonY);
+    } else if (bgStyle === 'heaven') {
+      // Breathtaking sunlit Golden Cumulus Cloud Sea pierced upon entering Heaven (2500m)
+      const drift = Math.sin(time * 0.4) * 5;
+
+      // Far sunlit golden-ivory horizon cloud banks
+      paintPainterlyCloudBank(ctx, W * 0.16 + drift, horizonY - 14, 1.35, '#fffdf5', '#f7edd9', '#bcc9eb', 0.82);
+      paintPainterlyCloudBank(ctx, W * 0.84 - drift, horizonY - 10, 1.38, '#fffdf5', '#f7edd9', '#bcc9eb', 0.82);
+      paintPainterlyCloudBank(ctx, W * 0.5 + drift * 0.6, horizonY - 2, 1.58, '#ffffff', '#fff7e6', '#c9d4f2', 0.92);
+
+      // Foreground bright billowing cloud crest spanning wall-to-wall
+      paintPainterlyCloudBank(ctx, W * 0.28 - drift * 0.5, horizonY + 26, 1.32, '#ffffff', '#fff8e8', '#ced8f4', 0.94);
+      paintPainterlyCloudBank(ctx, W * 0.72 + drift * 0.5, horizonY + 28, 1.34, '#ffffff', '#fff8e8', '#ced8f4', 0.94);
+
+      // Solid luminous pearlescent cloud sea filling cleanly down past viewport bottom
+      const cg = ctx.createLinearGradient(0, horizonY + 24, 0, bottomFillY);
+      cg.addColorStop(0, 'rgba(248, 242, 232, 0.92)');
+      cg.addColorStop(0.35, 'rgba(214, 218, 242, 0.94)');
+      cg.addColorStop(1, 'rgba(176, 188, 228, 0.96)');
+      ctx.fillStyle = cg;
+      ctx.fillRect(0, horizonY + 34, W, bottomFillY - horizonY);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * LAYER 3 — Seamless 450x720 Offscreen Tile (Strictly Wall-Rooted OR Continuous 0..720).
+   * Zero floating mid-air objects: every structural element connects continuously top-to-bottom
+   * or anchors physically into the left/right canyon walls.
    */
   function getBiomeBackdropTile(bgStyle) {
     if (_biomeTileCache[bgStyle]) return _biomeTileCache[bgStyle];
@@ -2165,64 +2822,69 @@
 
       if (bgStyle === 'monolith') {
         // ==================== ANCIENT CRAGS (TWILIGHT RUIN CANYON) ====================
-        // 1. Far distant weathered stone bridge arch spanning the misty violet chasm
-        ctx.fillStyle = 'rgba(42, 23, 89, 0.56)';
+        // 1. Wall-to-wall weathered stone arch bridge spanning the twilight chasm
+        ctx.fillStyle = 'rgba(42, 23, 89, 0.62)';
         ctx.beginPath();
-        ctx.moveTo(WALL, 220);
-        ctx.quadraticCurveTo(W * 0.5, 175, W - WALL, 220);
-        ctx.lineTo(W - WALL, 262);
-        ctx.quadraticCurveTo(W * 0.5, 226, WALL, 262);
+        ctx.moveTo(WALL, 222);
+        ctx.quadraticCurveTo(W * 0.5, 174, W - WALL, 222);
+        ctx.lineTo(W - WALL, 266);
+        ctx.quadraticCurveTo(W * 0.5, 226, WALL, 266);
         ctx.closePath();
         ctx.fill();
         // Warm sunset rim along arch crest
-        ctx.strokeStyle = 'rgba(255, 210, 140, 0.24)';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(255, 210, 140, 0.28)';
+        ctx.lineWidth = 2.6;
         ctx.beginPath();
-        ctx.moveTo(WALL, 220);
-        ctx.quadraticCurveTo(W * 0.5, 175, W - WALL, 220);
+        ctx.moveTo(WALL, 222);
+        ctx.quadraticCurveTo(W * 0.5, 174, W - WALL, 222);
         ctx.stroke();
 
-        // Distant towering standing monolith pillar silhouette
-        ctx.fillStyle = 'rgba(44, 24, 92, 0.52)';
-        ctx.beginPath();
-        ctx.moveTo(W * 0.56, 610);
-        ctx.lineTo(W * 0.59, 435);
-        ctx.lineTo(W * 0.68, 420);
-        ctx.lineTo(W * 0.72, 610);
-        ctx.closePath();
-        ctx.fill();
-
-        // 2. Seamless layered twilight cliff walls
-        paintSeamlessCanyonEdges(ctx, WALL, 1.4, 'rgba(53, 30, 107, 0.62)', 'rgba(46, 25, 96, 0.64)', 'rgba(196, 158, 255, 0.16)', 0.6);
-        paintSeamlessCanyonEdges(ctx, WALL, 0.8, 'rgba(66, 38, 122, 0.85)', 'rgba(58, 33, 110, 0.85)', 'rgba(255, 214, 148, 0.2)', 2.1);
-
-        // 3. Soft glowing carved ruin sigils & hanging twilight vines on rock buttresses
-        ctx.strokeStyle = 'rgba(218, 182, 255, 0.34)';
-        ctx.lineWidth = 2;
-        for (const [rx, ry] of [
-          [WALL + 22, 145],
-          [W - WALL - 24, 390],
-          [WALL + 20, 560]
-        ]) {
-          ctx.beginPath();
-          ctx.moveTo(rx, ry - 12);
-          ctx.lineTo(rx + 8, ry);
-          ctx.lineTo(rx, ry + 12);
-          ctx.lineTo(rx - 8, ry);
-          ctx.closePath();
-          ctx.stroke();
-        }
-        // Hanging organic canyon vines
-        ctx.strokeStyle = 'rgba(116, 214, 96, 0.34)';
+        // Hanging organic canyon vines anchored directly to the underside of the stone bridge
+        ctx.strokeStyle = 'rgba(116, 214, 96, 0.38)';
         ctx.lineWidth = 2.2;
         for (const [vx, vy, len] of [
-          [W * 0.38, 224, 62],
-          [W * 0.62, 226, 48],
-          [WALL + 44, 490, 55]
+          [W * 0.34, 240, 62],
+          [W * 0.48, 229, 44],
+          [W * 0.64, 238, 56]
         ]) {
           ctx.beginPath();
           ctx.moveTo(vx, vy);
           ctx.quadraticCurveTo(vx + 6, vy + len * 0.5, vx - 3, vy + len);
+          ctx.stroke();
+        }
+
+        // 2. Seamless layered twilight cliff walls
+        paintSeamlessCanyonEdges(ctx, WALL, 1.4, 'rgba(53, 30, 107, 0.66)', 'rgba(46, 25, 96, 0.68)', 'rgba(196, 158, 255, 0.18)', 0.6);
+        paintSeamlessCanyonEdges(ctx, WALL, 0.8, 'rgba(66, 38, 122, 0.88)', 'rgba(58, 33, 110, 0.88)', 'rgba(255, 214, 148, 0.24)', 2.1);
+
+        // 3. Solid protruding stone buttress ledges rooted directly into side cliffs
+        paintCavernRockShelf(ctx, WALL, -1, 488, 66, 44, '#5e3898', '#3c216e', 'rgba(255, 216, 152, 0.3)', 'rgba(24, 10, 52, 0.92)');
+        paintCavernRockShelf(ctx, WALL, 1, 136, 62, 42, '#583390', '#381e66', 'rgba(255, 216, 152, 0.28)', 'rgba(24, 10, 52, 0.92)');
+
+        // Hanging vines from underside of the rock buttress ledges
+        ctx.strokeStyle = 'rgba(116, 214, 96, 0.34)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(WALL + 44, 510);
+        ctx.quadraticCurveTo(WALL + 50, 540, WALL + 41, 566);
+        ctx.moveTo(W - WALL - 42, 156);
+        ctx.quadraticCurveTo(W - WALL - 48, 182, W - WALL - 40, 204);
+        ctx.stroke();
+
+        // Carved glowing ruin sigils etched directly ON the rock buttress faces
+        ctx.strokeStyle = 'rgba(222, 188, 255, 0.42)';
+        ctx.lineWidth = 2;
+        for (const [rx, ry] of [
+          [WALL + 20, 146],
+          [W - WALL - 22, 392],
+          [WALL + 20, 562]
+        ]) {
+          ctx.beginPath();
+          ctx.moveTo(rx, ry - 11);
+          ctx.lineTo(rx + 7.5, ry);
+          ctx.lineTo(rx, ry + 11);
+          ctx.lineTo(rx - 7.5, ry);
+          ctx.closePath();
           ctx.stroke();
         }
       } else if (bgStyle === 'slime') {
@@ -2241,23 +2903,63 @@
           ctx.fill();
         }
 
-        // 2. Distant curved organic limestone-goo cavern bridge
-        ctx.fillStyle = 'rgba(13, 66, 56, 0.55)';
+        // 2. Two continuous top-to-bottom (0..720 periodic) gnarled giant cavern root columns
+        const paintContinuousRoot = (baseX, widthPx, phase, amp, colDark, colRim) => {
+          const steps = 40;
+          const xAt = (t) => baseX + Math.sin(t * Math.PI * 2 + phase) * amp + Math.cos(t * Math.PI * 4 - phase) * (amp * 0.25);
+          ctx.fillStyle = colDark;
+          ctx.beginPath();
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = xAt(t) - widthPx * 0.5;
+            if (i === 0) ctx.moveTo(x, t * H);
+            else ctx.lineTo(x, t * H);
+          }
+          for (let i = steps; i >= 0; i--) {
+            const t = i / steps;
+            ctx.lineTo(xAt(t) + widthPx * 0.5, t * H);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.strokeStyle = colRim;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = xAt(t) - widthPx * 0.42;
+            if (i === 0) ctx.moveTo(x, t * H);
+            else ctx.lineTo(x, t * H);
+          }
+          ctx.stroke();
+        };
+
+        paintContinuousRoot(116, 22, 0.4, 13, 'rgba(10, 54, 46, 0.62)', 'rgba(94, 245, 170, 0.2)');
+        paintContinuousRoot(W - 112, 24, 2.5, 14, 'rgba(9, 48, 42, 0.62)', 'rgba(94, 245, 170, 0.18)');
+
+        // 3. Wall-to-wall curved organic limestone-goo cavern bridge
+        ctx.fillStyle = 'rgba(13, 66, 56, 0.64)';
         ctx.beginPath();
-        ctx.moveTo(WALL, 310);
-        ctx.bezierCurveTo(W * 0.35, 275, W * 0.65, 295, W - WALL, 345);
-        ctx.lineTo(W - WALL, 392);
-        ctx.bezierCurveTo(W * 0.64, 345, W * 0.34, 330, WALL, 360);
+        ctx.moveTo(WALL, 314);
+        ctx.bezierCurveTo(W * 0.35, 278, W * 0.65, 298, W - WALL, 348);
+        ctx.lineTo(W - WALL, 396);
+        ctx.bezierCurveTo(W * 0.64, 348, W * 0.34, 334, WALL, 364);
         ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = 'rgba(126, 255, 184, 0.24)';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(WALL, 314);
+        ctx.bezierCurveTo(W * 0.35, 278, W * 0.65, 298, W - WALL, 348);
+        ctx.stroke();
 
-        // Hanging translucent goo stalactites dripping from the cavern bridge
-        ctx.fillStyle = 'rgba(86, 255, 154, 0.32)';
+        // Translucent goo stalactites dripping directly from the bridge underside
+        ctx.fillStyle = 'rgba(86, 255, 154, 0.36)';
         for (const [dx, dy, dl] of [
-          [135, 346, 36],
-          [185, 338, 52],
-          [270, 346, 42],
-          [325, 362, 28]
+          [135, 348, 36],
+          [185, 340, 52],
+          [270, 349, 42],
+          [325, 366, 28]
         ]) {
           ctx.beginPath();
           ctx.moveTo(dx - 5, dy);
@@ -2270,140 +2972,117 @@
           ctx.fill();
         }
 
-        // 3. Seamless organic mossy-goo canyon walls
-        paintSeamlessCanyonEdges(ctx, WALL, 1.35, 'rgba(14, 72, 60, 0.68)', 'rgba(12, 64, 54, 0.68)', 'rgba(110, 255, 175, 0.2)', 1.2);
-        paintSeamlessCanyonEdges(ctx, WALL, 0.75, 'rgba(20, 88, 69, 0.88)', 'rgba(17, 79, 62, 0.88)', 'rgba(148, 255, 196, 0.28)', 3.0);
+        // 4. Seamless organic mossy-goo canyon walls
+        paintSeamlessCanyonEdges(ctx, WALL, 1.35, 'rgba(14, 72, 60, 0.72)', 'rgba(12, 64, 54, 0.72)', 'rgba(110, 255, 175, 0.2)', 1.2);
+        paintSeamlessCanyonEdges(ctx, WALL, 0.75, 'rgba(20, 88, 69, 0.9)', 'rgba(17, 79, 62, 0.9)', 'rgba(148, 255, 196, 0.28)', 3.0);
 
-        // 4. Lush clusters of curved glowing fantasy mushrooms sprouting from rocky ledges
-        paintBiolumMushroom(ctx, WALL + 52, 195, 1.05, 0.14, '#24c485', 'rgba(92, 255, 175, 0.24)');
-        paintBiolumMushroom(ctx, WALL + 24, 224, 0.56, 0.32, '#4be89e', 'rgba(92, 255, 175, 0.16)');
-        paintBiolumMushroom(ctx, W - WALL - 56, 515, 1.12, -0.15, '#1fb87e', 'rgba(92, 255, 175, 0.24)');
-        paintBiolumMushroom(ctx, W - WALL - 24, 546, 0.6, -0.3, '#52f2a6', 'rgba(92, 255, 175, 0.18)');
-        paintBiolumMushroom(ctx, WALL + 42, 610, 0.72, 0.2, '#2bd48f', 'rgba(92, 255, 175, 0.18)');
+        // 5. Solid sculpted mossy rock cave shelves jutting from walls + mushrooms rooted firmly ON them!
+        // Left upper shelf (y = 224) supporting two glowing mushrooms
+        paintCavernRockShelf(ctx, WALL, -1, 224, 88, 48, '#289e73', '#125446', 'rgba(144, 255, 196, 0.45)');
+        paintBiolumMushroom(ctx, WALL + 54, 195, 0.96, 0.11, '#24c485', 'rgba(92, 255, 175, 0.24)');
+        paintBiolumMushroom(ctx, WALL + 24, 207, 0.54, 0.25, '#4be89e', 'rgba(92, 255, 175, 0.16)');
+        // Subtle front moss collar tucking mushroom stems cleanly into the stone shelf
+        ctx.fillStyle = '#248f6a';
+        ctx.beginPath();
+        ctx.ellipse(WALL + 44, 226, 36, 7, 0.05, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Right mid-lower shelf (y = 540) supporting a lush mushroom pair
+        paintCavernRockShelf(ctx, WALL, 1, 540, 92, 50, '#26946c', '#104e42', 'rgba(144, 255, 196, 0.44)');
+        paintBiolumMushroom(ctx, W - WALL - 56, 510, 1.0, -0.12, '#1fb87e', 'rgba(92, 255, 175, 0.24)');
+        paintBiolumMushroom(ctx, W - WALL - 24, 523, 0.56, -0.24, '#52f2a6', 'rgba(92, 255, 175, 0.18)');
+        ctx.fillStyle = '#1f8462';
+        ctx.beginPath();
+        ctx.ellipse(W - WALL - 44, 542, 38, 7.5, -0.05, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Left lower shelf (y = 636) supporting a medium mushroom
+        paintCavernRockShelf(ctx, WALL, -1, 636, 72, 40, '#26946c', '#104e42', 'rgba(144, 255, 196, 0.4)');
+        paintBiolumMushroom(ctx, WALL + 42, 613, 0.68, 0.16, '#2bd48f', 'rgba(92, 255, 175, 0.18)');
+        ctx.fillStyle = '#218663';
+        ctx.beginPath();
+        ctx.ellipse(WALL + 36, 638, 28, 6, 0.04, 0, Math.PI * 2);
+        ctx.fill();
       } else if (bgStyle === 'desert') {
-        // ==================== GOLDEN DUNES (SUN-DRENCHED SANDSTONE CANYON) ====================
-        // 1. Soft atmospheric desert sun with warm golden corona
-        const sunG = ctx.createRadialGradient(W * 0.6, 138, 12, W * 0.6, 138, 115);
-        sunG.addColorStop(0, 'rgba(255, 245, 194, 0.52)');
-        sunG.addColorStop(0.32, 'rgba(255, 214, 118, 0.22)');
-        sunG.addColorStop(1, 'rgba(255, 180, 90, 0)');
-        ctx.fillStyle = sunG;
+        // ==================== GOLDEN DUNES — CARVED PETRA SANDSTONE GORGE ====================
+        // (Desert Sun is sky-fixed in Layer 1; Pyramids & Dunes rest on the 500m horizon in Layer 2!)
+        // 1. Wall-to-wall carved sandstone aqueduct arch bridge spanning the gorge
+        ctx.fillStyle = 'rgba(138, 56, 32, 0.62)';
         ctx.beginPath();
-        ctx.arc(W * 0.6, 138, 115, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255, 246, 204, 0.38)';
-        ctx.beginPath();
-        ctx.arc(W * 0.6, 138, 28, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 2. Distant rolling S-curve desert dune vista + weathered sandstone pyramid nestled in horizon
-        // Far sunlit pyramid (with warm sandstone course lines, NOT a bare flat triangle!)
-        const drawSandPyramid = (px, baseY, halfW, pyrH) => {
-          const peakX = px;
-          const peakY = baseY - pyrH;
-          const ridgeX = px + halfW * 0.14;
-          // Sunlit golden left face
-          const lg = ctx.createLinearGradient(px - halfW, baseY, peakX, peakY);
-          lg.addColorStop(0, 'rgba(242, 166, 86, 0.58)');
-          lg.addColorStop(1, 'rgba(255, 224, 146, 0.68)');
-          ctx.fillStyle = lg;
-          ctx.beginPath();
-          ctx.moveTo(px - halfW, baseY);
-          ctx.lineTo(peakX, peakY);
-          ctx.lineTo(ridgeX, baseY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Deep warm terracotta shadow right face
-          const rg = ctx.createLinearGradient(peakX, peakY, px + halfW, baseY);
-          rg.addColorStop(0, 'rgba(156, 62, 36, 0.65)');
-          rg.addColorStop(1, 'rgba(116, 42, 26, 0.55)');
-          ctx.fillStyle = rg;
-          ctx.beginPath();
-          ctx.moveTo(peakX, peakY);
-          ctx.lineTo(px + halfW, baseY);
-          ctx.lineTo(ridgeX, baseY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Subtle carved horizontal sandstone stone courses
-          ctx.strokeStyle = 'rgba(110, 42, 24, 0.22)';
-          ctx.lineWidth = 1.2;
-          for (let row = 1; row <= 5; row++) {
-            const f = row / 6;
-            const ry = peakY + pyrH * f;
-            ctx.beginPath();
-            ctx.moveTo(peakX - halfW * f, ry);
-            ctx.lineTo(peakX + halfW * f, ry);
-            ctx.stroke();
-          }
-        };
-
-        drawSandPyramid(W * 0.38, 300, 96, 128);
-        drawSandPyramid(W * 0.68, 326, 72, 92);
-
-        // Sweeping wind-sculpted desert sand dune waves wrapping softly under the pyramids
-        const duneGrad = ctx.createLinearGradient(0, 265, 0, 395);
-        duneGrad.addColorStop(0, 'rgba(235, 146, 72, 0.52)');
-        duneGrad.addColorStop(1, 'rgba(166, 68, 38, 0)');
-        ctx.fillStyle = duneGrad;
-        ctx.beginPath();
-        ctx.moveTo(WALL, 290);
-        ctx.bezierCurveTo(W * 0.34, 262, W * 0.58, 324, W - WALL, 286);
-        ctx.lineTo(W - WALL, 400);
-        ctx.lineTo(WALL, 400);
+        ctx.moveTo(WALL, 354);
+        ctx.quadraticCurveTo(W * 0.5, 314, W - WALL, 354);
+        ctx.lineTo(W - WALL, 396);
+        ctx.quadraticCurveTo(W * 0.5, 358, WALL, 396);
         ctx.closePath();
         ctx.fill();
-
-        // Crisp sunlit crest rim along the rolling dune ridge
-        ctx.strokeStyle = 'rgba(255, 232, 165, 0.38)';
+        ctx.strokeStyle = 'rgba(255, 224, 146, 0.34)';
         ctx.lineWidth = 2.4;
         ctx.beginPath();
-        ctx.moveTo(WALL, 290);
-        ctx.bezierCurveTo(W * 0.34, 262, W * 0.58, 324, W - WALL, 286);
+        ctx.moveTo(WALL, 354);
+        ctx.quadraticCurveTo(W * 0.5, 314, W - WALL, 354);
         ctx.stroke();
 
-        // Ancient carved sandstone canyon bridge arch spanning lower vista
-        ctx.fillStyle = 'rgba(138, 56, 32, 0.58)';
-        ctx.beginPath();
-        ctx.moveTo(WALL, 520);
-        ctx.quadraticCurveTo(W * 0.5, 474, W - WALL, 520);
-        ctx.lineTo(W - WALL, 566);
-        ctx.quadraticCurveTo(W * 0.5, 524, WALL, 566);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 218, 138, 0.3)';
-        ctx.lineWidth = 2.2;
-        ctx.beginPath();
-        ctx.moveTo(WALL, 520);
-        ctx.quadraticCurveTo(W * 0.5, 474, W - WALL, 520);
-        ctx.stroke();
+        // Subtle stone keystone joints along the sandstone arch
+        ctx.strokeStyle = 'rgba(92, 32, 18, 0.28)';
+        ctx.lineWidth = 1.4;
+        for (let i = 1; i <= 5; i++) {
+          const kx = WALL + ((W - WALL * 2) * i) / 6;
+          const archRise = Math.sin((i / 6) * Math.PI) * 20;
+          ctx.beginPath();
+          ctx.moveTo(kx, 354 - archRise);
+          ctx.lineTo(kx, 394 - archRise);
+          ctx.stroke();
+        }
 
-        // 3. Seamless wind-carved red-rock canyon mesa edges with sedimentary strata lines
-        paintSeamlessCanyonEdges(ctx, WALL, 1.35, 'rgba(163, 71, 39, 0.62)', 'rgba(143, 58, 33, 0.66)', 'rgba(255, 224, 148, 0.25)', 0.4);
-        paintSeamlessCanyonEdges(ctx, WALL, 0.78, 'rgba(186, 88, 44, 0.82)', 'rgba(162, 72, 36, 0.85)', 'rgba(255, 234, 168, 0.32)', 2.5);
+        // 2. Seamless wind-carved Petra red-rock canyon cliffs
+        paintSeamlessCanyonEdges(ctx, WALL, 1.35, 'rgba(163, 71, 39, 0.66)', 'rgba(143, 58, 33, 0.7)', 'rgba(255, 224, 148, 0.26)', 0.4);
+        paintSeamlessCanyonEdges(ctx, WALL, 0.78, 'rgba(186, 88, 44, 0.86)', 'rgba(162, 72, 36, 0.88)', 'rgba(255, 234, 168, 0.34)', 2.5);
 
-        // Horizontal wind-carved sedimentary rock strata bands along canyon sides
-        ctx.strokeStyle = 'rgba(255, 216, 140, 0.2)';
+        // 3. Petra-style carved sandstone pilasters & recessed arched niches built INTO side cliffs
+        for (const [side, ny] of [
+          [-1, 145],
+          [1, 520]
+        ]) {
+          const nx = side < 0 ? WALL + 6 : W - WALL - 26;
+          // Recessed shadowed temple niche carved directly into cliff face
+          ctx.fillStyle = 'rgba(98, 34, 22, 0.38)';
+          roundRectPath(ctx, nx, ny - 34, 20, 68, 8);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 224, 148, 0.28)';
+          ctx.lineWidth = 1.6;
+          roundRectPath(ctx, nx, ny - 34, 20, 68, 8);
+          ctx.stroke();
+          // Carved triangular sandstone pediment cap
+          ctx.fillStyle = 'rgba(224, 132, 62, 0.48)';
+          ctx.beginPath();
+          ctx.moveTo(nx - 3, ny - 34);
+          ctx.lineTo(nx + 10, ny - 48);
+          ctx.lineTo(nx + 23, ny - 34);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // 4. Horizontal wind-carved sedimentary rock strata bands strictly inside cliff zone
+        ctx.strokeStyle = 'rgba(255, 218, 142, 0.22)';
         ctx.lineWidth = 2;
-        for (let sy = 40; sy < H; sy += 72) {
+        for (let sy = 36; sy < H; sy += 72) {
           ctx.beginPath();
           ctx.moveTo(WALL, sy);
-          ctx.lineTo(WALL + 34, sy + 4);
-          ctx.moveTo(W - WALL - 34, sy + 32);
-          ctx.lineTo(W - WALL, sy + 28);
+          ctx.lineTo(WALL + 22, sy + 2);
+          ctx.moveTo(W - WALL - 22, sy + 36);
+          ctx.lineTo(W - WALL, sy + 34);
           ctx.stroke();
         }
       } else if (bgStyle === 'foundry') {
-        // ==================== MOLTEN FOUNDRY (VOLCANIC BASALT CALDERA) ====================
-        // 1. Warm rising lava under-glow radiating through distant volcanic chasms
+        // ==================== MOLTEN FOUNDRY (CONTINUOUS BASALT & LAVA FALLS) ====================
+        // 1. Warm rising magma haze pools
         for (const [gx, gy, gr] of [
-          [W * 0.36, 260, 130],
-          [W * 0.64, 560, 145]
+          [W * 0.34, 240, 125],
+          [W * 0.66, 560, 135]
         ]) {
           const lg = ctx.createRadialGradient(gx, gy, 8, gx, gy, gr);
-          lg.addColorStop(0, 'rgba(255, 136, 48, 0.24)');
-          lg.addColorStop(0.55, 'rgba(214, 52, 36, 0.1)');
+          lg.addColorStop(0, 'rgba(255, 136, 48, 0.2)');
+          lg.addColorStop(0.55, 'rgba(214, 52, 36, 0.08)');
           lg.addColorStop(1, 'rgba(0, 0, 0, 0)');
           ctx.fillStyle = lg;
           ctx.beginPath();
@@ -2411,88 +3090,162 @@
           ctx.fill();
         }
 
-        // 2. Distant glowing molten lava falls pouring vertically from volcanic rock arches
-        for (const [lx, topY, botY, lw] of [
-          [116, 80, 410, 10],
-          [328, 360, 680, 12]
+        // 2. Continuous top-to-bottom (0..720) faceted hexagonal basalt columns flanking the caldera
+        for (const [bx, bw, rimDir] of [
+          [92, 24, 1],
+          [122, 18, 1],
+          [W - 122, 18, -1],
+          [W - 92, 24, -1]
         ]) {
-          const lfg = ctx.createLinearGradient(lx, topY, lx, botY);
-          lfg.addColorStop(0, 'rgba(255, 214, 102, 0.05)');
-          lfg.addColorStop(0.2, 'rgba(255, 132, 46, 0.34)');
-          lfg.addColorStop(0.8, 'rgba(255, 92, 38, 0.28)');
-          lfg.addColorStop(1, 'rgba(255, 92, 38, 0)');
-          ctx.fillStyle = lfg;
-          ctx.beginPath();
-          ctx.moveTo(lx - lw * 0.5, topY);
-          ctx.quadraticCurveTo(lx - lw * 0.3, (topY + botY) * 0.5, lx - lw * 0.65, botY);
-          ctx.lineTo(lx + lw * 0.65, botY);
-          ctx.quadraticCurveTo(lx + lw * 0.3, (topY + botY) * 0.5, lx + lw * 0.5, topY);
-          ctx.closePath();
-          ctx.fill();
+          const bg = ctx.createLinearGradient(bx - bw * 0.5, 0, bx + bw * 0.5, 0);
+          if (rimDir > 0) {
+            bg.addColorStop(0, 'rgba(38, 12, 22, 0.72)');
+            bg.addColorStop(0.75, 'rgba(54, 18, 28, 0.66)');
+            bg.addColorStop(1, 'rgba(255, 138, 52, 0.28)');
+          } else {
+            bg.addColorStop(0, 'rgba(255, 138, 52, 0.28)');
+            bg.addColorStop(0.25, 'rgba(54, 18, 28, 0.66)');
+            bg.addColorStop(1, 'rgba(38, 12, 22, 0.72)');
+          }
+          ctx.fillStyle = bg;
+          ctx.fillRect(bx - bw * 0.5, 0, bw, H);
+
+          // Periodic stepped horizontal basalt fracture joints (every 120px divides 720 evenly!)
+          ctx.strokeStyle = 'rgba(22, 6, 14, 0.45)';
+          ctx.lineWidth = 1.6;
+          for (let jy = 0; jy < H; jy += 120) {
+            const oy = jy + (bx % 30);
+            ctx.beginPath();
+            ctx.moveTo(bx - bw * 0.5, oy);
+            ctx.lineTo(bx + bw * 0.5, oy + 5);
+            ctx.stroke();
+          }
         }
 
-        // Distant heavy forged iron chains hanging across the caldera silhouette
-        ctx.strokeStyle = 'rgba(28, 10, 18, 0.55)';
-        ctx.lineWidth = 3.2;
-        ctx.setLineDash([7, 4]);
+        // 3. Two continuous UNINTERRUPTED top-to-bottom (0..720) glowing molten lava falls!
+        const paintContinuousLavaFall = (lx, lw, phase) => {
+          const steps = 36;
+          const xAt = (t) => lx + Math.sin(t * Math.PI * 2 + phase) * 3.5;
+          const wAt = (t) => lw * (0.88 + 0.16 * Math.cos(t * Math.PI * 4 + phase));
+
+          // Soft outer molten glow ribbon
+          ctx.fillStyle = 'rgba(255, 102, 38, 0.18)';
+          ctx.beginPath();
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = xAt(t) - wAt(t) * 1.35;
+            if (i === 0) ctx.moveTo(x, t * H);
+            else ctx.lineTo(x, t * H);
+          }
+          for (let i = steps; i >= 0; i--) {
+            const t = i / steps;
+            ctx.lineTo(xAt(t) + wAt(t) * 1.35, t * H);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          // Bright incandescent lava stream core
+          const lg = ctx.createLinearGradient(lx - lw, 0, lx + lw, 0);
+          lg.addColorStop(0, 'rgba(255, 96, 36, 0.55)');
+          lg.addColorStop(0.5, 'rgba(255, 224, 114, 0.78)');
+          lg.addColorStop(1, 'rgba(255, 96, 36, 0.55)');
+          ctx.fillStyle = lg;
+          ctx.beginPath();
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = xAt(t) - wAt(t) * 0.5;
+            if (i === 0) ctx.moveTo(x, t * H);
+            else ctx.lineTo(x, t * H);
+          }
+          for (let i = steps; i >= 0; i--) {
+            const t = i / steps;
+            ctx.lineTo(xAt(t) + wAt(t) * 0.5, t * H);
+          }
+          ctx.closePath();
+          ctx.fill();
+        };
+
+        paintContinuousLavaFall(134, 9.5, 0.5);
+        paintContinuousLavaFall(W - 134, 10.5, 2.4);
+
+        // 4. Wall-to-wall heavy forged iron chains anchored solidly into both cliffs
+        ctx.strokeStyle = 'rgba(28, 10, 18, 0.65)';
+        ctx.lineWidth = 3.6;
+        ctx.setLineDash([8, 4]);
         ctx.beginPath();
-        ctx.moveTo(WALL + 20, 180);
-        ctx.quadraticCurveTo(W * 0.5, 248, W - WALL - 20, 165);
-        ctx.moveTo(WALL + 20, 520);
-        ctx.quadraticCurveTo(W * 0.5, 582, W - WALL - 20, 505);
+        ctx.moveTo(WALL, 185);
+        ctx.quadraticCurveTo(W * 0.5, 254, W - WALL, 170);
+        ctx.moveTo(WALL, 540);
+        ctx.quadraticCurveTo(W * 0.5, 606, W - WALL, 526);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // 3. Seamless volcanic obsidian cliff silhouettes with warm magma rim-light
-        paintSeamlessCanyonEdges(ctx, WALL, 1.4, 'rgba(56, 18, 28, 0.72)', 'rgba(48, 15, 24, 0.74)', 'rgba(255, 152, 66, 0.26)', 1.5);
-        paintSeamlessCanyonEdges(ctx, WALL, 0.78, 'rgba(72, 24, 32, 0.9)', 'rgba(64, 21, 29, 0.9)', 'rgba(255, 182, 84, 0.36)', 3.6);
+        // 5. Seamless volcanic obsidian cliff walls with warm magma rim-light
+        paintSeamlessCanyonEdges(ctx, WALL, 1.4, 'rgba(56, 18, 28, 0.74)', 'rgba(48, 15, 24, 0.76)', 'rgba(255, 152, 66, 0.28)', 1.5);
+        paintSeamlessCanyonEdges(ctx, WALL, 0.78, 'rgba(72, 24, 32, 0.92)', 'rgba(64, 21, 29, 0.92)', 'rgba(255, 182, 84, 0.38)', 3.6);
       } else if (bgStyle === 'frost') {
-        // ==================== FROST PEAKS (AURORA CRYSTAL GLACIER) ====================
-        // 1. Undulating northern Aurora Borealis curtains shimmering across arctic sky
-        for (const [ay, col1, col2] of [
-          [155, 'rgba(92, 255, 214, 0.22)', 'rgba(96, 198, 255, 0.04)'],
-          [485, 'rgba(130, 232, 255, 0.2)', 'rgba(176, 148, 255, 0.04)']
+        // ==================== FROST PEAKS (GLACIAL CRYSTAL CANYON) ====================
+        // (Northern Aurora Borealis is sky-fixed in Layer 1; Alpine Peaks rest on 1150m horizon in Layer 2!)
+        // 1. Wall-to-wall natural sculpted glacial ice arch bridge with hanging icicles
+        const iceArchGrad = ctx.createLinearGradient(0, 296, 0, 384);
+        iceArchGrad.addColorStop(0, 'rgba(202, 248, 255, 0.56)');
+        iceArchGrad.addColorStop(0.55, 'rgba(52, 146, 184, 0.62)');
+        iceArchGrad.addColorStop(1, 'rgba(20, 78, 116, 0.7)');
+        ctx.fillStyle = iceArchGrad;
+        ctx.beginPath();
+        ctx.moveTo(WALL, 338);
+        ctx.quadraticCurveTo(W * 0.5, 292, W - WALL, 338);
+        ctx.lineTo(W - WALL, 382);
+        ctx.quadraticCurveTo(W * 0.5, 342, WALL, 382);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(232, 254, 255, 0.55)';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(WALL, 338);
+        ctx.quadraticCurveTo(W * 0.5, 292, W - WALL, 338);
+        ctx.stroke();
+
+        // Sharp translucent icicles hanging straight from the underside of the ice bridge
+        ctx.fillStyle = 'rgba(186, 246, 255, 0.52)';
+        for (const [ix, iy, il] of [
+          [128, 366, 36],
+          [184, 355, 48],
+          [242, 353, 30],
+          [308, 362, 42]
         ]) {
-          const ag = ctx.createLinearGradient(0, ay - 75, 0, ay + 65);
-          ag.addColorStop(0, col2);
-          ag.addColorStop(0.5, col1);
-          ag.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = ag;
           ctx.beginPath();
-          ctx.moveTo(WALL, ay - 20);
-          ctx.bezierCurveTo(W * 0.3, ay - 80, W * 0.68, ay + 35, W - WALL, ay - 35);
-          ctx.lineTo(W - WALL, ay + 72);
-          ctx.bezierCurveTo(W * 0.65, ay + 108, W * 0.32, ay + 12, WALL, ay + 68);
+          ctx.moveTo(ix - 5, iy);
+          ctx.lineTo(ix, iy + il);
+          ctx.lineTo(ix + 5, iy);
           ctx.closePath();
           ctx.fill();
         }
 
-        // 2. Faceted sunlit glacial crystal spires jutting organically from canyon walls
+        // 2. Faceted sunlit glacial crystal spires rooted DEEP inside canyon rock walls
         const drawIceCrystalCluster = (cx, cy, dir, sc) => {
           ctx.save();
           ctx.translate(cx, cy);
           ctx.scale(dir * sc, sc);
           for (const [ang, len, wid] of [
-            [-0.45, 72, 18],
-            [-0.12, 92, 22],
-            [0.24, 58, 15]
+            [-0.45, 76, 19],
+            [-0.12, 96, 23],
+            [0.24, 62, 16]
           ]) {
             ctx.save();
             ctx.rotate(ang);
-            // Shaded body plane
-            ctx.fillStyle = 'rgba(34, 118, 156, 0.56)';
+            ctx.fillStyle = 'rgba(34, 118, 156, 0.62)';
             ctx.beginPath();
-            ctx.moveTo(-6, -wid * 0.5);
+            ctx.moveTo(-18, -wid * 0.55);
             ctx.lineTo(len, 0);
-            ctx.lineTo(-6, wid * 0.5);
+            ctx.lineTo(-18, wid * 0.55);
             ctx.closePath();
             ctx.fill();
-            // Bright moonlit upper crystal facet
-            ctx.fillStyle = 'rgba(205, 250, 255, 0.34)';
+            ctx.fillStyle = 'rgba(205, 250, 255, 0.38)';
             ctx.beginPath();
-            ctx.moveTo(-6, -wid * 0.5);
+            ctx.moveTo(-18, -wid * 0.55);
             ctx.lineTo(len, 0);
-            ctx.lineTo(-6, 0);
+            ctx.lineTo(-18, 0);
             ctx.closePath();
             ctx.fill();
             ctx.restore();
@@ -2500,172 +3253,133 @@
           ctx.restore();
         };
 
-        drawIceCrystalCluster(WALL + 12, 235, 1, 1.0);
-        drawIceCrystalCluster(W - WALL - 12, 465, -1, 1.05);
-        drawIceCrystalCluster(WALL + 8, 620, 1, 0.78);
+        drawIceCrystalCluster(WALL + 4, 210, 1, 1.0);
+        drawIceCrystalCluster(W - WALL - 4, 480, -1, 1.06);
+        drawIceCrystalCluster(WALL + 4, 625, 1, 0.82);
 
-        // 3. Seamless sculpted snow-and-glacier canyon ridges
-        paintSeamlessCanyonEdges(ctx, WALL, 1.32, 'rgba(20, 78, 116, 0.62)', 'rgba(18, 70, 106, 0.65)', 'rgba(196, 248, 255, 0.28)', 0.9);
-        paintSeamlessCanyonEdges(ctx, WALL, 0.74, 'rgba(29, 98, 138, 0.82)', 'rgba(25, 88, 126, 0.85)', 'rgba(232, 254, 255, 0.42)', 2.9);
+        // 3. Seamless sculpted snow-and-glacier canyon ridges overlapping crystal bases cleanly
+        paintSeamlessCanyonEdges(ctx, WALL, 1.32, 'rgba(20, 78, 116, 0.66)', 'rgba(18, 70, 106, 0.68)', 'rgba(196, 248, 255, 0.3)', 0.9);
+        paintSeamlessCanyonEdges(ctx, WALL, 0.74, 'rgba(29, 98, 138, 0.86)', 'rgba(25, 88, 126, 0.88)', 'rgba(232, 254, 255, 0.44)', 2.9);
       } else if (bgStyle === 'storm') {
-        // ==================== STORM SPIRE (TEMPEST CLOUDSCAPE & CITADEL) ====================
-        // 1. Soft internal storm-cloud electric glow halos
-        for (const [gx, gy, gr] of [
-          [W * 0.46, 195, 120],
-          [W * 0.54, 520, 130]
-        ]) {
-          const eg = ctx.createRadialGradient(gx, gy, 8, gx, gy, gr);
-          eg.addColorStop(0, 'rgba(116, 242, 255, 0.22)');
-          eg.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = eg;
+        // ==================== STORM SPIRE (ENDLESS GOTHIC CITADEL TOWERS) ====================
+        // (Rolling Thunderhead Cloud Deck is grounded on 1550m horizon in Layer 2!)
+        // 1. Two continuous top-to-bottom (0..720) Gothic Storm-Citadel Lattice Towers
+        const paintStormTower = (tx, tw) => {
+          // Dark iron-slate vertical structural rails
+          ctx.fillStyle = 'rgba(18, 36, 78, 0.74)';
+          ctx.fillRect(tx - tw * 0.5, 0, 5.5, H);
+          ctx.fillRect(tx + tw * 0.5 - 5.5, 0, 5.5, H);
+          // Translucent tower core interior
+          ctx.fillStyle = 'rgba(22, 44, 92, 0.42)';
+          ctx.fillRect(tx - tw * 0.5 + 5, 0, tw - 10, H);
+
+          // Central vertical copper lightning conduit
+          ctx.strokeStyle = 'rgba(128, 242, 255, 0.36)';
+          ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(gx, gy, gr, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.moveTo(tx, 0);
+          ctx.lineTo(tx, H);
+          ctx.stroke();
+
+          // Periodic diagonal Gothic X-bracing & glowing Tesla insulator rings (step 90px divides 720!)
+          ctx.strokeStyle = 'rgba(20, 42, 86, 0.78)';
+          ctx.lineWidth = 2.4;
+          for (let y = 0; y < H; y += 90) {
+            ctx.beginPath();
+            ctx.moveTo(tx - tw * 0.5 + 4, y);
+            ctx.lineTo(tx + tw * 0.5 - 4, y + 90);
+            ctx.moveTo(tx + tw * 0.5 - 4, y);
+            ctx.lineTo(tx - tw * 0.5 + 4, y + 90);
+            ctx.moveTo(tx - tw * 0.5, y);
+            ctx.lineTo(tx + tw * 0.5, y);
+            ctx.stroke();
+
+            // Glowing cyan Tesla coil ring every 180px
+            if (y % 180 === 0) {
+              ctx.fillStyle = 'rgba(130, 244, 255, 0.52)';
+              roundRectPath(ctx, tx - tw * 0.58, y + 38, tw * 1.16, 6, 3);
+              ctx.fill();
+            }
+          }
+        };
+
+        paintStormTower(106, 28);
+        paintStormTower(W - 106, 28);
+
+        // 2. Wall-to-wall riveted iron sky-bridges & glowing cyan power cables anchored into walls
+        for (const [by, sag] of [
+          [210, 28],
+          [570, 26]
+        ]) {
+          // Catenary electric conduit cable sagging gently below the sky-bridge
+          ctx.strokeStyle = 'rgba(122, 240, 255, 0.38)';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.moveTo(WALL, by + 10);
+          ctx.quadraticCurveTo(W * 0.5, by + 16 + sag, W - WALL, by + 10);
+          ctx.stroke();
+
+          // Solid riveted iron girder sky-bridge spanning wall-to-wall
+          ctx.fillStyle = 'rgba(18, 38, 82, 0.72)';
+          ctx.fillRect(WALL, by - 7, W - WALL * 2, 13);
+          ctx.strokeStyle = 'rgba(154, 238, 255, 0.3)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(WALL, by - 7);
+          ctx.lineTo(W - WALL, by - 7);
+          ctx.stroke();
         }
 
-        // 2. Distant gothic storm-spire silhouettes piercing dramatic thunderheads
-        for (const [sx, baseY, sh] of [
-          [W * 0.34, 245, 120],
-          [W * 0.66, 565, 132]
-        ]) {
-          ctx.fillStyle = 'rgba(20, 39, 82, 0.65)';
-          ctx.beginPath();
-          ctx.moveTo(sx - 18, baseY);
-          ctx.lineTo(sx - 7, baseY - sh * 0.72);
-          ctx.lineTo(sx, baseY - sh);
-          ctx.lineTo(sx + 7, baseY - sh * 0.72);
-          ctx.lineTo(sx + 18, baseY);
-          ctx.closePath();
-          ctx.fill();
-          // Glowing cyan coil ring on spire tip
-          ctx.fillStyle = 'rgba(128, 242, 255, 0.55)';
-          ctx.beginPath();
-          ctx.arc(sx, baseY - sh * 0.82, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        // 3. Sculpted multi-layered thunderhead cumulus cloud banks with silver-cyan linings
-        paintPainterlyCloudBank(ctx, W * 0.44, 238, 1.32, '#86d6ff', '#315896', '#162954', 0.56);
-        paintPainterlyCloudBank(ctx, W * 0.62, 558, 1.28, '#86d6ff', '#2c4f8a', '#14254c', 0.56);
-
-        // 4. Seamless storm-citadel canyon cliffs
-        paintSeamlessCanyonEdges(ctx, WALL, 1.25, 'rgba(24, 48, 96, 0.66)', 'rgba(20, 42, 86, 0.7)', 'rgba(138, 233, 255, 0.24)', 1.7);
-        paintSeamlessCanyonEdges(ctx, WALL, 0.68, 'rgba(32, 62, 114, 0.84)', 'rgba(28, 54, 102, 0.86)', 'rgba(176, 244, 255, 0.3)', 4.0);
+        // 3. Seamless storm-citadel canyon cliffs
+        paintSeamlessCanyonEdges(ctx, WALL, 1.25, 'rgba(24, 48, 96, 0.72)', 'rgba(20, 42, 86, 0.74)', 'rgba(138, 233, 255, 0.26)', 1.7);
+        paintSeamlessCanyonEdges(ctx, WALL, 0.68, 'rgba(32, 62, 114, 0.88)', 'rgba(28, 54, 102, 0.9)', 'rgba(176, 244, 255, 0.34)', 4.0);
       } else if (bgStyle === 'cosmos') {
-        // ==================== ASTRAL COSMOS (PAINTERLY STORYBOOK GALAXY) ====================
-        // 1. Diagonal sweeping painterly nebula clouds (magenta + royal violet + astral cyan)
-        for (const [nx, ny, rx, ry, rot, c1] of [
-          [W * 0.42, 180, 170, 72, -0.35, 'rgba(197, 108, 240, 0.22)'],
-          [W * 0.58, 220, 140, 56, -0.25, 'rgba(84, 214, 255, 0.14)'],
-          [W * 0.56, 520, 180, 76, 0.32, 'rgba(218, 112, 255, 0.2)'],
-          [W * 0.36, 560, 130, 54, 0.22, 'rgba(255, 198, 112, 0.12)']
-        ]) {
-          ctx.save();
-          ctx.translate(nx, ny);
-          ctx.rotate(rot);
-          const ng = ctx.createRadialGradient(0, 0, 8, 0, 0, rx);
-          ng.addColorStop(0, c1);
-          ng.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = ng;
-          ctx.scale(1, ry / rx);
-          ctx.beginPath();
-          ctx.arc(0, 0, rx, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-
-        // 2. Charming hand-shaded cartoon Ringed Nebula Planet
-        ctx.save();
-        ctx.translate(W * 0.64, 215);
-        // Back half of golden ring
-        ctx.save();
-        ctx.rotate(-0.34);
-        ctx.strokeStyle = 'rgba(255, 224, 130, 0.48)';
-        ctx.lineWidth = 6.5;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 62, 16, 0, Math.PI, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-
-        // Cel-shaded planet globe
-        const pg = ctx.createLinearGradient(-28, -28, 28, 28);
-        pg.addColorStop(0, '#f2b8ff');
-        pg.addColorStop(0.55, '#8642cc');
-        pg.addColorStop(1, '#2a115c');
-        ctx.fillStyle = pg;
-        ctx.beginPath();
-        ctx.arc(0, 0, 32, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(0, 0, 32, 0, Math.PI * 2);
-        if (typeof ctx.clip === 'function') ctx.clip();
-        ctx.fillStyle = 'rgba(255, 220, 255, 0.24)';
-        ctx.fillRect(-34, -14, 68, 7);
-        ctx.fillRect(-34, 4, 68, 5);
-        ctx.fillStyle = 'rgba(20, 6, 52, 0.46)';
-        ctx.beginPath();
-        ctx.arc(14, 14, 34, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // Front half of golden ring
-        ctx.save();
-        ctx.rotate(-0.34);
-        ctx.strokeStyle = 'rgba(255, 232, 148, 0.72)';
-        ctx.lineWidth = 6.5;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 62, 16, 0, 0, Math.PI);
-        ctx.stroke();
-        ctx.restore();
-        ctx.restore();
-
-        // 3. Soft glowing pastel Crescent Moon in lower vista
-        ctx.save();
-        ctx.translate(W * 0.34, 525);
-        const mg = ctx.createRadialGradient(0, 0, 10, 0, 0, 56);
-        mg.addColorStop(0, 'rgba(255, 240, 185, 0.26)');
-        mg.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = mg;
-        ctx.beginPath();
-        ctx.arc(0, 0, 56, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255, 244, 198, 0.62)';
-        ctx.beginPath();
-        ctx.arc(0, 0, 24, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.beginPath();
-        ctx.arc(11, -7, 21, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.restore();
-
-        // 4. Delicate constellation lines + storybook 4-point diamond stars
+        // ==================== ASTRAL COSMOS (DEEP 3D PARALLAX STARFIELD) ====================
+        // (Nebula, Ringed Planet, and Crescent Moon stay majestically fixed in Layer 1 sky!)
+        // Soft distant stardust speckles & delicate constellation threads scrolling seamlessly
         const stars = [
-          [112, 118, 5],
-          [165, 168, 3.5],
-          [134, 242, 4.5],
-          [322, 420, 5.5],
-          [268, 468, 3.8],
-          [340, 535, 4.2],
-          [224, 342, 4.5],
-          [190, 645, 5]
+          [112, 92, 5.2],
+          [168, 152, 3.6],
+          [134, 232, 4.6],
+          [328, 148, 4.8],
+          [282, 214, 3.4],
+          [224, 326, 4.8],
+          [326, 420, 5.6],
+          [268, 474, 3.8],
+          [344, 542, 4.4],
+          [124, 488, 4.5],
+          [188, 636, 5.2],
+          [294, 668, 3.8]
         ];
-        ctx.strokeStyle = 'rgba(232, 190, 255, 0.22)';
-        ctx.lineWidth = 1.4;
+
+        ctx.strokeStyle = 'rgba(232, 190, 255, 0.2)';
+        ctx.lineWidth = 1.3;
         ctx.setLineDash([4, 6]);
         ctx.beginPath();
-        ctx.moveTo(112, 118);
-        ctx.lineTo(165, 168);
-        ctx.lineTo(134, 242);
-        ctx.moveTo(322, 420);
-        ctx.lineTo(268, 468);
-        ctx.lineTo(340, 535);
+        ctx.moveTo(112, 92);
+        ctx.lineTo(168, 152);
+        ctx.lineTo(134, 232);
+        ctx.moveTo(326, 420);
+        ctx.lineTo(268, 474);
+        ctx.lineTo(344, 542);
+        ctx.moveTo(124, 488);
+        ctx.lineTo(188, 636);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(255, 248, 214, 0.72)';
+        // Soft distant faint background nebula stardust dots
+        for (let i = 0; i < 34; i++) {
+          const sx = 54 + ((i * 79 + 29) % (W - 108));
+          const sy = (i * 113 + 37) % H;
+          const sr = 1 + (i % 3) * 0.65;
+          ctx.fillStyle = i % 3 === 0 ? 'rgba(238, 192, 255, 0.42)' : 'rgba(255, 248, 224, 0.48)';
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Storybook 4-point diamond stars
+        ctx.fillStyle = 'rgba(255, 248, 216, 0.76)';
         for (const [sx, sy, sr] of stars) {
           ctx.beginPath();
           ctx.moveTo(sx, sy - sr);
@@ -2680,98 +3394,116 @@
           ctx.fill();
         }
       } else if (bgStyle === 'heaven') {
-        // ==================== CELESTIAL HEAVEN (SUNLIT STORYBOOK ELYSIUM) ====================
-        // 1. Radiant distant heavenly halo-sunbursts behind sanctuaries
-        for (const [hx, hy, hr] of [
-          [W * 0.5, 200, 140],
-          [W * 0.5, 555, 130]
-        ]) {
-          const hg = ctx.createRadialGradient(hx, hy, 10, hx, hy, hr);
-          hg.addColorStop(0, 'rgba(255, 252, 224, 0.48)');
-          hg.addColorStop(0.5, 'rgba(255, 226, 138, 0.16)');
-          hg.addColorStop(1, 'rgba(255, 226, 138, 0)');
-          ctx.fillStyle = hg;
+        // ==================== CELESTIAL HEAVEN (ENDLESS MARBLE CATHEDRAL COLONNADE) ====================
+        // (Golden Sun-Gate Halo is sky-fixed in Layer 1; Golden Cumulus Cloud Sea rests on 2500m horizon in Layer 2!)
+        // 1. Soaring golden-trimmed celestial cathedral arches bridging between the continuous columns
+        for (const archY of [180, 540]) {
+          // Graceful pearlescent stone vault soffit springing cleanly from the inner colonnade
+          ctx.strokeStyle = 'rgba(255, 250, 236, 0.36)';
+          ctx.lineWidth = 10;
           ctx.beginPath();
-          ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+          ctx.moveTo(126, archY);
+          ctx.quadraticCurveTo(W * 0.5, archY - 96, W - 126, archY);
+          ctx.stroke();
+
+          // Ornate double golden arch moldings
+          ctx.strokeStyle = 'rgba(255, 222, 112, 0.66)';
+          ctx.lineWidth = 3.2;
+          ctx.beginPath();
+          ctx.moveTo(126, archY - 4);
+          ctx.quadraticCurveTo(W * 0.5, archY - 102, W - 126, archY - 4);
+          ctx.stroke();
+
+          ctx.strokeStyle = 'rgba(255, 252, 224, 0.48)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(126, archY + 5);
+          ctx.quadraticCurveTo(W * 0.5, archY - 88, W - 126, archY + 5);
+          ctx.stroke();
+
+          // Radiant 4-point golden celestial keystone at arch apex
+          const ky = archY - 52;
+          ctx.fillStyle = 'rgba(255, 240, 152, 0.82)';
+          ctx.beginPath();
+          ctx.moveTo(W * 0.5, ky - 11);
+          ctx.lineTo(W * 0.5 + 3.5, ky - 3.5);
+          ctx.lineTo(W * 0.5 + 11, ky);
+          ctx.lineTo(W * 0.5 + 3.5, ky + 3.5);
+          ctx.lineTo(W * 0.5, ky + 11);
+          ctx.lineTo(W * 0.5 - 3.5, ky + 3.5);
+          ctx.lineTo(W * 0.5 - 11, ky);
+          ctx.lineTo(W * 0.5 - 3.5, ky - 3.5);
+          ctx.closePath();
           ctx.fill();
         }
 
-        // Helper for a sculpted classical marble sanctuary rising out of sunlit cumulus clouds
-        const paintCloudSanctuary = (cy, sc) => {
+        // 2. Four continuous top-to-bottom (0..720) fluted pearl-white marble cathedral columns
+        const paintContinuousMarbleColumn = (cx, colW, alpha) => {
           ctx.save();
-          ctx.translate(W * 0.5, cy);
-          ctx.scale(sc, sc);
+          ctx.globalAlpha = alpha;
+          const colGrad = ctx.createLinearGradient(cx - colW * 0.5, 0, cx + colW * 0.5, 0);
+          colGrad.addColorStop(0, 'rgba(255, 254, 248, 0.9)');
+          colGrad.addColorStop(0.55, 'rgba(242, 234, 218, 0.82)');
+          colGrad.addColorStop(1, 'rgba(182, 176, 210, 0.72)');
+          ctx.fillStyle = colGrad;
+          ctx.fillRect(cx - colW * 0.5, 0, colW, H);
 
-          // Ornate golden celestial double halo-arch framing the temple
-          ctx.strokeStyle = 'rgba(255, 232, 138, 0.62)';
-          ctx.lineWidth = 4.2;
+          // Continuous classical vertical fluting grooves (0..720 seamlessly)
+          ctx.strokeStyle = 'rgba(148, 142, 182, 0.34)';
+          ctx.lineWidth = 1.25;
           ctx.beginPath();
-          ctx.arc(0, -14, 118, Math.PI * 1.12, Math.PI * 1.88);
+          ctx.moveTo(cx - colW * 0.22, 0);
+          ctx.lineTo(cx - colW * 0.22, H);
+          ctx.moveTo(cx + colW * 0.22, 0);
+          ctx.lineTo(cx + colW * 0.22, H);
           ctx.stroke();
-          ctx.strokeStyle = 'rgba(255, 252, 224, 0.45)';
-          ctx.lineWidth = 1.8;
+
+          // Sunlit ivory edge highlight
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.arc(0, -14, 106, Math.PI * 1.16, Math.PI * 1.84);
+          ctx.moveTo(cx - colW * 0.44, 0);
+          ctx.lineTo(cx - colW * 0.44, H);
           ctx.stroke();
 
-          // Four graceful fluted classical marble columns (outer tall pair + inner shorter pair)
-          for (const [px, colH, colW] of [
-            [-112, 118, 22],
-            [-64, 96, 16],
-            [64, 96, 16],
-            [112, 118, 22]
-          ]) {
-            const topY = 36 - colH;
-            const colGrad = ctx.createLinearGradient(px - colW * 0.5, 0, px + colW * 0.5, 0);
-            colGrad.addColorStop(0, 'rgba(255, 253, 245, 0.72)');
-            colGrad.addColorStop(0.65, 'rgba(240, 232, 215, 0.58)');
-            colGrad.addColorStop(1, 'rgba(184, 176, 206, 0.46)');
-            ctx.fillStyle = colGrad;
-            roundRectPath(ctx, px - colW * 0.5, topY, colW, colH, 3);
+          // Periodic sculpted golden Ionic cornice bands (at y = 180 and y = 540 — aligns with arches!)
+          for (const cy of [180, 540]) {
+            ctx.fillStyle = 'rgba(255, 216, 92, 0.88)';
+            roundRectPath(ctx, cx - colW * 0.7, cy - 5, colW * 1.4, 10, 3);
             ctx.fill();
-
-            // Subtle vertical column fluting grooves
-            ctx.strokeStyle = 'rgba(155, 148, 184, 0.25)';
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(px - colW * 0.2, topY + 10);
-            ctx.lineTo(px - colW * 0.2, 30);
-            ctx.moveTo(px + colW * 0.2, topY + 10);
-            ctx.lineTo(px + colW * 0.2, 30);
-            ctx.stroke();
-
-            // Sculpted golden Ionic capital & stepped plinth base
-            ctx.fillStyle = 'rgba(255, 214, 88, 0.72)';
-            roundRectPath(ctx, px - colW * 0.72, topY - 6, colW * 1.44, 8, 3);
+            ctx.fillStyle = 'rgba(255, 252, 224, 0.72)';
+            roundRectPath(ctx, cx - colW * 0.62, cy - 10, colW * 1.24, 4.5, 2);
             ctx.fill();
-            ctx.fillStyle = 'rgba(255, 246, 214, 0.65)';
-            roundRectPath(ctx, px - colW * 0.68, 28, colW * 1.36, 9, 3);
+            roundRectPath(ctx, cx - colW * 0.62, cy + 5.5, colW * 1.24, 4.5, 2);
             ctx.fill();
           }
-
-          // Distant golden celestial sun-crest at center of arch
-          ctx.fillStyle = 'rgba(255, 244, 178, 0.72)';
-          ctx.beginPath();
-          ctx.moveTo(0, -142);
-          ctx.lineTo(5, -131);
-          ctx.lineTo(16, -126);
-          ctx.lineTo(5, -121);
-          ctx.lineTo(0, -110);
-          ctx.lineTo(-5, -121);
-          ctx.lineTo(-16, -126);
-          ctx.lineTo(-5, -131);
-          ctx.closePath();
-          ctx.fill();
-
-          // Lush billowing sunlit cream-and-lavender cumulus cloud island cradling the temple base
-          paintPainterlyCloudBank(ctx, -68, 44, 0.96, '#fffdf5', '#f5ecdb', '#b8c8eb', 0.76);
-          paintPainterlyCloudBank(ctx, 68, 46, 0.92, '#fffdf5', '#f5ecdb', '#b8c8eb', 0.74);
-          paintPainterlyCloudBank(ctx, 0, 52, 1.18, '#ffffff', '#fff7e6', '#c9d2f0', 0.85);
           ctx.restore();
         };
 
-        paintCloudSanctuary(245, 0.96);
-        paintCloudSanctuary(600, 0.88);
+        // Recessed inner colonnade (softer atmospheric depth) + prominent outer marble colonnade
+        paintContinuousMarbleColumn(126, 18, 0.62);
+        paintContinuousMarbleColumn(W - 126, 18, 0.62);
+        paintContinuousMarbleColumn(74, 28, 0.86);
+        paintContinuousMarbleColumn(W - 74, 28, 0.86);
+
+        // 3. Soft wispy translucent atmospheric mist ribbons drifting gently across outer columns
+        for (const [wy, wrx, wry] of [
+          [96, 155, 16],
+          [442, 168, 18]
+        ]) {
+          const wg = ctx.createRadialGradient(W * 0.5, wy, 10, W * 0.5, wy, wrx);
+          wg.addColorStop(0, 'rgba(255, 252, 240, 0.22)');
+          wg.addColorStop(0.6, 'rgba(255, 246, 222, 0.08)');
+          wg.addColorStop(1, 'rgba(255, 246, 222, 0)');
+          ctx.fillStyle = wg;
+          ctx.save();
+          ctx.translate(W * 0.5, wy);
+          ctx.scale(1, wry / wrx);
+          ctx.beginPath();
+          ctx.arc(0, 0, wrx, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
       }
 
       // Subtle painterly grain unified over every biome tile so it blends seamlessly with the cartoon art style
@@ -2784,11 +3516,33 @@
   }
 
   /**
-   * Renders the cached seamless painterly biome backdrop at smooth parallax plus
-   * subtle live biome accents (gentle twinkling starlight / aurora shimmer / storm glow).
+   * Renders the full 3-Layer Vertical World Biome Backdrop in strict atmospheric depth order:
+   *   1) Sky-Fixed Celestial Backdrop (Sun, Aurora, Planet/Moon, Sun-Gate — never repeats)
+   *   2) Non-Repeating Biome-Entry Horizon Vista (Pyramids & Dunes, Cloud Sea, Peaks — grounded)
+   *   3) Cached Seamless 720px Vertical Architecture Tile (strictly wall-rooted or 0..720 continuous)
    */
-  function drawBiomeBackdrop(ctx, bgStyle, width, height, padTop, padBottom, wallWidth, cameraY, time, fadeAlpha = 1) {
+  function drawBiomeBackdrop(
+    ctx,
+    bgStyle,
+    width,
+    height,
+    padTop,
+    padBottom,
+    wallWidth,
+    cameraY,
+    time,
+    fadeAlpha = 1,
+    camMeters = null
+  ) {
     if (!bgStyle || bgStyle === 'canopy' || fadeAlpha <= 0.01) return;
+
+    // Layer 1: Sky-fixed celestial bodies & atmosphere
+    drawBiomeSkyAnchors(ctx, bgStyle, width, height, padTop, padBottom, time, fadeAlpha);
+
+    // Layer 2: Non-repeating biome-entry horizon landmarks (behind nearer canyon/cathedral walls)
+    drawBiomeHorizonVista(ctx, bgStyle, width, height, padBottom, wallWidth, camMeters, time, fadeAlpha);
+
+    // Layer 3: Continuous top-to-bottom or wall-rooted architecture tile at 0.14x parallax
     const tile = getBiomeBackdropTile(bgStyle);
     if (!tile) return;
 
@@ -2803,13 +3557,21 @@
       ctx.drawImage(tile, 0, y, width, span);
     }
 
-    // Subtle live ambient shimmer pulse layered over select magical biomes
+    // Subtle soft-feathered radial ambient shimmer pulse over magical biomes (zero hard circle edge)
     if (bgStyle === 'heaven' || bgStyle === 'cosmos') {
-      const shimmer = 0.05 + 0.04 * Math.sin(time * 1.8);
-      ctx.globalAlpha = fadeAlpha * shimmer;
-      ctx.fillStyle = bgStyle === 'heaven' ? '#fff8cc' : '#e6b8ff';
+      const shimmer = 0.06 + 0.04 * Math.sin(time * 1.8);
+      const cx = width * 0.5;
+      const cy = height * 0.24;
+      const sg = ctx.createRadialGradient(cx, cy, 12, cx, cy, 185);
+      sg.addColorStop(
+        0,
+        bgStyle === 'heaven' ? `rgba(255, 248, 204, ${shimmer})` : `rgba(230, 184, 255, ${shimmer})`
+      );
+      sg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.globalAlpha = fadeAlpha;
+      ctx.fillStyle = sg;
       ctx.beginPath();
-      ctx.arc(width * 0.5, height * 0.32, 165, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 185, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -2831,6 +3593,8 @@
     drawMenuVista,
     drawGiantWorldTree,
     drawAscentVistaBackdrop,
+    drawBiomeSkyAnchors,
+    drawBiomeHorizonVista,
     drawBiomeBackdrop,
     drawGemEmblem,
     drawTrophyIcon,

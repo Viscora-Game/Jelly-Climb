@@ -22,6 +22,11 @@
     }
 
     getColorPalette() {
+      if (JellyGame.Accessories && JellyGame.Accessories.getActiveSkin && this.equippedAccessory) {
+        const skinId = JellyGame.Accessories.getActiveSkin(this.equippedAccessory);
+        const skinPal = skinId && JellyGame.Accessories.getSkinPalette(skinId);
+        if (skinPal) return skinPal;
+      }
       if (C.JELLY_COLORS) {
         for (let i = 0; i < C.JELLY_COLORS.length; i++) {
           if (C.JELLY_COLORS[i].id === this.equippedColor) {
@@ -926,27 +931,46 @@
       this._traceSoftBodyPath(ctx, r, deform);
       if (typeof ctx.clip === 'function') ctx.clip();
 
-      // Upper-left bright core crescent
-      ctx.fillStyle = pal.light;
-      ctx.beginPath();
-      ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.72, r * 0.56, -0.35, 0, Math.PI * 2);
-      ctx.fill();
+      const activeSkin =
+        JellyGame.Accessories && JellyGame.Accessories.getActiveSkin
+          ? JellyGame.Accessories.getActiveSkin(this.equippedAccessory)
+          : null;
 
-      // Mid-body primary tone restore leaving top-left bright rim
-      ctx.fillStyle = pal.primary;
-      ctx.beginPath();
-      ctx.ellipse(-r * 0.08, -r * 0.1, r * 0.88, r * 0.78, -0.25, 0, Math.PI * 2);
-      ctx.fill();
+      if (activeSkin && JellyGame.Accessories.drawBodySkin) {
+        ctx.save();
+        ctx.rotate(-bodyRotation);
+        JellyGame.Accessories.drawBodySkin(ctx, activeSkin, r, false);
+        ctx.restore();
+      } else {
+        // Upper-left bright core crescent
+        ctx.fillStyle = pal.light;
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.25, -r * 0.3, r * 0.72, r * 0.56, -0.35, 0, Math.PI * 2);
+        ctx.fill();
 
-      // Crisp bottom-right cartoon shadow band
-      ctx.fillStyle = pal.secondary;
-      ctx.beginPath();
-      ctx.arc(r * 0.34, r * 0.38, r * 0.98, 0, Math.PI * 2);
-      ctx.arc(-r * 0.16, -r * 0.2, r * 0.82, 0, Math.PI * 2, true);
-      ctx.fill();
+        // Mid-body primary tone restore leaving top-left bright rim
+        ctx.fillStyle = pal.primary;
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.08, -r * 0.1, r * 0.88, r * 0.78, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crisp bottom-right cartoon shadow band
+        ctx.fillStyle = pal.secondary;
+        ctx.beginPath();
+        ctx.arc(r * 0.34, r * 0.38, r * 0.98, 0, Math.PI * 2);
+        ctx.arc(-r * 0.16, -r * 0.2, r * 0.82, 0, Math.PI * 2, true);
+        ctx.fill();
+      }
       ctx.restore();
 
-      // Bold comic ink outline
+      // Bold comic ink outline (plus subtle lavender rim gleam on dark 8-Ball so it pops on dark biomes)
+      if (activeSkin === 'eightBall') {
+        ctx.strokeStyle = 'rgba(218, 206, 255, 0.55)';
+        ctx.lineWidth = 4.2;
+        ctx.lineJoin = 'round';
+        this._traceSoftBodyPath(ctx, r + 0.6, deform);
+        ctx.stroke();
+      }
       ctx.strokeStyle = inkCol;
       ctx.lineWidth = 2.6;
       ctx.lineJoin = 'round';
@@ -1006,9 +1030,11 @@
       const eyeOffsetY = clamp(lookY * 3.4 + this.eyeLagY * 0.55, -4.6, 4.6);
       const eyeSpread = 5.6;
       const determined = strain > 0.28 || speedRatio > 0.45 || this.tempoTier >= 3;
+      const isDarkSkin = activeSkin === 'eightBall';
+      const faceInk = isDarkSkin ? '#fff8eb' : inkCol;
 
       if (this.isBlinking) {
-        ctx.strokeStyle = inkCol;
+        ctx.strokeStyle = faceInk;
         ctx.lineWidth = 2.3;
         ctx.lineCap = 'round';
         for (const side of [-1, 1]) {
@@ -1020,7 +1046,7 @@
         }
       } else if (strain > 0.68) {
         // Cute determined squinted >< eyes when pulled tight!
-        ctx.strokeStyle = inkCol;
+        ctx.strokeStyle = faceInk;
         ctx.lineWidth = 2.4;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -1036,20 +1062,36 @@
         for (const side of [-1, 1]) {
           const ex = eyeOffsetX + side * eyeSpread;
           const ey = eyeOffsetY;
-          ctx.fillStyle = inkCol;
-          ctx.beginPath();
-          ctx.arc(ex, ey, 3.1, 0, Math.PI * 2);
-          ctx.fill();
+          if (isDarkSkin) {
+            // Crisp bright cream comic eyes with dark pupil for high contrast on dark 8-Ball!
+            ctx.fillStyle = '#fffdf7';
+            ctx.beginPath();
+            ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = inkCol;
+            ctx.beginPath();
+            ctx.arc(ex + lookX * 0.7, ey + lookY * 0.5, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ex - 0.7, ey - 0.9, 0.85, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = inkCol;
+            ctx.beginPath();
+            ctx.arc(ex, ey, 3.1, 0, Math.PI * 2);
+            ctx.fill();
 
-          // Bold cartoon eye sparkle
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(ex - 0.95, ey - 1.0, 1.15, 0, Math.PI * 2);
-          ctx.fill();
+            // Bold cartoon eye sparkle
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ex - 0.95, ey - 1.0, 1.15, 0, Math.PI * 2);
+            ctx.fill();
+          }
 
           // Expressive angled comic brow when dashing / aiming / high tempo (like store icon!)
           if (determined) {
-            ctx.strokeStyle = inkCol;
+            ctx.strokeStyle = faceInk;
             ctx.lineWidth = 2.1;
             ctx.lineCap = 'round';
             ctx.beginPath();
@@ -1061,14 +1103,14 @@
       }
 
       // Rosy comic cheeks
-      ctx.fillStyle = 'rgba(255, 118, 150, 0.34)';
+      ctx.fillStyle = isDarkSkin ? 'rgba(255, 118, 150, 0.52)' : 'rgba(255, 118, 150, 0.34)';
       ctx.beginPath();
       ctx.ellipse(eyeOffsetX - 8.4, eyeOffsetY + 3.2, 2.3, 1.3, 0, 0, Math.PI * 2);
       ctx.ellipse(eyeOffsetX + 8.4, eyeOffsetY + 3.2, 2.3, 1.3, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Expressive mouth (joyful open cartoon grin when flying fast, focused 'o' on full charge, cute smile idle)
-      ctx.strokeStyle = inkCol;
+      ctx.strokeStyle = faceInk;
       ctx.lineWidth = 1.9;
       ctx.lineCap = 'round';
       if (strain > 0.55) {

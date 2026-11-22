@@ -108,6 +108,7 @@
       this.musicTempoTier = 1;
       this.currentBpm = 104;
       this.targetBpm = 104;
+      this.bossIntensity = false;
       this.isBackgrounded = false;
     }
 
@@ -190,7 +191,21 @@
       }
       if (this.externalSource && this.ctx) {
         try {
-          this.externalSource.playbackRate.setTargetAtTime(1.0, this.ctx.currentTime, 0.25);
+          const targetRate = this.bossIntensity && this.musicState === 'playing' ? 1.11 : 1.0;
+          this.externalSource.playbackRate.setTargetAtTime(targetRate, this.ctx.currentTime, 0.35);
+        } catch (_) {}
+      }
+    }
+
+    setBossIntensity(active) {
+      const next = Boolean(active);
+      if (this.bossIntensity === next) return;
+      this.bossIntensity = next;
+      this.targetBpm = this._computeTargetBpm();
+      if (this.externalSource && this.ctx) {
+        try {
+          const targetRate = next && this.musicState === 'playing' ? 1.11 : 1.0;
+          this.externalSource.playbackRate.setTargetAtTime(targetRate, this.ctx.currentTime, 0.4);
         } catch (_) {}
       }
     }
@@ -198,7 +213,8 @@
     _computeTargetBpm() {
       if (this.musicState === 'dead') return 96;
       if (this.musicState !== 'playing') return 104;
-      return this.musicMode === 'rising' ? 110 : this.musicMode === 'tutorial' ? 104 : 106;
+      const base = this.musicMode === 'rising' ? 110 : this.musicMode === 'tutorial' ? 104 : 106;
+      return this.bossIntensity ? base + 18 : base;
     }
 
     _syncMusicPlayback() {
@@ -797,6 +813,19 @@
     playWindBoost() {
       this._playTone(320, 740, 0.18, 'sine', 0.085, 0);
       this._playTone(480, 920, 0.14, 'triangle', 0.06, 0.04);
+    }
+
+    playMagnetGain() {
+      this._playTone(392, 587.33, 0.09, 'triangle', 0.085, 0);
+      this._playTone(587.33, 880, 0.11, 'sine', 0.09, 0.05);
+      this._playTone(880, 1174.66, 0.14, 'triangle', 0.08, 0.11);
+    }
+
+    playMissionClaim() {
+      this._playTone(523.25, 659.25, 0.08, 'triangle', 0.09, 0);
+      this._playTone(659.25, 783.99, 0.08, 'triangle', 0.09, 0.06);
+      this._playTone(783.99, 1046.5, 0.12, 'sine', 0.1, 0.12);
+      this._playTone(1046.5, 1318.5, 0.18, 'sine', 0.1, 0.18);
     }
   }
 
