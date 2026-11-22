@@ -52,9 +52,9 @@
 
     // Altitude biome atmosphere physics & weather scaling
     ATMOSPHERE: Object.freeze({
-      HIGH_ALT_SLIP_START_M: 1000,
-      HIGH_ALT_SLIP_FULL_M: 4000,
-      HIGH_ALT_EXTRA_SLIP: 14,
+      HIGH_ALT_SLIP_START_M: 1550,
+      HIGH_ALT_SLIP_FULL_M: 3500,
+      HIGH_ALT_EXTRA_SLIP: 12,
       AIM_SLIP_MULTIPLIER: 0.45
     }),
 
@@ -150,7 +150,7 @@
       UI: '"Plus Jakarta Sans", "Fredoka", -apple-system, BlinkMacSystemFont, sans-serif'
     }),
 
-    // Altitude-driven cartoon biome themes (colors, weather, wall grip & gravity)
+    // Altitude-driven cartoon biome themes aligned 1:1 with the 8-Boss Vertical World Ladder
     THEMES: Object.freeze([
       {
         minMeters: 0,
@@ -172,7 +172,7 @@
         moteColor: 0xfff8c9
       },
       {
-        minMeters: 45,
+        minMeters: 115,
         key: 'valley',
         wallStyle: 'stone',
         bgStyle: 'monolith',
@@ -191,26 +191,45 @@
         moteColor: 0xffe6a6
       },
       {
-        minMeters: 120,
-        key: 'frost',
-        wallStyle: 'frost',
-        bgStyle: 'frost',
-        weather: 'snow',
-        wallSlip: 18,
+        minMeters: 250,
+        key: 'slime',
+        wallStyle: 'slimeOoze',
+        bgStyle: 'slime',
+        weather: 'bubbles',
+        wallSlip: 0,
         gravityScale: 1.0,
-        bgTop: 0x113e6b,
-        bgBottom: 0x216e8f,
-        parallaxFar: 0x16517a,
-        parallaxNear: 0x1d628c,
-        rayColor: 0xc4f8ff,
-        wallBase: 0x2b6e91,
-        wallShadow: 0x1a4b69,
-        wallInnerEdge: 0x54b1d4,
-        wallHighlight: 0xbcf7ff,
-        moteColor: 0xffffff
+        bgTop: 0x0b3b36,
+        bgBottom: 0x166b52,
+        parallaxFar: 0x105246,
+        parallaxNear: 0x18634e,
+        rayColor: 0x9bffc2,
+        wallBase: 0x1f5e4c,
+        wallShadow: 0x123b31,
+        wallInnerEdge: 0x38b87d,
+        wallHighlight: 0x7effa8,
+        moteColor: 0x9effc4
       },
       {
-        minMeters: 250,
+        minMeters: 500,
+        key: 'desert',
+        wallStyle: 'sandstone',
+        bgStyle: 'desert',
+        weather: 'sand',
+        wallSlip: 0,
+        gravityScale: 1.0,
+        bgTop: 0x873226,
+        bgBottom: 0xeb9244,
+        parallaxFar: 0xad4c2a,
+        parallaxNear: 0xc7632e,
+        rayColor: 0xfff0b3,
+        wallBase: 0xb86d35,
+        wallShadow: 0x804521,
+        wallInnerEdge: 0xe39e4b,
+        wallHighlight: 0xffe48f,
+        moteColor: 0xffe7a3
+      },
+      {
+        minMeters: 800,
         key: 'foundry',
         wallStyle: 'obsidianLava',
         bgStyle: 'foundry',
@@ -229,7 +248,26 @@
         moteColor: 0xffdb78
       },
       {
-        minMeters: 500,
+        minMeters: 1150,
+        key: 'frost',
+        wallStyle: 'frost',
+        bgStyle: 'frost',
+        weather: 'snow',
+        wallSlip: 18,
+        gravityScale: 1.0,
+        bgTop: 0x113e6b,
+        bgBottom: 0x216e8f,
+        parallaxFar: 0x16517a,
+        parallaxNear: 0x1d628c,
+        rayColor: 0xc4f8ff,
+        wallBase: 0x2b6e91,
+        wallShadow: 0x1a4b69,
+        wallInnerEdge: 0x54b1d4,
+        wallHighlight: 0xbcf7ff,
+        moteColor: 0xffffff
+      },
+      {
+        minMeters: 1550,
         key: 'storm',
         wallStyle: 'stormCoil',
         bgStyle: 'storm',
@@ -248,12 +286,12 @@
         moteColor: 0xd4f6ff
       },
       {
-        minMeters: 1000,
+        minMeters: 2000,
         key: 'cosmos',
         wallStyle: 'astralRune',
         bgStyle: 'cosmos',
         weather: 'stars',
-        wallSlip: 14,
+        wallSlip: 12,
         gravityScale: 0.92,
         bgTop: 0x130b36,
         bgBottom: 0x2a1863,
@@ -265,6 +303,25 @@
         wallInnerEdge: 0x644eb8,
         wallHighlight: 0xf4a2ff,
         moteColor: 0xfff8d6
+      },
+      {
+        minMeters: 2500,
+        key: 'heaven',
+        wallStyle: 'celestialMarble',
+        bgStyle: 'heaven',
+        weather: 'feathers',
+        wallSlip: 0,
+        gravityScale: 0.9,
+        bgTop: 0x2e5cc4,
+        bgBottom: 0xd99e66,
+        parallaxFar: 0x6f9ce3,
+        parallaxNear: 0xbdd5f5,
+        rayColor: 0xfff6bd,
+        wallBase: 0xebe3d5,
+        wallShadow: 0xc2b098,
+        wallInnerEdge: 0xffd147,
+        wallHighlight: 0xfff7c2,
+        moteColor: 0xfff6bd
       }
     ]),
 

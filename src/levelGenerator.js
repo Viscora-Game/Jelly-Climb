@@ -12,7 +12,9 @@
     CrackedWallSurface,
     PendulumSawObstacle,
     LaserGateObstacle,
-    WindVortexSurface
+    WindVortexSurface,
+    OrbitalMineObstacle,
+    CrusherPistonObstacle
   } = JellyGame.Obstacles;
   const Collectible = JellyGame.Collectible;
   const ShieldCollectible = JellyGame.ShieldCollectible;
@@ -158,19 +160,26 @@
       const isArrow = obs.type === 'arrowShooter';
       const isLaser = obs.type === 'laserGate';
       const isPendulum = obs.type === 'pendulumSaw';
+      const isMine = obs.type === 'orbitalMine';
+      const isCrusher = obs.type === 'crusherPiston';
       const sameSide = obs.side !== 0 && obs.side === this.lastWallHazardSide;
       let minClearance = sameSide ? 145 : 125;
-      if (isArrow || isLaser || isPendulum || this.lastObstacleWasArrow) {
+      if (isArrow || isLaser || isPendulum || isMine || isCrusher || this.lastObstacleWasArrow) {
         minClearance = isLaser ? 185 : 165;
       }
+
+      const shiftObsUp = (delta) => {
+        obs.y -= delta;
+        obs.topY -= delta;
+        obs.bottomY -= delta;
+        if (typeof obs.centerY === 'number') obs.centerY -= delta;
+        if (typeof obs.mineY === 'number') obs.mineY -= delta;
+      };
 
       // Enforce clean vertical separation from highest placed obstacle
       const maxAllowedBottom = this.highestObstacleTopY - minClearance;
       if (obs.bottomY > maxAllowedBottom) {
-        const shiftUp = obs.bottomY - maxAllowedBottom;
-        obs.y -= shiftUp;
-        obs.topY -= shiftUp;
-        obs.bottomY -= shiftUp;
+        shiftObsUp(obs.bottomY - maxAllowedBottom);
       }
 
       // Second spatial pass: guarantee zero overlap against any conflicting existing obstacles
@@ -181,16 +190,15 @@
           existing.side === 0 ||
           obs.side === existing.side ||
           obs.type === 'arrowShooter' ||
-          existing.type === 'arrowShooter';
+          existing.type === 'arrowShooter' ||
+          isCrusher ||
+          existing.type === 'crusherPiston';
         if (!conflictsWall) continue;
 
         const reqGap =
           isLaser || existing.type === 'laserGate' ? 180 : 125;
         if (obs.bottomY > existing.topY - reqGap && obs.topY < existing.bottomY + reqGap) {
-          const shiftUp = obs.bottomY - (existing.topY - reqGap);
-          obs.y -= shiftUp;
-          obs.topY -= shiftUp;
-          obs.bottomY -= shiftUp;
+          shiftObsUp(obs.bottomY - (existing.topY - reqGap));
         }
       }
 
@@ -199,7 +207,7 @@
       if (obs.side !== 0) {
         this.lastWallHazardSide = obs.side;
       }
-      this.lastObstacleWasArrow = isArrow || isLaser;
+      this.lastObstacleWasArrow = isArrow || isLaser || isCrusher;
       if (isArrow || isLaser) {
         this.lastArrowY = obs.y;
       }
@@ -219,7 +227,9 @@
       const canArrow = altitudePx >= 2600; // ~62m
       const canStaggerPair = altitudePx >= 4300; // ~102m
       const canPendulum = altitudePx >= 10500; // ~250m
+      const canOrbitalMine = altitudePx >= 14700; // ~350m
       const canLaserAndVortex = altitudePx >= 21000; // ~500m
+      const canCrusherPiston = altitudePx >= 31500; // ~750m
 
       const allowArrowHere =
         canArrow && Math.abs(this.lastArrowY - (chunkBottom - chunkHeight * 0.5)) >= 340;
@@ -229,7 +239,7 @@
 
       const roll = Math.random();
 
-      if (allowLaserHere && LaserGateObstacle && roll < 0.16) {
+      if (allowLaserHere && LaserGateObstacle && roll < 0.14) {
         // Dedicated rhythmic Wall-to-Wall Laser Gate chunk with open side perches above/below
         const gateY = chunkBottom - chunkHeight * 0.5;
         const gate = this._placeSafeObstacle(
@@ -242,7 +252,29 @@
             new Collectible(C.WIDTH * 0.5 + randRange(-55, 55), gate.y - 68)
           );
         }
-      } else if (canPendulum && PendulumSawObstacle && roll >= 0.16 && roll < 0.34) {
+      } else if (canCrusherPiston && CrusherPistonObstacle && roll >= 0.14 && roll < 0.27) {
+        // Dedicated Rhythmic Wall Crusher Piston chunk: opposite wall wide open!
+        const crusherY = chunkBottom - chunkHeight * 0.5;
+        const side = this._pickSide(this.lastWallHazardSide);
+        const crusher = this._placeSafeObstacle(
+          new CrusherPistonObstacle(side, crusherY, randRange(3.2, 3.7), randRange(0, 2.0))
+        );
+        chunkTop = Math.min(chunkTop, crusher.topY - 78);
+        if (Collectible && Math.random() < 0.75) {
+          const safeX = side < 0 ? C.WIDTH * 0.68 : C.WIDTH * 0.32;
+          this.collectibles.push(new Collectible(safeX, crusher.y));
+        }
+      } else if (canOrbitalMine && OrbitalMineObstacle && roll >= 0.27 && roll < 0.4) {
+        // Dedicated Mid-Shaft Floating Orbital Spiked Mine: clean side walls + arc reward drops!
+        const mineY = chunkBottom - chunkHeight * 0.5;
+        const mine = this._placeSafeObstacle(
+          new OrbitalMineObstacle(mineY, randRange(34, 46), randRange(1.45, 1.95), randRange(0, Math.PI * 2))
+        );
+        chunkTop = Math.min(chunkTop, mine.topY - 74);
+        if (Collectible && Math.random() < 0.78) {
+          this.collectibles.push(new Collectible(C.WIDTH * 0.5, mine.centerY));
+        }
+      } else if (canPendulum && PendulumSawObstacle && roll >= 0.4 && roll < 0.54) {
         // Mid-shaft Pendulum Saw chunk: clean side wall perches on both walls!
         const sawY = chunkBottom - chunkHeight * 0.5;
         const saw = this._placeSafeObstacle(
@@ -322,7 +354,11 @@
         const o = this.obstacles[i];
         if (
           Math.abs(o.y - centerY) < 145 &&
-          (o.side === safeSide || o.side === 0 || o.type === 'arrowShooter' || o.type === 'laserGate')
+          (o.side === safeSide ||
+            o.side === 0 ||
+            o.type === 'arrowShooter' ||
+            o.type === 'laserGate' ||
+            o.type === 'crusherPiston')
         ) {
           return;
         }

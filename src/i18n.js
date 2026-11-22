@@ -103,10 +103,14 @@
       bounce: 'BOUNCE!',
       windBoost: 'UPDRAFT!',
       bossCraggo: 'CRAGGO THE GOLEM',
+      bossGooz: 'KING GOOZ',
+      bossScorpius: 'SCORPIUS DUNE KING',
       bossIgnis: 'IGNIS THE WYRM',
-      bossAether: 'AETHER THE STORM',
       bossGlacius: 'GLACIUS EMPRESS',
+      bossAether: 'AETHER THE STORM',
       bossVoidon: 'VOIDON EMPEROR',
+      bossSeraphos: 'SERAPHOS ARCHON',
+      bossAscendedPrefix: 'ASCENDED',
       bossIncoming: 'BOSS APPROACHING!',
       bossPhase: 'PHASE',
       bossEnraged: 'ENRAGED!',
@@ -198,18 +202,24 @@
         wings: 'Cosmic Wings'
       },
       themes: {
-        cavern: 'DEEP CAVERN',
-        valley: 'VIOLET VALLEY',
-        frost: 'FROST PEAKS',
+        cavern: 'EMERALD CANOPY',
+        valley: 'ANCIENT CRAGS',
+        slime: 'SLIME MIRE',
+        desert: 'GOLDEN DUNES',
         foundry: 'MOLTEN FOUNDRY',
+        frost: 'FROST PEAKS',
         storm: 'STORM SPIRE',
-        cosmos: 'ASTRAL COSMOS'
+        cosmos: 'ASTRAL COSMOS',
+        heaven: 'CELESTIAL HEAVEN'
       },
       themePhysicsHints: {
-        frost: 'Snow & Icy Grip',
+        slime: 'Bubbling Goo',
+        desert: 'Desert Winds',
         foundry: 'Rising Embers',
+        frost: 'Snow & Icy Grip',
         storm: 'Rain & Wet Grip',
-        cosmos: 'Low Gravity'
+        cosmos: 'Low Gravity',
+        heaven: 'Divine Gravity • Ascended Realm'
       }
     },
     tr: {
@@ -311,10 +321,14 @@
       bounce: 'ZIP!',
       windBoost: 'HAVA AKIMI!',
       bossCraggo: 'KAYA DEVİ CRAGGO',
+      bossGooz: 'BALÇIK KRALI GOOZ',
+      bossScorpius: 'KUM AKREBİ SCORPIUS',
       bossIgnis: 'LAV EJDERİ IGNIS',
-      bossAether: 'FIRTINA AETHER',
       bossGlacius: 'BUZ KRALİÇESİ GLACIUS',
+      bossAether: 'FIRTINA AETHER',
       bossVoidon: 'KOZMİK İMPARATOR VOIDON',
+      bossSeraphos: 'GÖKSEL MUHAFIZ SERAPHOS',
+      bossAscendedPrefix: 'İLAHİ',
       bossIncoming: 'BOSS YAKLAŞIYOR!',
       bossPhase: 'FAZ',
       bossEnraged: 'ÖFKELENDİ!',
@@ -406,18 +420,24 @@
         wings: 'Kozmik Kanatlar'
       },
       themes: {
-        cavern: 'DERİN MAĞARA',
-        valley: 'MOR VADİ',
+        cavern: 'ZÜMRÜT ORMAN',
+        valley: 'ANTİK KAYA VADİSİ',
+        slime: 'SLİME BATAKLIĞI',
+        desert: 'ALTIN ÇÖL',
+        foundry: 'VOLKANİK OCAK',
         frost: 'BUZUL ZİRVESİ',
-        foundry: 'KIZGIN MAGMA',
         storm: 'FIRTINA KULESİ',
-        cosmos: 'DERİN UZAY'
+        cosmos: 'ASTRAL KOZMOS',
+        heaven: 'GÖKSEL CENNET'
       },
       themePhysicsHints: {
-        frost: 'Kar & Kaygan Duvar',
+        slime: 'Baloncuklu Jöle',
+        desert: 'Kum Fırtınası',
         foundry: 'Yükselen Kor',
+        frost: 'Kar & Kaygan Duvar',
         storm: 'Yağmur & Islak Duvar',
-        cosmos: 'Hafif Yerçekimi'
+        cosmos: 'Hafif Yerçekimi',
+        heaven: 'İlahi Yerçekimi • Göksel Diyar'
       }
     }
   });

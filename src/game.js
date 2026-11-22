@@ -1246,7 +1246,7 @@
         }
         if (isLocalQa && e.code === 'KeyT') {
           e.preventDefault();
-          const showcaseMeters = [120, 250, 500, 1000];
+          const showcaseMeters = [260, 520, 820, 1200, 2100, 2600];
           this._qaThemeIdx =
             this._qaThemeIdx === undefined ? 0 : (this._qaThemeIdx + 1) % showcaseMeters.length;
           const m = showcaseMeters[this._qaThemeIdx];
@@ -1282,14 +1282,19 @@
           }
           const Obs = JellyGame.Obstacles;
           if (Obs) {
-            if (Obs.PendulumSawObstacle) {
-              this.generator.obstacles.push(new Obs.PendulumSawObstacle(py - 220, 96, 1.85, 0.4));
+            if (Obs.OrbitalMineObstacle) {
+              this.generator.obstacles.push(new Obs.OrbitalMineObstacle(py - 235, 38, 1.7, 0.5));
             }
-            if (Obs.LaserGateObstacle && m >= 500) {
-              this.generator.obstacles.push(new Obs.LaserGateObstacle(py - 125, 3.5, 2.55));
+            if (Obs.CrusherPistonObstacle && m >= 500) {
+              this.generator.obstacles.push(new Obs.CrusherPistonObstacle(1, py - 120, 3.4, 2.2));
+            } else if (Obs.PendulumSawObstacle) {
+              this.generator.obstacles.push(new Obs.PendulumSawObstacle(py - 125, 96, 1.85, 0.4));
             }
-            if (Obs.WindVortexSurface && m >= 250) {
-              this.generator.surfaces.push(new Obs.WindVortexSurface(C.WIDTH * 0.58, py - 45, 29));
+            if (Obs.ArrowShooter) {
+              this.generator.obstacles.push(new Obs.ArrowShooter(1, py - 30, 2.65, 1.9));
+            }
+            if (Obs.WindVortexSurface) {
+              this.generator.surfaces.push(new Obs.WindVortexSurface(C.WIDTH * 0.56, py + 75, 29));
             }
           }
           this._checkThemeMilestone();
@@ -1301,8 +1306,14 @@
             this.gameMode = 'classic';
             this.resetRun();
           }
-          const bossIdx = e.code === 'KeyV' ? 4 : 0;
-          const targetM = JellyGame.Bosses ? JellyGame.Bosses.getMilestoneMeters(bossIdx) : 500;
+          let bossIdx = 0;
+          if (e.code === 'KeyV') {
+            bossIdx = 8; // Ascended Craggo (3500m Heaven!)
+          } else {
+            this._qaBossIdx = this._qaBossIdx === undefined ? 0 : (this._qaBossIdx + 1) % 9;
+            bossIdx = this._qaBossIdx;
+          }
+          const targetM = JellyGame.Bosses ? JellyGame.Bosses.getMilestoneMeters(bossIdx) : 250;
           this.isQaWarpRun = true;
           this.hasLaunchedOnce = true;
           this.highestY = C.START_PLAYER_Y - targetM * C.PIXELS_PER_METER;
@@ -1310,8 +1321,7 @@
           const boss = this._spawnBossForIndex(bossIdx);
           if (boss) {
             boss.introTimer = 0;
-            if (e.code === 'KeyV') {
-              boss.hp = Math.min(7, boss.maxHp);
+            if (e.code === 'KeyV' || bossIdx >= 7) {
               boss.phase = 2;
               boss._refreshOrbitOrbs();
             }
@@ -3296,7 +3306,11 @@
     _getBossDisplayName(def, tr) {
       const arch = def.archetype;
       const base = (tr && tr[arch.nameKey]) || arch.defaultName;
-      return def.cycle > 1 ? `${base} MK-${def.cycle}` : base;
+      if (def.cycle > 1) {
+        const prefix = (tr && tr.bossAscendedPrefix) || 'ASCENDED';
+        return def.cycle === 2 ? `${prefix} ${base}` : `${prefix} ${base} +${def.cycle - 1}`;
+      }
+      return base;
     }
 
     _checkBossMilestoneSpawn() {
@@ -3520,20 +3534,21 @@
         ? (curr.wallSlip || 0) + ((next.wallSlip || 0) - (curr.wallSlip || 0)) * t
         : curr.wallSlip || 0;
       const atmCfg = C.ATMOSPHERE || {};
-      const extraStart = atmCfg.HIGH_ALT_SLIP_START_M || 1000;
-      const extraFull = atmCfg.HIGH_ALT_SLIP_FULL_M || 4000;
-      const extraMax = atmCfg.HIGH_ALT_EXTRA_SLIP || 14;
+      const extraStart = atmCfg.HIGH_ALT_SLIP_START_M || 1550;
+      const extraFull = atmCfg.HIGH_ALT_SLIP_FULL_M || 3500;
+      const extraMax = atmCfg.HIGH_ALT_EXTRA_SLIP || 12;
       const highAltProgress = clamp((m - extraStart) / Math.max(1, extraFull - extraStart), 0, 1);
       const gravityScale = next
         ? (curr.gravityScale || 1) + ((next.gravityScale || 1) - (curr.gravityScale || 1)) * t
         : curr.gravityScale || 1;
+      const isHeaven = dom.key === 'heaven';
       return {
         curr,
         next,
         blend: t,
         dom,
         weather: dom.weather || 'spores',
-        wallSlip: baseSlip > 0 || m >= extraStart ? baseSlip + highAltProgress * extraMax : 0,
+        wallSlip: isHeaven ? 0 : baseSlip > 0 || m >= extraStart ? baseSlip + highAltProgress * extraMax : 0,
         gravityScale
       };
     }
@@ -3549,6 +3564,7 @@
       const t = atm.next ? atm.blend : 0;
 
       return {
+        key: atm.dom.key || 'cavern',
         wallStyle: atm.dom.wallStyle || 'stone',
         bgStyle: atm.dom.bgStyle || 'cavern',
         weather: atm.weather,
@@ -3702,13 +3718,13 @@
         if (this.generator.surfaces) {
           const surfaces = this.generator.surfaces;
           for (let i = 0; i < surfaces.length; i++) {
-            surfaces[i].draw(ctx, this.cameraY);
+            surfaces[i].draw(ctx, this.cameraY, theme);
           }
         }
 
         const obstacles = this.generator.obstacles;
         for (let i = 0; i < obstacles.length; i++) {
-          obstacles[i].draw(ctx, this.cameraY);
+          obstacles[i].draw(ctx, this.cameraY, theme);
         }
 
         const collectibles = this.generator.collectibles;
@@ -3721,7 +3737,7 @@
         }
 
         for (let i = 0; i < this.projectiles.length; i++) {
-          this.projectiles[i].draw(ctx, this.cameraY);
+          this.projectiles[i].draw(ctx, this.cameraY, theme);
         }
       }
 
@@ -4377,10 +4393,11 @@
         theme.weather === 'rain'
           ? Math.pow(Math.max(0, Math.sin(this.hintTime * 1.15) * Math.sin(this.hintTime * 3.7)), 14) * 0.085
           : 0;
+      const heavenGlow = theme.weather === 'feathers' ? 0.055 : 0;
       ctx.save();
       ctx.fillStyle = theme.rayColor;
       for (let i = 0; i < 3; i++) {
-        const pulse = 0.042 + 0.02 * Math.sin(this.hintTime * 0.7 + i * 2.1) + stormFlash;
+        const pulse = 0.042 + heavenGlow + 0.02 * Math.sin(this.hintTime * 0.7 + i * 2.1) + stormFlash;
         ctx.globalAlpha = pulse;
         const rx = 55 + i * 115 + Math.sin(this.hintTime * 0.35 + i) * 14;
         ctx.beginPath();
@@ -4414,135 +4431,27 @@
         );
       }
 
-      // Far parallax cartoon silhouettes (arches, cliffs, glaciers, clouds, constellations)
+      // Handcrafted painterly biome backdrops (offscreen-cached seamless 720px vista tiles)
       const bgStyle = theme.bgStyle || 'canopy';
-      const monolithFade = bgStyle === 'canopy' ? 0 : bgStyle === 'monolith' ? clamp((camMeters - 36) / 14, 0, 1) : 1;
-      const farSpan = 340;
-      const farOffset = ((-this.cameraY * 0.12) % farSpan + farSpan) % farSpan;
-      const farStart = farOffset - farSpan * Math.ceil(this.padTop / farSpan + 1);
-      if (monolithFade > 0.01) {
-        ctx.save();
-        ctx.globalAlpha = monolithFade;
-        for (let y = farStart; y < viewBottom + farSpan; y += farSpan) {
-          ctx.fillStyle = theme.parallaxFar;
-          if (bgStyle === 'frost') {
-            // Layered cartoon ice spires & drifting frost cloud
-            ctx.beginPath();
-            ctx.moveTo(C.WALL_WIDTH, y + 35);
-            ctx.quadraticCurveTo(C.WALL_WIDTH + 60, y + 70, C.WALL_WIDTH + 90, y + 125);
-            ctx.lineTo(C.WALL_WIDTH + 54, y + 170);
-            ctx.lineTo(C.WALL_WIDTH + 92, y + 235);
-            ctx.lineTo(C.WALL_WIDTH, y + 305);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 65);
-            ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 92, y + 145);
-            ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 52, y + 195);
-            ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 290);
-            ctx.closePath();
-            ctx.fill();
-          } else if (bgStyle === 'foundry') {
-            // Ancient rounded forge arches + warm molten slits
-            roundRectPath(ctx, C.WALL_WIDTH + 22, y + 22, 46, 240, 22);
-            ctx.fill();
-            roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 68, y + 88, 46, 240, 22);
-            ctx.fill();
-            ctx.fillStyle = 'rgba(255, 138, 60, 0.24)';
-            roundRectPath(ctx, C.WALL_WIDTH + 41, y + 46, 8, 175, 4);
-            ctx.fill();
-            roundRectPath(ctx, C.WIDTH - C.WALL_WIDTH - 49, y + 112, 8, 175, 4);
-            ctx.fill();
-          } else if (bgStyle === 'storm') {
-            // Billowing cartoon storm cloud banks + spire bridge
-            ctx.beginPath();
-            ctx.arc(C.WIDTH * 0.34, y + 96, 36, 0, Math.PI * 2);
-            ctx.arc(C.WIDTH * 0.48, y + 86, 44, 0, Math.PI * 2);
-            ctx.arc(C.WIDTH * 0.64, y + 98, 34, 0, Math.PI * 2);
-            ctx.fill();
-
-            roundRectPath(ctx, C.WIDTH * 0.5 - 12, y + 165, 24, 130, 10);
-            ctx.fill();
-          } else if (bgStyle === 'cosmos') {
-            // Star constellation & cartoon crescent moon / planetoid
-            const sx1 = C.WIDTH * 0.34;
-            const sy1 = y + 90;
-            const sx2 = C.WIDTH * 0.66;
-            const sy2 = y + 175;
-            const sx3 = C.WIDTH * 0.48;
-            const sy3 = y + 265;
-            ctx.strokeStyle = 'rgba(232, 180, 255, 0.26)';
-            ctx.lineWidth = 1.8;
-            ctx.setLineDash([4, 5]);
-            ctx.beginPath();
-            ctx.moveTo(sx1, sy1);
-            ctx.lineTo(sx2, sy2);
-            ctx.lineTo(sx3, sy3);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            for (const [nx, ny, nr] of [
-              [sx1, sy1, 7],
-              [sx2, sy2, 11],
-              [sx3, sy3, 6]
-            ]) {
-              ctx.beginPath();
-              ctx.arc(nx, ny, nr, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          } else {
-            // Cartoon twilight monolith arches & rounded cliff silhouettes
-            ctx.beginPath();
-            ctx.moveTo(C.WALL_WIDTH, y + 20);
-            ctx.quadraticCurveTo(C.WALL_WIDTH + 76, y + 48, C.WALL_WIDTH + 72, y + 146);
-            ctx.quadraticCurveTo(C.WALL_WIDTH + 34, y + 185, C.WALL_WIDTH + 44, y + 245);
-            ctx.lineTo(C.WALL_WIDTH, y + 272);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 108);
-            ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 84, y + 148, C.WIDTH - C.WALL_WIDTH - 78, y + 248);
-            ctx.lineTo(C.WIDTH - C.WALL_WIDTH - 40, y + 286);
-            ctx.lineTo(C.WIDTH - C.WALL_WIDTH, y + 312);
-            ctx.closePath();
-            ctx.fill();
-
-            // Distant floating ruin arch block
-            const ax = C.WIDTH * 0.5 + (Math.round(y) % 2 === 0 ? -1 : 1) * 44;
-            const ay = y + 96;
-            roundRectPath(ctx, ax - 16, ay - 26, 32, 48, 14);
-            ctx.fill();
-          }
-        }
-        ctx.restore();
-      }
-
-      // Near parallax rounded cliff buttresses (faded in cleanly above canopy)
-      const nearSpan = 240;
-      const nearOffset = ((-this.cameraY * 0.25) % nearSpan + nearSpan) % nearSpan;
-      const nearStart = nearOffset - nearSpan * Math.ceil(this.padTop / nearSpan + 1);
-      if (monolithFade > 0.01) {
-        ctx.save();
-        ctx.globalAlpha = monolithFade;
-        ctx.fillStyle = theme.parallaxNear;
-        for (let y = nearStart; y < C.HEIGHT + this.padBottom + nearSpan; y += nearSpan) {
-          ctx.beginPath();
-          ctx.moveTo(C.WALL_WIDTH, y + 40);
-          ctx.quadraticCurveTo(C.WALL_WIDTH + 28, y + 58, C.WALL_WIDTH + 24, y + 108);
-          ctx.quadraticCurveTo(C.WALL_WIDTH + 16, y + 124, C.WALL_WIDTH, y + 132);
-          ctx.closePath();
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.moveTo(C.WIDTH - C.WALL_WIDTH, y + 150);
-          ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 28, y + 168, C.WIDTH - C.WALL_WIDTH - 24, y + 218);
-          ctx.quadraticCurveTo(C.WIDTH - C.WALL_WIDTH - 16, y + 234, C.WIDTH - C.WALL_WIDTH, y + 242);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
+      const biomeFade =
+        bgStyle === 'canopy'
+          ? 0
+          : bgStyle === 'monolith'
+            ? clamp((camMeters - 102) / 16, 0, 1)
+            : 1;
+      if (biomeFade > 0.01 && Art && Art.drawBiomeBackdrop) {
+        Art.drawBiomeBackdrop(
+          ctx,
+          bgStyle,
+          C.WIDTH,
+          C.HEIGHT,
+          this.padTop,
+          this.padBottom,
+          C.WALL_WIDTH,
+          this.cameraY,
+          this.hintTime,
+          biomeFade
+        );
       }
 
       // Ambient drifting biome weather: spores (0-120m) -> snow (frost) -> embers (foundry) -> rain (storm) -> stars (cosmos)
@@ -4555,7 +4464,72 @@
         const m = this.ambientMotes[i];
         const baseY = (m.y / C.HEIGHT) * moteSpan;
 
-        if (weather === 'snow') {
+        if (weather === 'bubbles') {
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.22 - this.hintTime * (m.speedY * 1.9)) % moteSpan) + moteSpan) %
+              moteSpan);
+          const wx = m.x + Math.sin(this.hintTime * 1.8 + m.driftPhase) * 10;
+          const r = m.radius * 1.55;
+          ctx.globalAlpha = Math.min(0.62, m.alpha * 1.4);
+          ctx.fillStyle = 'rgba(110, 255, 175, 0.22)';
+          ctx.strokeStyle = '#9effc4';
+          ctx.lineWidth = 1.25;
+          ctx.beginPath();
+          ctx.arc(wx, wy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(wx - r * 0.32, wy - r * 0.32, Math.max(0.8, r * 0.25), 0, Math.PI * 2);
+          ctx.fill();
+        } else if (weather === 'sand') {
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.2 + this.hintTime * (m.speedY * 0.9)) % moteSpan) + moteSpan) %
+              moteSpan);
+          const windX = this.hintTime * (95 + m.speedY * 2.2);
+          const wx =
+            C.WALL_WIDTH +
+            8 +
+            ((((m.x - C.WALL_WIDTH - 8 + windX) % spanW) + spanW) % spanW);
+          ctx.globalAlpha = Math.min(0.55, m.alpha * 1.35);
+          ctx.strokeStyle = i % 3 === 0 ? '#fff2bd' : '#ffcf78';
+          ctx.lineWidth = m.radius > 2 ? 1.8 : 1.15;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(wx, wy);
+          ctx.lineTo(wx + 12, wy + 2.5);
+          ctx.stroke();
+        } else if (weather === 'feathers') {
+          const wy =
+            moteTop +
+            ((((baseY - this.cameraY * 0.16 + this.hintTime * (m.speedY * 1.1)) % moteSpan) + moteSpan) %
+              moteSpan);
+          const sway = Math.sin(this.hintTime * 1.4 + m.driftPhase);
+          const wx = m.x + sway * 18;
+          ctx.save();
+          ctx.translate(wx, wy);
+          ctx.rotate(sway * 0.45);
+          ctx.globalAlpha = Math.min(0.82, m.alpha * 1.75);
+          if (i % 3 === 0) {
+            // Drifting golden-white celestial feather
+            ctx.fillStyle = '#fff9d6';
+            ctx.strokeStyle = 'rgba(255, 209, 71, 0.7)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, m.radius * 2.1, m.radius * 0.72, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          } else {
+            // Soft warm divine light sparkle
+            ctx.fillStyle = '#fff5b8';
+            ctx.beginPath();
+            ctx.arc(0, 0, m.radius * 0.95, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else if (weather === 'snow') {
           const wy =
             moteTop +
             ((((baseY - this.cameraY * 0.24 + this.hintTime * (m.speedY * 2.2)) % moteSpan) + moteSpan) %
@@ -4717,56 +4691,161 @@
         const hashL = Math.abs((idx * 73 + 19) % 5);
         const hashR = Math.abs((idx * 97 + 31) % 5);
 
-        if (wallStyle === 'frost') {
-          // Chiseled cartoon ice slabs with angled highlight facets
-          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(188, 247, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+        if (wallStyle === 'slimeOoze') {
+          // Organic dark-jade rock blocks with bubbling emerald ooze beads & glossy specular shine
+          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(92, 255, 165, 0.14)' : 'rgba(10, 40, 34, 0.36)';
+          roundRectPath(ctx, leftOuter + 4, y + 4, w - leftOuter - 10, blockH - 8, 10);
+          ctx.fill();
+          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(92, 255, 165, 0.14)' : 'rgba(10, 40, 34, 0.36)';
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 4, rightOuter - (C.WIDTH - w) - 10, blockH - 8, 10);
+          ctx.fill();
+
+          // Dark mortar seam + glowing trapped bubbles inside wall rock
+          ctx.strokeStyle = 'rgba(10, 36, 30, 0.5)';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.moveTo(leftOuter + 4, y + 2);
+          ctx.lineTo(w - 7, y + 2);
+          ctx.moveTo(C.WIDTH - w + 7, y + 32);
+          ctx.lineTo(rightOuter - 4, y + 32);
+          ctx.stroke();
+
+          ctx.fillStyle = 'rgba(148, 255, 196, 0.42)';
+          ctx.beginPath();
+          ctx.arc(w * 0.48, y + 18 + hashL * 6, 3.2, 0, Math.PI * 2);
+          ctx.arc(C.WIDTH - w * 0.48, y + 20 + hashR * 5, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (hashL === 1 || hashL === 3) {
+            ctx.fillStyle = '#56ff9a';
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(w - 4.5, y + 22, 4.8, -Math.PI * 0.5, Math.PI * 0.5);
+            ctx.fill();
+            ctx.stroke();
+          }
+          if (hashR === 2 || hashR === 4) {
+            ctx.fillStyle = '#56ff9a';
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(C.WIDTH - w + 4.5, y + 40, 4.8, Math.PI * 0.5, Math.PI * 1.5);
+            ctx.fill();
+            ctx.stroke();
+          }
+        } else if (wallStyle === 'sandstone') {
+          // Sun-baked carved desert sandstone slabs with sunlit top bevels & subtle golden temple zig-zag trim
+          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(255, 224, 146, 0.22)' : 'rgba(108, 46, 18, 0.3)';
+          roundRectPath(ctx, leftOuter + 4, y + 3, w - leftOuter - 10, blockH - 6, 6);
+          ctx.fill();
+          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(255, 224, 146, 0.22)' : 'rgba(108, 46, 18, 0.3)';
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 3, rightOuter - (C.WIDTH - w) - 10, blockH - 6, 6);
+          ctx.fill();
+
+          // Sunlit warm upper block highlight bevel
+          ctx.fillStyle = 'rgba(255, 242, 188, 0.28)';
+          ctx.fillRect(6, y + 5, w - 14, 3);
+          ctx.fillRect(C.WIDTH - w + 8, y + 5, w - 14, 3);
+
+          // Carved desert temple chevron glyph
+          ctx.strokeStyle = 'rgba(255, 218, 128, 0.48)';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(8, y + 36);
+          ctx.lineTo(w * 0.45, y + 29);
+          ctx.lineTo(w - 10, y + 36);
+          ctx.moveTo(C.WIDTH - w + 10, y + 36);
+          ctx.lineTo(C.WIDTH - w * 0.45, y + 29);
+          ctx.lineTo(C.WIDTH - 8, y + 36);
+          ctx.stroke();
+        } else if (wallStyle === 'celestialMarble') {
+          // Polished ivory-white fluted marble temple slabs with soft warm veining & gleaming golden inlaid sun-diamond
+          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(255, 255, 255, 0.56)' : 'rgba(218, 198, 165, 0.32)';
+          roundRectPath(ctx, leftOuter + 4, y + 3, w - leftOuter - 10, blockH - 6, 7);
+          ctx.fill();
+          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(255, 255, 255, 0.56)' : 'rgba(218, 198, 165, 0.32)';
+          roundRectPath(ctx, C.WIDTH - w + 6, y + 3, rightOuter - (C.WIDTH - w) - 10, blockH - 6, 7);
+          ctx.fill();
+
+          // Subtle diagonal warm marble vein + gold cornice seam
+          ctx.strokeStyle = 'rgba(180, 158, 128, 0.32)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(6, y + 14);
+          ctx.quadraticCurveTo(w * 0.5, y + 22, w - 9, y + 10);
+          ctx.moveTo(C.WIDTH - w + 9, y + 48);
+          ctx.quadraticCurveTo(C.WIDTH - w * 0.5, y + 38, C.WIDTH - 6, y + 52);
+          ctx.stroke();
+
+          ctx.strokeStyle = 'rgba(235, 174, 34, 0.72)';
+          ctx.lineWidth = 1.9;
+          for (const rx of [w * 0.46, C.WIDTH - w * 0.46]) {
+            const ry = y + blockH * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(rx, ry - 7.5);
+            ctx.lineTo(rx + 5.2, ry);
+            ctx.lineTo(rx, ry + 7.5);
+            ctx.lineTo(rx - 5.2, ry);
+            ctx.closePath();
+            ctx.stroke();
+          }
+        } else if (wallStyle === 'frost') {
+          // Faceted crystalline glacier blocks with crisp diagonal moonlit specular bands
+          ctx.fillStyle = hashL % 2 === 0 ? 'rgba(188, 247, 255, 0.24)' : 'rgba(255, 255, 255, 0.1)';
           roundRectPath(ctx, leftOuter + 4, y + 3, w - leftOuter - 10, blockH - 6, 8);
           ctx.fill();
-          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(188, 247, 255, 0.18)' : 'rgba(255, 255, 255, 0.08)';
+          ctx.fillStyle = hashR % 2 === 0 ? 'rgba(188, 247, 255, 0.22)' : 'rgba(255, 255, 255, 0.08)';
           roundRectPath(ctx, C.WIDTH - w + 6, y + 3, rightOuter - (C.WIDTH - w) - 10, blockH - 6, 8);
           ctx.fill();
 
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
-          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(224, 252, 255, 0.42)';
+          ctx.lineWidth = 2.2;
           ctx.beginPath();
-          ctx.moveTo(4, y + 14);
-          ctx.lineTo(w - 9, y + 30);
+          ctx.moveTo(5, y + 12);
+          ctx.lineTo(w - 9, y + 28);
+          ctx.moveTo(5, y + 22);
+          ctx.lineTo(w - 15, y + 32);
           ctx.moveTo(C.WIDTH - w + 9, y + 34);
-          ctx.lineTo(C.WIDTH - 4, y + 18);
+          ctx.lineTo(C.WIDTH - 5, y + 18);
           ctx.stroke();
         } else if (wallStyle === 'obsidianLava') {
-          // Dark volcanic stones with warm glowing lava cracks
-          ctx.fillStyle = 'rgba(27, 12, 24, 0.48)';
+          // Chiseled dark obsidian slabs with branching glowing yellow-orange magma veins
+          ctx.fillStyle = 'rgba(27, 12, 24, 0.5)';
           roundRectPath(ctx, leftOuter + 4, y + 4, w - leftOuter - 10, blockH - 8, 9);
           ctx.fill();
           roundRectPath(ctx, C.WIDTH - w + 6, y + 4, rightOuter - (C.WIDTH - w) - 10, blockH - 8, 9);
           ctx.fill();
 
-          const pulse = 0.45 + 0.25 * Math.sin(this.hintTime * 3.2 + idx * 0.9);
-          ctx.strokeStyle = `rgba(255, 148, 56, ${pulse})`;
-          ctx.lineWidth = 2.6;
+          const pulse = 0.52 + 0.28 * Math.sin(this.hintTime * 3.2 + idx * 0.9);
+          ctx.strokeStyle = `rgba(255, 138, 46, ${pulse})`;
+          ctx.lineWidth = 2.8;
           ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(4, y + blockH * 0.5);
-          ctx.lineTo(w - 8, y + blockH * 0.5 + (hashL - 2) * 3);
-          ctx.moveTo(C.WIDTH - w + 8, y + blockH * 0.5 + (hashR - 2) * 3);
-          ctx.lineTo(C.WIDTH - 4, y + blockH * 0.5);
+          ctx.moveTo(4, y + blockH * 0.48);
+          ctx.lineTo(w * 0.5, y + blockH * 0.55);
+          ctx.lineTo(w - 8, y + blockH * 0.45 + (hashL - 2) * 3);
+          ctx.moveTo(C.WIDTH - w + 8, y + blockH * 0.45 + (hashR - 2) * 3);
+          ctx.lineTo(C.WIDTH - w * 0.5, y + blockH * 0.55);
+          ctx.lineTo(C.WIDTH - 4, y + blockH * 0.48);
           ctx.stroke();
         } else if (wallStyle === 'stormCoil') {
-          // Riveted cartoon tower plates with glowing cyan trim
-          ctx.fillStyle = 'rgba(27, 17, 54, 0.34)';
+          // Riveted storm-tower bronze/steel armor plates with glowing cyan Tesla conduit bar
+          ctx.fillStyle = 'rgba(22, 16, 48, 0.38)';
           roundRectPath(ctx, leftOuter + 4, y + 4, w - leftOuter - 10, blockH - 8, 7);
           ctx.fill();
           roundRectPath(ctx, C.WIDTH - w + 6, y + 4, rightOuter - (C.WIDTH - w) - 10, blockH - 8, 7);
           ctx.fill();
 
-          ctx.fillStyle = 'rgba(125, 230, 255, 0.55)';
-          ctx.fillRect(6, y + 30, w - 13, 3.5);
-          ctx.fillRect(C.WIDTH - w + 7, y + 30, w - 13, 3.5);
-          for (const rx of [10, C.WIDTH - 10]) {
-            ctx.fillStyle = '#ffeaa7';
+          ctx.fillStyle = 'rgba(125, 230, 255, 0.62)';
+          roundRectPath(ctx, 6, y + 29, w - 13, 4.5, 2);
+          ctx.fill();
+          roundRectPath(ctx, C.WIDTH - w + 7, y + 29, w - 13, 4.5, 2);
+          ctx.fill();
+          for (const rx of [10, w - 11, C.WIDTH - w + 11, C.WIDTH - 10]) {
+            ctx.fillStyle = '#ffe484';
             ctx.beginPath();
-            ctx.arc(rx, y + 14, 2.2, 0, Math.PI * 2);
+            ctx.arc(rx, y + 13, 2.0, 0, Math.PI * 2);
             ctx.fill();
           }
         } else if (wallStyle === 'astralRune') {
@@ -7086,8 +7165,9 @@
       roundRectPath(ctx, x, y + 3, w, h, 16);
       ctx.fill();
 
-      ctx.fillStyle = '#5c1428';
-      ctx.strokeStyle = pulse > 0.5 ? '#ff5e57' : '#ffd147';
+      const isDivine = def.cycle > 1 || def.archetype.id === 'seraphos';
+      ctx.fillStyle = isDivine ? '#4a3512' : '#5c1428';
+      ctx.strokeStyle = isDivine ? '#ffe875' : pulse > 0.5 ? '#ff5e57' : '#ffd147';
       ctx.lineWidth = 2.5;
       roundRectPath(ctx, x, y, w, h, 16);
       ctx.fill();
@@ -7097,13 +7177,13 @@
       this._drawUiRow(
         ctx,
         [
-          { icon: 'warning', r: 4.8, color: '#ff7b72', gap: 5 },
-          { text: tr.bossIncoming || 'BOSS APPROACHING!', color: '#ff9ca3' }
+          { icon: isDivine ? 'crown' : 'warning', r: 4.8, color: isDivine ? '#ffe875' : '#ff7b72', gap: 5 },
+          { text: tr.bossIncoming || 'BOSS APPROACHING!', color: isDivine ? '#fff3b0' : '#ff9ca3' }
         ],
         C.WIDTH * 0.5,
         y + 14.5,
         'center',
-        '#ff9ca3'
+        isDivine ? '#fff3b0' : '#ff9ca3'
       );
 
       ctx.textAlign = 'center';
@@ -7122,7 +7202,14 @@
       const ink = C.COLORS.ink || '#1b1136';
       const arch = boss.archetype;
       const enraged = boss.phase >= 2;
-      const accent = enraged ? arch.enrageColor : arch.primaryColor;
+      const isDivine = boss.isAscended || arch.id === 'seraphos';
+      const accent = isDivine
+        ? enraged
+          ? '#fff3a1'
+          : '#ffe478'
+        : enraged
+          ? arch.enrageColor
+          : arch.primaryColor;
       const bossTitle = this._getBossDisplayName(boss.def, tr);
 
       ctx.save();
@@ -7135,8 +7222,8 @@
       roundRectPath(ctx, cardX, cardY + 3, cardW, cardH, 16);
       ctx.fill();
 
-      ctx.fillStyle = '#2d215c';
-      ctx.strokeStyle = boss.phaseBannerTimer > 0 ? '#ffd147' : ink;
+      ctx.fillStyle = isDivine ? '#3c2b63' : '#2d215c';
+      ctx.strokeStyle = isDivine || boss.phaseBannerTimer > 0 ? '#ffd147' : ink;
       ctx.lineWidth = 2.6;
       roundRectPath(ctx, cardX, cardY, cardW, cardH, 16);
       ctx.fill();
