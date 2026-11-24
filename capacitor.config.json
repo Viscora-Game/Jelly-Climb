@@ -1,0 +1,29 @@
+{
+  "appId": "com.jellyclimb.arcade",
+  "appName": "Jelly Climb",
+  "webDir": "dist-native",
+  "backgroundColor": "#141838",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false,
+    "backgroundColor": "#141838",
+    "preferredContentMode": "mobile",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SplashScreen": {
+      "launchShowDuration": 550,
+      "launchAutoHide": true,
+      "backgroundColor": "#141838",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK"
+    }
+  }
+}

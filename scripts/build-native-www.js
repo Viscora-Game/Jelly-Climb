@@ -93,7 +93,7 @@ function buildNativeBundle() {
   if (fs.existsSync(indexDst)) {
     let html = fs.readFileSync(indexDst, 'utf8');
     const nativeFlagsScript =
-      '  <script>window.JELLY_NATIVE_RELEASE = true;</script>\n';
+      '  <script>window.JELLY_NATIVE_RELEASE = true; window.JELLY_API_BASE = "https://jelly-climb.netlify.app";</script>\n';
     html = html.replace('</head>', `${nativeFlagsScript}</head>`);
     // Skip Service Worker registration inside bundled Native WebView
     html = html.replace(

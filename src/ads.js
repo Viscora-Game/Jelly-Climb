@@ -21,11 +21,18 @@
     TEST_MODE: true,
     INTERSTITIAL_EVERY_RUNS: 3,
     INTERSTITIAL_MIN_COOLDOWN_MS: 45000,
-    // Official Google AdMob test Unit IDs (replace with live AdMob IDs on Native release)
+    // Official Google AdMob test Unit IDs split by platform (replace with live AdMob IDs on Native release)
     UNIT_IDS: Object.freeze({
-      revive: 'ca-app-pub-3940256099942544/5224354917',
-      doubleDrops: 'ca-app-pub-3940256099942544/5224354917',
-      interstitial: 'ca-app-pub-3940256099942544/1033173712'
+      android: Object.freeze({
+        revive: 'ca-app-pub-3940256099942544/5224354917',
+        doubleDrops: 'ca-app-pub-3940256099942544/5224354917',
+        interstitial: 'ca-app-pub-3940256099942544/1033173712'
+      }),
+      ios: Object.freeze({
+        revive: 'ca-app-pub-3940256099942544/1712485313',
+        doubleDrops: 'ca-app-pub-3940256099942544/1712485313',
+        interstitial: 'ca-app-pub-3940256099942544/4411468910'
+      })
     })
   });
 
@@ -33,6 +40,26 @@
   let _busy = false;
   let _completedRunsSinceInterstitial = 0;
   let _lastInterstitialAt = 0;
+
+  function _getPlatform() {
+    try {
+      if (global.Capacitor && typeof global.Capacitor.getPlatform === 'function') {
+        const p = global.Capacitor.getPlatform();
+        if (p === 'ios' || p === 'android') return p;
+      }
+    } catch (_) {}
+    try {
+      if (global.navigator && /iPhone|iPad|iPod/i.test(global.navigator.userAgent || '')) {
+        return 'ios';
+      }
+    } catch (_) {}
+    return 'android';
+  }
+
+  function _getUnitId(placement) {
+    const bucket = CONFIG.UNIT_IDS[_getPlatform()] || CONFIG.UNIT_IDS.android;
+    return bucket && bucket[placement] ? bucket[placement] : '';
+  }
 
   function _getAdMobPlugin() {
     try {
@@ -49,6 +76,12 @@
     const admob = _getAdMobPlugin();
     if (!admob || typeof admob.initialize !== 'function') return false;
     try {
+      // Request Apple ATT permission cleanly on iOS before initializing AdMob
+      if (_getPlatform() === 'ios' && typeof admob.requestTrackingAuthorization === 'function') {
+        try {
+          await admob.requestTrackingAuthorization();
+        } catch (_) {}
+      }
       await admob.initialize({
         initializeForTesting: CONFIG.TEST_MODE
       });
@@ -65,13 +98,13 @@
 
   function canShowRewarded(placement) {
     if (!CONFIG.ENABLED || _busy) return false;
-    if (!placement || placement === 'interstitial' || !CONFIG.UNIT_IDS[placement]) return false;
+    if (!placement || placement === 'interstitial' || !_getUnitId(placement)) return false;
     return Boolean(_getAdMobPlugin() || CONFIG.TEST_MODE);
   }
 
   function canShowInterstitial() {
     if (!CONFIG.ENABLED || _busy) return false;
-    if (!CONFIG.UNIT_IDS.interstitial) return false;
+    if (!_getUnitId('interstitial')) return false;
     return Boolean(_getAdMobPlugin() || CONFIG.TEST_MODE);
   }
 
@@ -82,7 +115,7 @@
     _busy = true;
     try {
       const admob = _getAdMobPlugin();
-      const adId = CONFIG.UNIT_IDS[placement];
+      const adId = _getUnitId(placement);
 
       if (admob && typeof admob.prepareRewardVideoAd === 'function' && typeof admob.showRewardVideoAd === 'function') {
         if (!_initialized) await init();
@@ -142,7 +175,7 @@
     _busy = true;
     try {
       const admob = _getAdMobPlugin();
-      const adId = CONFIG.UNIT_IDS.interstitial;
+      const adId = _getUnitId('interstitial');
 
       if (admob && typeof admob.prepareInterstitial === 'function' && typeof admob.showInterstitial === 'function') {
         if (!_initialized) await init();

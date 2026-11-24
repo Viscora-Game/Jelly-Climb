@@ -3660,6 +3660,7 @@
       this.bossesDefeated += 1;
       this.runBossesDefeated += 1;
       this._saveInt(STORAGE_KEYS.BOSSES_DEFEATED, this.bossesDefeated);
+      if (JellyGame.Review) JellyGame.Review.onBossDefeated();
       this._syncMilestoneUnlocks();
       this._recordMissionProgress('defeatBoss', 1);
       if (this.audio.setBossIntensity) this.audio.setBossIntensity(false);
@@ -3854,6 +3855,20 @@
       if (JellyGame.Haptics) JellyGame.Haptics.death();
       this.particles.spawnPopBurst(this.player.positionX, this.player.positionY);
       this._submitCurrentRunScore();
+      if (JellyGame.Review && typeof JellyGame.Review.maybePromptAfterRun === 'function') {
+        const reviewSnap = {
+          isTutorial: this.gameMode === 'tutorial',
+          isQaWarpRun: Boolean(this.isQaWarpRun),
+          isNewRecord: Boolean(this.isNewRecord),
+          meters: this.currentMeters || 0,
+          bossesDefeatedThisRun: this.runBossesDefeated || 0
+        };
+        global.setTimeout(() => {
+          if (this.state === 'dead' && !this.adBusy) {
+            JellyGame.Review.maybePromptAfterRun(reviewSnap);
+          }
+        }, 1100);
+      }
     }
 
     async _triggerAdRevive() {
