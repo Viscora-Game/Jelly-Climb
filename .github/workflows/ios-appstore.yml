@@ -11,6 +11,16 @@ on:
         options:
           - verify-compile
           - upload-testflight
+      runner:
+        description: 'GitHub macOS runner (macos-15-intel avoids crowded arm64 queue; both include Xcode 16)'
+        required: false
+        default: 'macos-15-intel'
+        type: choice
+        options:
+          - macos-15-intel
+          - macos-15
+          - macos-14
+          - macos-latest
       marketing_version:
         description: 'App Store Version (CFBundleShortVersionString, e.g. 1.0.0)'
         required: false
@@ -25,7 +35,7 @@ on:
 jobs:
   ios-build:
     name: Build Jelly Climb iOS (${{ inputs.mode }})
-    runs-on: macos-15
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
 
     steps:
       - name: Checkout repository
