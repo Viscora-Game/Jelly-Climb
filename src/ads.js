@@ -17,11 +17,17 @@
    *  - Zero interstitial pauses happen between runs
    */
   const CONFIG = Object.freeze({
-    ENABLED: false,
-    TEST_MODE: true,
+    // Per-platform native ad activation:
+    // - iOS: LIVE with real AdMob App ID + Rewarded/Interstitial units
+    // - Android: stays dormant until Google Play closed testing finishes
+    // - Web browser: ALWAYS disabled
+    PLATFORM_ENABLED: Object.freeze({
+      ios: true,
+      android: false
+    }),
+    TEST_MODE: false,
     INTERSTITIAL_EVERY_RUNS: 3,
     INTERSTITIAL_MIN_COOLDOWN_MS: 45000,
-    // Official Google AdMob test Unit IDs split by platform (replace with live AdMob IDs on Native release)
     UNIT_IDS: Object.freeze({
       android: Object.freeze({
         revive: 'ca-app-pub-3940256099942544/5224354917',
@@ -29,9 +35,9 @@
         interstitial: 'ca-app-pub-3940256099942544/1033173712'
       }),
       ios: Object.freeze({
-        revive: 'ca-app-pub-3940256099942544/1712485313',
-        doubleDrops: 'ca-app-pub-3940256099942544/1712485313',
-        interstitial: 'ca-app-pub-3940256099942544/4411468910'
+        revive: 'ca-app-pub-5810332619798187/1845592682',
+        doubleDrops: 'ca-app-pub-5810332619798187/1845592682',
+        interstitial: 'ca-app-pub-5810332619798187/6839025371'
       })
     })
   });
@@ -40,6 +46,18 @@
   let _busy = false;
   let _completedRunsSinceInterstitial = 0;
   let _lastInterstitialAt = 0;
+
+  function _isNativePlatform() {
+    try {
+      return Boolean(
+        global.Capacitor &&
+          typeof global.Capacitor.isNativePlatform === 'function' &&
+          global.Capacitor.isNativePlatform()
+      );
+    } catch (_) {
+      return false;
+    }
+  }
 
   function _getPlatform() {
     try {
@@ -71,8 +89,14 @@
     }
   }
 
+  function isEnabled() {
+    if (!_isNativePlatform()) return false;
+    const plat = _getPlatform();
+    return Boolean(CONFIG.PLATFORM_ENABLED[plat]);
+  }
+
   async function init() {
-    if (!CONFIG.ENABLED || _initialized) return false;
+    if (!isEnabled() || _initialized) return false;
     const admob = _getAdMobPlugin();
     if (!admob || typeof admob.initialize !== 'function') return false;
     try {
@@ -92,18 +116,14 @@
     }
   }
 
-  function isEnabled() {
-    return Boolean(CONFIG.ENABLED);
-  }
-
   function canShowRewarded(placement) {
-    if (!CONFIG.ENABLED || _busy) return false;
+    if (!isEnabled() || _busy) return false;
     if (!placement || placement === 'interstitial' || !_getUnitId(placement)) return false;
     return Boolean(_getAdMobPlugin() || CONFIG.TEST_MODE);
   }
 
   function canShowInterstitial() {
-    if (!CONFIG.ENABLED || _busy) return false;
+    if (!isEnabled() || _busy) return false;
     if (!_getUnitId('interstitial')) return false;
     return Boolean(_getAdMobPlugin() || CONFIG.TEST_MODE);
   }
@@ -150,7 +170,7 @@
 
   async function maybeShowInterstitialAfterRun(options) {
     const opts = options || {};
-    if (!CONFIG.ENABLED) {
+    if (!isEnabled()) {
       return { shown: false, reason: 'disabled' };
     }
     if (opts.skipBecauseRewarded) {
@@ -202,6 +222,19 @@
     } finally {
       _busy = false;
     }
+  }
+
+  // Initialize AdMob + Apple ATT cleanly after the first screen settles (Apple Guideline 5.1.2)
+  function _scheduleNativeInit() {
+    if (!isEnabled()) return;
+    global.setTimeout(function () {
+      init().catch(function () {});
+    }, 1500);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _scheduleNativeInit);
+  } else {
+    _scheduleNativeInit();
   }
 
   JellyGame.Ads = Object.freeze({
