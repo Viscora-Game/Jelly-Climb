@@ -12,15 +12,15 @@ on:
           - verify-compile
           - upload-testflight
       runner:
-        description: 'GitHub macOS runner (macos-15-intel avoids crowded arm64 queue; both include Xcode 16)'
+        description: 'GitHub macOS runner (macos-26 includes required Xcode 26 & iOS 26 SDK)'
         required: false
-        default: 'macos-15-intel'
+        default: 'macos-26'
         type: choice
         options:
-          - macos-15-intel
-          - macos-15
-          - macos-14
+          - macos-26
           - macos-latest
+          - macos-15
+          - macos-15-intel
       marketing_version:
         description: 'App Store Version (CFBundleShortVersionString, e.g. 1.0.0)'
         required: false
@@ -35,7 +35,7 @@ on:
 jobs:
   ios-build:
     name: Build Jelly Climb iOS (${{ inputs.mode }})
-    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
+    runs-on: ${{ inputs.runner || 'macos-26' }}
 
     steps:
       - name: Checkout repository
@@ -55,10 +55,15 @@ jobs:
           npm run build:native
           npx cap sync ios
 
-      - name: Select latest Xcode
+      - name: Select latest Xcode 26+ (iOS 26 SDK required by App Store Connect)
         run: |
+          XCODE_APP=$(ls -d /Applications/Xcode_26*.app /Applications/Xcode.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$XCODE_APP" ]; then
+            echo "Selecting $XCODE_APP"
+            sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          fi
           xcodebuild -version
-          swift --version
+          xcodebuild -showsdks | grep iphoneos || true
 
       - name: Verify Release Compile (No Apple Secrets Needed)
         if: inputs.mode == 'verify-compile'
@@ -130,7 +135,8 @@ jobs:
           BUILD_NUM="${CUSTOM_BUILD_NUM:-$GITHUB_RUN_NUMBER}"
           echo "Archiving Jelly Climb v${MARKETING_VER} (build ${BUILD_NUM}) for Team ${APPLE_TEAM_ID}..."
 
-          # 1) Archive unsigned so Xcode doesn't require a Development profile or registered iPhone UDID
+          # 1) Archive with ad-hoc signature so embedded XCFrameworks (GoogleMobileAds, UserMessagingPlatform)
+          #    have valid CodeResources without requiring a registered physical iPhone UDID
           xcodebuild archive \
             -project ios/App/App.xcodeproj \
             -scheme App \
@@ -140,11 +146,11 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             MARKETING_VERSION="$MARKETING_VER" \
             CURRENT_PROJECT_VERSION="$BUILD_NUM" \
-            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="-"
 
-          # 2) Cloud-sign with Apple App Store Distribution certificate & upload directly to App Store Connect / TestFlight!
+          # 2) Cloud-sign App + all embedded frameworks with Apple Distribution cert & upload to TestFlight!
           xcodebuild -exportArchive \
             -archivePath build/JellyClimb.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
